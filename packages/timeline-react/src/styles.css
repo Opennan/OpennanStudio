@@ -1,0 +1,83 @@
+/* @opennan/timeline-react stylesheet. Compiled by `pnpm build:css` (Tailwind v4 CLI). */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "./styles/preflight.scoped.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./ui/slider.css";
+@import "./theme/tokens.css";
+@import "./editing/editing.css";
+@import "./editing/keyframe-graph.css";
+@import "./ai/ai.css";
+@import "./layer-editor/layer-editor.css";
+
+@source "./**/*.{ts,tsx}";
+@source "../../timeline-core/src/timeline/nle-timeline-layout.ts";
+@source "../../timeline-core/src/timeline/canvas/canvas-timeline-utils.ts";
+
+/* Dark only, as on opennan.com (SRC/providers/theme-provider.tsx forces .dark); tokens in ./theme/tokens.css. */
+@custom-variant dark (&:where(.dark, .dark *, [data-on-theme="dark"], [data-on-theme="dark"] *));
+
+@theme inline {
+  --color-background: var(--on-background);
+  --color-foreground: var(--on-foreground);
+  --font-sans: var(--on-font-sans);
+  --font-mono: var(--on-font-mono);
+  --color-ring: var(--on-ring);
+  --color-input: var(--on-input);
+  --color-border: var(--on-border);
+  --color-destructive: var(--on-destructive);
+  --color-accent-foreground: var(--on-accent-foreground);
+  --color-accent: var(--on-accent);
+  --color-muted-foreground: var(--on-muted-foreground);
+  --color-muted: var(--on-muted);
+  --color-secondary-foreground: var(--on-secondary-foreground);
+  --color-secondary: var(--on-secondary);
+  --color-primary-foreground: var(--on-primary-foreground);
+  --color-primary: var(--on-primary);
+  --color-popover-foreground: var(--on-popover-foreground);
+  --color-popover: var(--on-popover);
+  --color-card-foreground: var(--on-card-foreground);
+  --color-card: var(--on-card);
+  --radius-sm: var(--on-radius-sm);
+  --radius-md: var(--on-radius-md);
+  --radius-lg: var(--on-radius-lg);
+  --radius-xl: var(--on-radius-xl);
+  --radius-2xl: calc(var(--on-radius) * 1.8);
+}
+
+@layer base {
+  .opennan-studio,
+  .opennan-studio-portal {
+    font-family: var(--on-font-sans);
+    color: var(--on-foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: var(--on-tracking);
+  }
+  :where(.opennan-studio, .opennan-studio-portal) * {
+    border-color: var(--color-border);
+    outline-color: color-mix(in oklab, var(--color-ring) 50%, transparent);
+  }
+  :where(.opennan-studio, .opennan-studio-portal) :where(input, button, select, optgroup, textarea) {
+    font-family: var(--on-font-sans);
+  }
+  /* Scrollbars, scoped (SRC/app/globals.css:166-189). No scrollbar-color: Chrome would drop these. */
+  :where(.opennan-studio, .opennan-studio-portal) ::-webkit-scrollbar {
+    width: var(--on-scrollbar-size);
+    height: var(--on-scrollbar-size);
+  }
+  :where(.opennan-studio, .opennan-studio-portal) ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  :where(.opennan-studio, .opennan-studio-portal) ::-webkit-scrollbar-thumb {
+    background: var(--on-scrollbar-thumb);
+    border-radius: calc(var(--on-scrollbar-size) / 2);
+  }
+  :where(.opennan-studio, .opennan-studio-portal) ::-webkit-scrollbar-thumb:hover {
+    background: var(--on-scrollbar-thumb-hover);
+  }
+}

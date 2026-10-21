@@ -1,0 +1,8 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": { "types": ["vitest/globals", "node"] },
+    "include": ["src"],
+    // Upstream test fixture has a pre-existing excess-property error (TS2353, also present in
+    // the source repo). Copied files are not edited by hand; vitest still runs this file.
+    "exclude": ["src/lib/timeline-editing-nudge-paste.test.ts"]
+}

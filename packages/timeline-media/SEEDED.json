@@ -1,0 +1,50 @@
+{
+    "src/audio-duration.test.ts": {
+        "source": "lib/audio-duration.test.ts",
+        "sha256": "442837d0b94cb0a7593ef97ee8510e1460f66b01d5caac90f50db6530fbdd73d"
+    },
+    "src/audio-duration.ts": {
+        "source": "lib/audio-duration.ts",
+        "sha256": "1bb7509f9732722ec9feaeb24e514483fc10b24882c4231f4db2b85e90e96366"
+    },
+    "src/dexie/local-db.ts": {
+        "source": "lib/local-db.ts",
+        "sha256": "f6735c8eb127bcb18795efada39709da9f787ae01a3c3e9a6b35c029c634eb8c"
+    },
+    "src/dexie/timeline-local-store.ts": {
+        "source": "lib/timeline-local-store.ts",
+        "sha256": "61a2cf39ce779b38512483008da1b90cfa828a22c5a1bafbbabaf14b045701f3"
+    },
+    "src/effects/effect-layer-prep.ts": {
+        "source": "lib/effect-layer-prep.ts",
+        "sha256": "a70efcae7db562cb438034609865c0ff4ed59bec4ffe38a37cb236730bd29524"
+    },
+    "src/effects/effect-renderer.test.ts": {
+        "source": "lib/effect-renderer.test.ts",
+        "sha256": "625df1004c7069fda3c9e37d8629742e8b8e0763a296605a43f1239e67cc3a25"
+    },
+    "src/effects/effect-renderer.ts": {
+        "source": "lib/effect-renderer.ts",
+        "sha256": "7a901c5f1c3089075c5b99bde2eae281ad1cc7bee9884fa4c19e93e794a76122"
+    },
+    "src/thumbnail-generator.test.ts": {
+        "source": "components/editor/timeline/canvas/thumbnail-generator.test.ts",
+        "sha256": "41eff6e022b995758603f3615cd4e27830208fa3ec319bdb089270f076885740"
+    },
+    "src/thumbnail-generator.ts": {
+        "source": "components/editor/timeline/canvas/thumbnail-generator.ts",
+        "sha256": "94442bce481fd246d34e845ab69667f16ca43f386b375d812836bbf76fce9afe"
+    },
+    "src/waveform-generator.ts": {
+        "source": "components/editor/timeline/canvas/waveform-generator.ts",
+        "sha256": "f679c25de66affd974c50196a02be9a821c2273aa0cd86d1ffbc139ec3c53de4"
+    },
+    "src/webcodecs-frame-source.test.ts": {
+        "source": "components/editor/timeline/canvas/webcodecs-frame-source.test.ts",
+        "sha256": "1b7504cb1c5edc618d92f733530c4f3424d45c6613159a4143c156b22df58159"
+    },
+    "src/webcodecs-frame-source.ts": {
+        "source": "components/editor/timeline/canvas/webcodecs-frame-source.ts",
+        "sha256": "978ec8b5f116e4bc088405dfa724016b7046d9ce3f247495eba3a9c00fb3e195"
+    }
+}

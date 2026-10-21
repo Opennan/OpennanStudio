@@ -1,0 +1,5 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": { "jsx": "react-jsx", "types": ["vite/client", "vitest/globals"] },
+    "include": ["src/renderer", "src/shared", "src/preload", "../web/src/vite-env.d.ts"]
+}

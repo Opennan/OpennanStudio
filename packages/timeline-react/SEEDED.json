@@ -1,0 +1,166 @@
+{
+    "src/clip-properties/clip-properties-remotion.ts": {
+        "source": "components/editor/timeline/clip-properties-remotion.ts",
+        "sha256": "2b885824eebcc5646801992f9d5774c64656efef1d90d0d52d9c8bc23f4b3cb4"
+    },
+    "src/clip-properties/clip-properties.test.ts": {
+        "source": "components/editor/timeline/clip-properties.test.ts",
+        "sha256": "60acf3dca4bb13b3ed7fcf7fe7654dacbfabde7eb6cfb0291770ad055df89bb9"
+    },
+    "src/clip-properties/clip-properties.tsx": {
+        "source": "components/editor/timeline/clip-properties.tsx",
+        "sha256": "5658663886b6cd921abb3bb76fd75629c2ffaebe52185f45a0e67aead4308707"
+    },
+    "src/clip-properties/effect-param-panel.tsx": {
+        "source": "components/editor/effects/effect-param-panel.tsx",
+        "sha256": "97ddc8ff0ff910b16be5d645b80e6757a072823f5f9a85799a0330376e86f0aa"
+    },
+    "src/hooks/use-document-visible.test.tsx": {
+        "source": "hooks/use-document-visible.test.tsx",
+        "sha256": "c2209ed3491fa24d0e0f4a6a73ff910508c8427fa5631ee092fd037c7f9d45e1"
+    },
+    "src/hooks/use-document-visible.ts": {
+        "source": "hooks/use-document-visible.ts",
+        "sha256": "bfb122889c5584d6abd51541746afbe8f6b4204ab3b97e9266c9de78d86de62e"
+    },
+    "src/hooks/use-effect-catalog.test.ts": {
+        "source": "hooks/use-effect-catalog.test.ts",
+        "sha256": "e73c1cd8c8ff377b187fc6dc273508f3ec411895b9e2b70d48f170678826ab4f"
+    },
+    "src/hooks/use-effect-catalog.ts": {
+        "source": "hooks/use-effect-catalog.ts",
+        "sha256": "35e4bd925c2cd2dd05510d0216d28f874a9aa4aa673bd64fca9516f4a8d8ac5d"
+    },
+    "src/hooks/use-video-cache.ts": {
+        "source": "hooks/use-video-cache.ts",
+        "sha256": "2d8a2c1252b95589692890ebc340377642a201749e30ac29f3e16ba2d2dd680f"
+    },
+    "src/parts/add-track-button.test.tsx": {
+        "source": "components/editor/timeline/add-track-button.test.tsx",
+        "sha256": "4a2547313512cffc79d9466b1b7c72cddd4a38e5b770d97a30297d3e364b578a"
+    },
+    "src/parts/add-track-button.tsx": {
+        "source": "components/editor/timeline/add-track-button.tsx",
+        "sha256": "edd3222814ce95637c62d97051128ab63e944567c0c020ce1faceec35e935c6c"
+    },
+    "src/parts/sticker-picker.tsx": {
+        "source": "components/editor/timeline/sticker-picker.tsx",
+        "sha256": "8389f7309515e9d072b3591f426d89a46e1629629f350c956d8c255e304b5375"
+    },
+    "src/parts/timeline-error-boundary.tsx": {
+        "source": "components/editor/timeline/timeline-error-boundary.tsx",
+        "sha256": "8a6115c59c28d8b95b166ecf104d3544d81a90ff50c8d0f502ee3b423bbd3565"
+    },
+    "src/parts/track-label.tsx": {
+        "source": "components/editor/timeline/track-label.tsx",
+        "sha256": "712742110d752731bd2a71d602373f27970d7bab0871d543b0ce69b4010d3f52"
+    },
+    "src/parts/track-volume-control.tsx": {
+        "source": "components/editor/timeline/track-volume-control.tsx",
+        "sha256": "66b4193c7d2d6972ee93d5c188015169d8e98c5783db2e5e77d7ac0597bc5c66"
+    },
+    "src/preview/effect-layer-overlay.tsx": {
+        "source": "components/editor/effects/effect-layer-overlay.tsx",
+        "sha256": "aead091460f86a91f654f87e4ef8c98943b37bf8f6816892d6410391895613b3"
+    },
+    "src/preview/preview-panel.tsx": {
+        "source": "components/editor/preview-panel.tsx",
+        "sha256": "e945870f038d6f083f45a8eebc8225cd2d6d0fdd2cea6aab8ad2eaf795830cc7"
+    },
+    "src/preview/preview-screen-frame.test.ts": {
+        "source": "components/editor/preview-screen-frame.test.ts",
+        "sha256": "41fd512e958d4efc6dc1acc85809af706e3b1ef1f29414815b8a5fd04b0b09e3"
+    },
+    "src/preview/preview-screen-frame.ts": {
+        "source": "components/editor/preview-screen-frame.ts",
+        "sha256": "16c26e739c4e33cb68ffe4e77d98d0e6bb4a674614dc6b01f0b8a480cd8406c0"
+    },
+    "src/preview/remotion-content-bounds.test.ts": {
+        "source": "components/editor/remotion-content-bounds.test.ts",
+        "sha256": "40ad78bb5bd4b93cc3cd17a3f31c3151096cbba1bf19c0993543920434be34c6"
+    },
+    "src/preview/remotion-content-bounds.ts": {
+        "source": "components/editor/remotion-content-bounds.ts",
+        "sha256": "deb713514d5a66e8bf3d4417dc27fee72103211783283aafdf213a394c1b9663"
+    },
+    "src/preview/scene-preview.behavior.test.tsx": {
+        "source": "components/editor/scene-preview.behavior.test.tsx",
+        "sha256": "c27efc4851ee74a772e8b8136e1708ba928cd6575e4db2e4f820e2c96b663611"
+    },
+    "src/preview/scene-preview.tsx": {
+        "source": "components/editor/scene-preview.tsx",
+        "sha256": "12a60e79a7aa0a711eecce682f43721ee916ae5213da7f58125db358a6ebe6d3"
+    },
+    "src/timeline/canvas/canvas-context-menu.tsx": {
+        "source": "components/editor/timeline/canvas/canvas-context-menu.tsx",
+        "sha256": "dde4a80204a04128d74cf56d0490d4b43d62089badd4aff7786833b808e6ed33"
+    },
+    "src/timeline/canvas/canvas-timeline.dragdrop.test.tsx": {
+        "source": "components/editor/timeline/canvas/canvas-timeline.dragdrop.test.tsx",
+        "sha256": "6f10dd8181f8eac1b8ff8947ab8e9681aabd035a091d6325a4e49a0ccce62041"
+    },
+    "src/timeline/canvas/canvas-timeline.selection.test.tsx": {
+        "source": "components/editor/timeline/canvas/canvas-timeline.selection.test.tsx",
+        "sha256": "af29ad0e1d741bf274ecdff6660e5fec3d63aa6915fa4c5102681336f2897379"
+    },
+    "src/timeline/canvas/canvas-timeline.tsx": {
+        "source": "components/editor/timeline/canvas/canvas-timeline.tsx",
+        "sha256": "8eba164d28c32d3db5b03afd8d990331a681d1bc7a1bbc81ed41b6f94619a8cd"
+    },
+    "src/timeline/nle-timeline-audio-drop.test.tsx": {
+        "source": "components/editor/timeline/nle-timeline-audio-drop.test.tsx",
+        "sha256": "6732ebeaa322a643afd4ecf0c3360048edb291f30cd9dd994fed1ee11087cffe"
+    },
+    "src/timeline/nle-timeline-deselect.test.tsx": {
+        "source": "components/editor/timeline/nle-timeline-deselect.test.tsx",
+        "sha256": "c06a677dd1b1c66759d5f7704844800103539f167d95c510bd4a8d47fae23622"
+    },
+    "src/timeline/nle-timeline-effect-drop.test.tsx": {
+        "source": "components/editor/timeline/nle-timeline-effect-drop.test.tsx",
+        "sha256": "6b6e809f94660b09425e359d16f3862c1380941363347c181b86ccd84cbd681b"
+    },
+    "src/timeline/nle-timeline-scene-split.test.tsx": {
+        "source": "components/editor/timeline/nle-timeline-scene-split.test.tsx",
+        "sha256": "f9e8c517e32e456430e792fb20f20a75fe1d979f9a412b2c4245a532d5000efc"
+    },
+    "src/timeline/nle-timeline-transition-drop.test.tsx": {
+        "source": "components/editor/timeline/nle-timeline-transition-drop.test.tsx",
+        "sha256": "6ecd9d20af7348031ca8801b3bea5dfb791151c61ddcb101cd052767e8bbc9f9"
+    },
+    "src/timeline/nle-timeline-utils.ts": {
+        "source": "components/editor/timeline/nle-timeline-utils.ts",
+        "sha256": "8107391d5f707d9d2f82c6fdf7f4024fe680960b6d4e065fe694ae4d0a8cbac7"
+    },
+    "src/timeline/nle-timeline.tsx": {
+        "source": "components/editor/timeline/nle-timeline.tsx",
+        "sha256": "b49142f00909ee98de14b3a7b0581b66c53a6e12302dbd4c3ff9c9c120d2a817"
+    },
+    "src/ui/button.tsx": {
+        "source": "components/ui/button.tsx",
+        "sha256": "f7ca27ca739ceafc3c4a04f5507eb8f77386041bfd660966d71e0e24e7c8f336"
+    },
+    "src/ui/cn.ts": {
+        "source": "lib/utils.ts",
+        "sha256": "7c8c3dfc0cdd370d44932828eb067ef771c8fe7996693221d5d4b90af6d54f2d"
+    },
+    "src/ui/dialog.tsx": {
+        "source": "components/ui/dialog.tsx",
+        "sha256": "1c883cc3d263d334fa9c8549a4613363896ea0a5f67565ffac45a7ce3b7db6dc"
+    },
+    "src/ui/dropdown-menu.tsx": {
+        "source": "components/ui/dropdown-menu.tsx",
+        "sha256": "e7a84bf2c7ec707b57456b18bc851f19bf32153d22c46138812ac737088c2403"
+    },
+    "src/ui/properties-step-card.tsx": {
+        "source": "components/editor/scene-properties/properties-step-card.tsx",
+        "sha256": "2db795656ad76983d7252900f648df41dc4af28583de4dca0dfd58e5e137f241"
+    },
+    "src/ui/slider.tsx": {
+        "source": "components/ui/slider.tsx",
+        "sha256": "2a116206c6d1e4e497616666271ffb67208c0e2cfe96dac79f381f6060fd5d7e"
+    },
+    "src/ui/tooltip.tsx": {
+        "source": "components/ui/tooltip.tsx",
+        "sha256": "2cea2294d4947b88d815860f64e0b5e0eb47a59bde47cfd194aac2230c923865"
+    }
+}

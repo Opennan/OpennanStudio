@@ -1,0 +1,141 @@
+/*
+ * OpenNan theme tokens: the one place Studio's colors, type, radii, shadows, and focus rings live.
+ * Values follow opennan.com (brand values owned by OpenNan). opennan.com is dark only: it forces the
+ * dark theme whatever the OS preference says, so these tokens have no light variant and pin
+ * color-scheme to dark.
+ *
+ * Scope: the editor roots (.opennan-studio, .opennan-studio-portal) and .opennan-theme, a class
+ * that only carries the tokens (no reset) so a host can theme its own chrome with them. Shipped
+ * inside styles.css and on its own as @opennan/timeline-react/theme.css.
+ *
+ * Fonts: the tokens name Inter (UI) and Hubot Sans (display headings), both SIL OFL 1.1. The
+ * package does not load font files; the host does (apps/web bundles @fontsource-variable/inter
+ * and @fontsource-variable/hubot-sans), and the stacks fall back to system fonts without them.
+ */
+.opennan-theme,
+.opennan-studio,
+.opennan-studio-portal {
+  color-scheme: dark;
+
+  /* Surfaces, darkest to lightest. */
+  --on-background: #0a0c0f;          /* page */
+  --on-surface: #0a0a0b;             /* editor panels, toolbars, timeline */
+  --on-surface-raised: #101012;      /* cards, tiles, thumbnails */
+  --on-surface-overlay: #141416;     /* solid glass surface */
+  --on-popover: #1a1a1d;             /* menus, toasts */
+  --on-card: rgba(255, 255, 255, 0.05);
+
+  /* Translucent fills over any surface (hover, pressed, selected). */
+  --on-fill-subtle: rgba(255, 255, 255, 0.04);
+  --on-fill: rgba(255, 255, 255, 0.06);
+  --on-fill-strong: rgba(255, 255, 255, 0.08);
+
+  /* Text. */
+  --on-foreground: #e8e8ea;
+  --on-foreground-strong: #ffffff;   /* display headings */
+  --on-text-secondary: #a0a0a8;
+  --on-icon: #8a8a93;
+  --on-muted-foreground: #6b6b73;
+
+  /* Lines. */
+  --on-border-subtle: rgba(255, 255, 255, 0.06);
+  --on-border: rgba(255, 255, 255, 0.08);
+  --on-border-strong: rgba(255, 255, 255, 0.12);
+  --on-border-hover: rgba(255, 255, 255, 0.2);
+  --on-input: rgba(255, 255, 255, 0.08);
+  --on-field: rgba(255, 255, 255, 0.04);
+  --on-field-border: rgba(255, 255, 255, 0.15);
+
+  /* Actions: primary is white on near-black, as on opennan.com. */
+  --on-primary: #ffffff;
+  --on-primary-hover: #e2e8f0;
+  --on-primary-foreground: #111113;
+  --on-secondary: rgba(255, 255, 255, 0.05);
+  --on-secondary-foreground: #e8e8ea;
+  --on-muted: rgba(255, 255, 255, 0.05);
+  --on-accent: rgba(255, 255, 255, 0.07);
+  --on-accent-foreground: #e8e8ea;
+  --on-card-foreground: #e8e8ea;
+  --on-popover-foreground: #e8e8ea;
+
+  /* Brand: the ice-blue accent (sky-300), as on opennan.com only for focus rings, links, and small icon tints.
+     Active and selected states are monochrome: white (--on-primary) or the strong fill. */
+  --on-brand: #7dd3fc;
+  --on-brand-soft: rgba(125, 211, 252, 0.1);
+  --on-brand-border: rgba(125, 211, 252, 0.3);
+  --on-link: #7dd3fc;
+  --on-ring: rgba(125, 211, 252, 0.4);
+  --on-focus-ring: 0 0 0 3px rgba(125, 211, 252, 0.2);
+
+  /* Status. */
+  --on-destructive: oklch(0.6 0.2 25);
+  --on-destructive-soft: color-mix(in oklab, oklch(0.6 0.2 25) 20%, transparent);
+  --on-destructive-text: oklch(0.71 0.17 22);
+  --on-success: #34d399;
+  --on-success-text: #6ee7b7;
+  --on-success-soft: rgba(52, 211, 153, 0.1);
+  --on-success-border: rgba(52, 211, 153, 0.2);
+  --on-warning: #fbbf24;
+  --on-warning-text: #fcd34d;
+  --on-warning-soft: rgba(251, 191, 36, 0.1);
+  --on-warning-border: rgba(251, 191, 36, 0.2);
+
+  /* Radii: shadcn scale on a 10px base. */
+  --on-radius: 0.625rem;
+  --on-radius-sm: calc(var(--on-radius) * 0.6);
+  --on-radius-md: calc(var(--on-radius) * 0.8);
+  --on-radius-lg: var(--on-radius);
+  --on-radius-xl: calc(var(--on-radius) * 1.4);
+  --on-radius-full: 9999px;
+
+  /* Elevation. Dialogs and cards use a hairline ring; menus and toasts cast a shadow. */
+  --on-ring-hairline: 0 0 0 1px rgba(232, 232, 234, 0.1);
+  --on-shadow-popover: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --on-shadow-glow: 0 1px 8px -2px var(--on-primary);
+  --on-overlay: rgba(0, 0, 0, 0.1);
+  --on-overlay-blur: 4px;
+
+  /* Scrollbars. */
+  --on-scrollbar-size: 6px;
+  --on-scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --on-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+
+  /* Type. */
+  --on-font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --on-font-display: "Hubot Sans Variable", "Hubot Sans", var(--on-font-sans);
+  --on-font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --on-tracking: -0.011em;
+  --on-tracking-display: -0.02em;
+  --on-weight-display: 800;
+
+  /* Motion. */
+  --on-duration: 150ms;
+  --on-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Canvas timeline (read by the renderer theme): one color per track kind, matching the rail icons. */
+  --timeline-text-fill: rgba(251, 191, 36, 0.10);
+  --timeline-text-border: rgba(251, 191, 36, 0.32);
+  --timeline-audio-fill: rgba(52, 211, 153, 0.09);
+  --timeline-audio-border: rgba(52, 211, 153, 0.30);
+  --timeline-audio-wave: rgba(255, 255, 255, 0.7);
+  --timeline-sticker-fill: rgba(244, 114, 182, 0.10);
+  --timeline-effect-fill: rgba(192, 132, 252, 0.10);
+  --timeline-effect-border: rgba(192, 132, 252, 0.30);
+  --timeline-music-fill: rgba(255, 255, 255, 0.06);
+  --timeline-music-wave: rgba(255, 255, 255, 0.45);
+  --timeline-playhead: rgba(255, 255, 255, 0.95);
+  --timeline-transition-bg: rgba(8, 10, 14, 0.62);
+  --timeline-transition-bg-selected: rgba(8, 10, 14, 0.82);
+  --timeline-transition-border: rgba(255, 255, 255, 0.35);
+  --timeline-selection-ring: rgba(255, 255, 255, 0.9);
+  --timeline-focus-ring: var(--on-ring);
+  --timeline-snap-line: rgba(255, 255, 255, 0.75);
+  /* AI in the editor (phase 11): beat dots on audio clips, AI job progress lines, cut preview ghosts. */
+  --timeline-beat-dot: rgba(255, 255, 255, 0.7);
+  --timeline-ai-progress: rgba(167, 139, 250, 0.95);
+  --timeline-ai-progress-track: rgba(167, 139, 250, 0.25);
+  --timeline-cut-preview: rgba(248, 113, 113, 0.18);
+  --timeline-cut-preview-border: rgba(248, 113, 113, 0.6);
+  --timeline-ai-changed: rgba(255, 255, 255, 0.9);
+  --timeline-ai-changed-tag: rgba(10, 10, 11, 0.88);
+}

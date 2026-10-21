@@ -1,0 +1,54 @@
+{
+    "name": "@opennan/timeline-media",
+    "version": "0.5.0",
+    "description": "Thumbnails, waveforms, frame decoding, and media probing for the OpenNan video editor, behind an injected MediaEnvironment.",
+    "license": "SEE LICENSE IN LICENSE",
+    "type": "module",
+    "sideEffects": false,
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        },
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "import": "./dist/*.js",
+            "require": "./dist/*.cjs"
+        }
+    },
+    "files": ["dist", "LICENSE", "README.md"],
+    "scripts": {
+        "build": "tsup",
+        "test": "vitest run",
+        "typecheck": "tsc -p tsconfig.json"
+    },
+    "dependencies": {
+        "@opennan/timeline-core": "workspace:*"
+    },
+    "peerDependencies": {
+        "dexie": "^4.4.4",
+        "mediabunny": "^1.49.0",
+        "regl": "^2.1.1"
+    },
+    "peerDependenciesMeta": {
+        "dexie": { "optional": true },
+        "mediabunny": { "optional": true },
+        "regl": { "optional": true }
+    },
+    "devDependencies": {
+        "@testing-library/jest-dom": "^6.9.1",
+        "@types/node": "^20.0.0",
+        "dexie": "^4.4.4",
+        "fake-indexeddb": "^6.0.0",
+        "jsdom": "^29.1.1",
+        "mediabunny": "^1.49.0",
+        "regl": "^2.1.1",
+        "tsup": "^8.5.0",
+        "typescript": "^5.9.0",
+        "vitest": "^4.1.7"
+    }
+}

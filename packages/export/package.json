@@ -1,0 +1,94 @@
+{
+    "name": "@opennan/export",
+    "version": "0.8.0",
+    "description": "Local MP4 export for the OpenNan video editor: compiles a timeline into an ffmpeg filter graph and runs it on native ffmpeg or ffmpeg.wasm.",
+    "license": "SEE LICENSE IN LICENSE",
+    "type": "module",
+    "sideEffects": [
+        "./dist/gpu-worker/index.js",
+        "./dist/gpu-worker/index.cjs"
+    ],
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        },
+        "./node": {
+            "types": "./dist/node/index.d.ts",
+            "import": "./dist/node/index.js",
+            "require": "./dist/node/index.cjs"
+        },
+        "./web": {
+            "types": "./dist/web/index.d.ts",
+            "import": "./dist/web/index.js",
+            "require": "./dist/web/index.cjs"
+        },
+        "./web-gl": {
+            "types": "./dist/web-gl/index.d.ts",
+            "import": "./dist/web-gl/index.js",
+            "require": "./dist/web-gl/index.cjs"
+        },
+        "./gpu-worker": {
+            "types": "./dist/gpu-worker/index.d.ts",
+            "import": "./dist/gpu-worker/index.js",
+            "require": "./dist/gpu-worker/index.cjs"
+        }
+    },
+    "files": [
+        "dist",
+        "LICENSE",
+        "README.md",
+        "THIRD_PARTY_NOTICES"
+    ],
+    "scripts": {
+        "build": "tsup",
+        "test": "vitest run",
+        "test:golden": "node golden/make-media.mjs && vitest run --config vitest.golden.config.ts",
+        "typecheck": "tsc -p tsconfig.json"
+    },
+    "dependencies": {
+        "@opennan/timeline-core": "workspace:*"
+    },
+    "peerDependencies": {
+        "@ffmpeg/ffmpeg": "^0.12.15",
+        "@ffmpeg/util": "^0.12.2",
+        "@opennan/timeline-media": "workspace:*",
+        "mediabunny": "^1.49.0",
+        "regl": "^2.1.1"
+    },
+    "peerDependenciesMeta": {
+        "@ffmpeg/ffmpeg": {
+            "optional": true
+        },
+        "@ffmpeg/util": {
+            "optional": true
+        },
+        "@opennan/timeline-media": {
+            "optional": true
+        },
+        "mediabunny": {
+            "optional": true
+        },
+        "regl": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@ffmpeg/core": "0.12.10",
+        "@ffmpeg/ffmpeg": "^0.12.15",
+        "@ffmpeg/util": "^0.12.2",
+        "@napi-rs/canvas": "^1.0.11",
+        "@opennan/timeline-media": "workspace:*",
+        "@types/node": "^20.0.0",
+        "dejavu-fonts-ttf": "^2.37.3",
+        "mediabunny": "^1.49.0",
+        "regl": "^2.1.1",
+        "tsup": "^8.5.0",
+        "typescript": "^5.9.0",
+        "vitest": "^4.1.7"
+    }
+}

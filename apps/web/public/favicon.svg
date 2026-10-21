@@ -1,0 +1,12 @@
+<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark background circle -->
+  <circle cx="24" cy="24" r="24" fill="#0F0F10"/>
+  <!-- Icon centered, scaled up -->
+  <g transform="translate(10, 10) scale(1.167)">
+    <path d="M 17.66 17.66 A 8 8 0 1 1 17.66 6.34" stroke="#E8E8EA" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <circle cx="12" cy="20" r="1.6" fill="#E8E8EA"/>
+    <circle cx="4" cy="12" r="1.6" fill="#E8E8EA"/>
+    <circle cx="12" cy="4" r="1.6" fill="#E8E8EA"/>
+    <circle cx="12" cy="12" r="2" fill="#E8E8EA"/>
+  </g>
+</svg>

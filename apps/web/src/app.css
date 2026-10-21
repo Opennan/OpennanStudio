@@ -1,0 +1,92 @@
+/* Studio shell styles. Every color, radius, shadow, and font comes from the OpenNan tokens
+   (@opennan/timeline-react src/theme/tokens.css, scoped to .opennan-theme on <html>). */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+html { color-scheme: dark; background: var(--on-background); }
+body {
+    background: var(--on-background); color: var(--on-foreground);
+    font: 14px/1.45 var(--on-font-sans); letter-spacing: var(--on-tracking);
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
+}
+input, button, select, textarea { font-family: var(--on-font-sans); letter-spacing: inherit; }
+a { color: inherit; }
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+:focus-visible { outline: 2px solid var(--on-ring); outline-offset: 2px; }
+::selection { background: var(--on-fill-strong); }
+
+/* Scrollbars (opennan.com globals). */
+::-webkit-scrollbar { width: var(--on-scrollbar-size); height: var(--on-scrollbar-size); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--on-scrollbar-thumb); border-radius: calc(var(--on-scrollbar-size) / 2); }
+::-webkit-scrollbar-thumb:hover { background: var(--on-scrollbar-thumb-hover); }
+
+/* Page headings use the display face, as opennan.com does. */
+.projects-main h1, .settings-main h1, .projects-empty h2, .screen-message h1 {
+    font-family: var(--on-font-display); font-weight: var(--on-weight-display);
+    letter-spacing: var(--on-tracking-display); color: var(--on-foreground-strong); line-height: 1.1;
+}
+
+.muted { color: var(--on-text-secondary); }
+.small { font-size: 12px; }
+.error-text { color: var(--on-destructive-text); margin: 0; }
+
+/* Buttons: outline by default, white primary, quiet ghost, tinted destructive. */
+.button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 32px; padding: 0 12px; border-radius: var(--on-radius-lg); border: 1px solid var(--on-border-strong);
+    background: var(--on-field); color: var(--on-foreground); font: 500 13px var(--on-font-sans); letter-spacing: inherit;
+    white-space: nowrap; text-decoration: none; cursor: pointer; user-select: none;
+    transition: background-color var(--on-duration), border-color var(--on-duration), color var(--on-duration), box-shadow var(--on-duration);
+}
+.button:hover:not(:disabled) { background: var(--on-fill-strong); border-color: var(--on-border-hover); }
+.button:focus-visible, .icon-button:focus-visible { outline: none; border-color: var(--on-ring); box-shadow: var(--on-focus-ring); }
+.button:disabled { opacity: 0.5; cursor: not-allowed; }
+.button.primary { background: var(--on-primary); border-color: var(--on-primary); color: var(--on-primary-foreground); font-weight: 600; }
+.button.primary:hover:not(:disabled) { background: var(--on-primary-hover); border-color: var(--on-primary-hover); }
+.button.ghost { background: transparent; border-color: transparent; color: var(--on-text-secondary); }
+.button.ghost:hover:not(:disabled) { background: var(--on-fill); color: var(--on-foreground); }
+.button.danger { background: var(--on-destructive-soft); border-color: transparent; color: var(--on-destructive-text); }
+.button.danger:hover:not(:disabled) { background: color-mix(in oklab, var(--on-destructive) 30%, transparent); border-color: transparent; }
+.button.small { height: 28px; padding: 0 10px; border-radius: var(--on-radius-md); font-size: 12px; }
+.icon-button {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 8px;
+    border-radius: var(--on-radius-md); border: 1px solid transparent; background: transparent; color: var(--on-icon);
+    font: 500 12px var(--on-font-sans); cursor: pointer; transition: background-color var(--on-duration), color var(--on-duration);
+}
+.icon-button:hover { color: var(--on-foreground); background: var(--on-fill-strong); }
+.icon-button.danger:hover { color: var(--on-destructive-text); background: var(--on-destructive-soft); }
+
+/* Form fields. */
+.field { display: grid; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.field > span, .field > legend { font-size: 12px; font-weight: 500; color: var(--on-text-secondary); padding: 0; margin-bottom: 6px; }
+.text-input {
+    height: 36px; padding: 0 12px; border-radius: var(--on-radius-lg); border: 1px solid var(--on-field-border);
+    background: var(--on-field); color: var(--on-foreground); font: 14px var(--on-font-sans); letter-spacing: inherit; width: 100%;
+    transition: border-color var(--on-duration), box-shadow var(--on-duration);
+}
+.text-input::placeholder { color: var(--on-muted-foreground); }
+.text-input:focus { border-color: var(--on-ring); box-shadow: var(--on-focus-ring); outline: none; }
+
+/* Dialogs: a hairline-ringed panel over a light blurred scrim; the footer is a tinted strip. */
+.dialog-backdrop {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px;
+    background: var(--on-overlay); backdrop-filter: blur(var(--on-overlay-blur)); -webkit-backdrop-filter: blur(var(--on-overlay-blur));
+}
+.dialog {
+    width: min(480px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 16px; border-radius: var(--on-radius-xl);
+    background: var(--on-background); color: var(--on-foreground); box-shadow: var(--on-ring-hairline), var(--on-shadow-popover);
+    animation: dialog-in var(--on-duration) var(--on-ease);
+}
+.dialog-title { font-size: 16px; font-weight: 500; line-height: 1; margin: 4px 0 16px; }
+.dialog-body { display: grid; gap: 16px; }
+.dialog-footer {
+    display: flex; justify-content: flex-end; gap: 8px; margin: 4px -16px -16px; padding: 16px;
+    border-top: 1px solid var(--on-border); background: color-mix(in oklab, var(--on-muted) 50%, transparent);
+    border-radius: 0 0 var(--on-radius-xl) var(--on-radius-xl);
+}
+@keyframes dialog-in { from { opacity: 0; transform: scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .dialog { animation: none; } }
+
+.screen-message { display: grid; place-content: center; justify-items: center; gap: 12px; height: 100%; padding: 24px; text-align: center; }
+.screen-message h1 { font-size: 20px; }

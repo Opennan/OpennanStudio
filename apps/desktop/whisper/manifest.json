@@ -1,0 +1,27 @@
+{
+    "version": "1.9.5",
+    "license": "MIT",
+    "source": {
+        "url": "https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.9.5.tar.gz",
+        "sha256": "ff1a9053feb509ff9d7729703355541ae9690073a6b1c40eb692c962e0dc1720",
+        "commit": "d1be6fde11ac6e0407606b4e42fe72d34add8037",
+        "dir": "whisper.cpp-1.9.5"
+    },
+    "builds": {
+        "darwin-arm64": { "build": "cmake", "arch": "arm64" },
+        "darwin-x64": { "build": "cmake", "arch": "x86_64" },
+        "win32-x64": { "build": "cmake", "arch": "x64" },
+        "linux-x64": {
+            "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-ubuntu-x64.tar.gz",
+            "sha256": "a72becf15d7917f990f6313867a52638b82b7f9ef237fb0c980dac56a135781c",
+            "archive": "tar.gz",
+            "dir": "whisper-bin-ubuntu-x64"
+        },
+        "linux-arm64": {
+            "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-ubuntu-arm64.tar.gz",
+            "sha256": "6b95ebfc60447df48e70ef00a73bdc3f41679ed2d01ef465827206a2ff325149",
+            "archive": "tar.gz",
+            "dir": "whisper-bin-ubuntu-arm64"
+        }
+    }
+}

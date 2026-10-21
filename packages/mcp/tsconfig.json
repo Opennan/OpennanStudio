@@ -1,0 +1,14 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "types": ["vitest/globals", "node"],
+        "paths": {
+            "@opennan/timeline-core": ["../timeline-core/src/index.ts"],
+            "@opennan/timeline-core/*": ["../timeline-core/src/*"],
+            "@opennan/export": ["../export/src/index.ts"],
+            "@opennan/export/node": ["../export/src/node/index.ts"],
+            "@opennan/mcp-schema": ["../mcp-schema/src/index.ts"]
+        }
+    },
+    "include": ["src"]
+}

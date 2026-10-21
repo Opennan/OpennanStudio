@@ -1,0 +1,51 @@
+/* Auto captions dialog: theme tokens only (packages/timeline-react/src/theme/tokens.css). */
+.captions-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.captions-select { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 28px; }
+.captions-select:disabled { opacity: 0.6; cursor: not-allowed; }
+.captions-note {
+    margin: 0; padding: 10px 12px; border-radius: var(--on-radius-lg); background: var(--on-fill-subtle);
+    box-shadow: var(--on-ring-hairline); color: var(--on-text-secondary);
+}
+.captions-unavailable {
+    margin: 0; padding: 12px; border-radius: var(--on-radius-lg); border: 1px solid var(--on-warning-border);
+    background: var(--on-warning-soft); color: var(--on-warning-text);
+}
+.captions-progress { display: grid; gap: 6px; }
+.captions-progress progress {
+    width: 100%; height: 6px; border: 0; border-radius: var(--on-radius-full); overflow: hidden; accent-color: var(--on-primary);
+    appearance: none; -webkit-appearance: none; background: var(--on-fill-strong);
+}
+.captions-progress progress::-webkit-progress-bar { background: var(--on-fill-strong); }
+.captions-progress progress::-webkit-progress-value { background: var(--on-primary); border-radius: var(--on-radius-full); transition: width var(--on-duration); }
+.captions-progress progress::-moz-progress-bar { background: var(--on-primary); }
+.captions-done { margin: 0; color: var(--on-success-text); }
+/* A feature without a provider stays clickable (it opens the guidance) but reads as unavailable. */
+.topbar-gated[data-unavailable="true"] { color: var(--on-muted-foreground); }
+/* Caption style picker (phase 10b): 8 cards; the thumbnails draw each style's own colours (content). */
+.captions-styles { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 6px; }
+.captions-styles legend { padding: 0; margin-bottom: 6px; font-size: 13px; color: var(--on-text-secondary); }
+.captions-styles:disabled { opacity: 0.6; }
+.captions-style-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.captions-style {
+    display: grid; gap: 4px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer;
+    border-radius: var(--on-radius-md);
+}
+.captions-style:disabled { cursor: not-allowed; }
+.captions-style-thumb {
+    position: relative; display: block; aspect-ratio: 15 / 8; overflow: hidden; border-radius: var(--on-radius-md);
+    background: var(--on-background); box-shadow: var(--on-ring-hairline);
+    transition: box-shadow var(--on-duration) var(--on-ease);
+}
+.captions-style-thumb canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.captions-style:hover .captions-style-thumb { box-shadow: 0 0 0 1px var(--on-border-hover); }
+.captions-style[aria-checked="true"] .captions-style-thumb { box-shadow: 0 0 0 2px var(--on-primary); }
+.captions-style:focus-visible { outline: none; }
+.captions-style:focus-visible .captions-style-thumb { box-shadow: var(--on-focus-ring); }
+.captions-style-badge {
+    position: absolute; left: 4px; bottom: 4px; padding: 1px 5px; border-radius: var(--on-radius-sm); background: var(--on-overlay);
+    color: var(--on-foreground-strong); font-size: 9.5px; font-weight: 600; line-height: 1.4;
+}
+.captions-style-name { font-size: 11.5px; line-height: 1.25; color: var(--on-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.captions-style[aria-checked="true"] .captions-style-name { color: var(--on-foreground); }
+@media (max-width: 520px) { .captions-style-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { .captions-style-thumb { transition: none; } }

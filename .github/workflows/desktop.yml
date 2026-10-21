@@ -1,0 +1,94 @@
+name: desktop
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # desktop-exporter.test.ts fails instead of skipping when its ffmpeg is missing.
+      OPENNAN_REQUIRE_FFMPEG: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Linux packages and user namespaces for Chromium's sandbox
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgbm1 libasound2t64 libnss3 libgtk-3-0 rpm
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: pnpm install --frozen-lockfile
+      - name: Cache the macOS LGPL ffmpeg build
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/resources/ffmpeg/darwin-arm64
+          key: ffmpeg-darwin-arm64-${{ hashFiles('apps/desktop/ffmpeg/manifest.json', 'apps/desktop/ffmpeg/build-macos.sh') }}
+      - name: Fetch (or build) the LGPL ffmpeg
+        shell: bash
+        run: |
+          if [ ! -x "apps/desktop/resources/ffmpeg/darwin-arm64/ffmpeg" ] || [ "${{ runner.os }}" != "macOS" ]; then pnpm --filter @opennan/desktop fetch:ffmpeg; fi
+      - run: pnpm --filter @opennan/desktop check:ffmpeg
+      - uses: actions/cache@v4
+        if: runner.os == 'macOS'
+        with:
+          path: apps/desktop/resources/whisper/darwin-arm64
+          key: whisper-darwin-arm64-${{ hashFiles('apps/desktop/whisper/manifest.json', 'apps/desktop/whisper/build-whisper.mjs', 'apps/desktop/whisper/fetch-whisper.mjs') }}
+      - name: Fetch or build whisper.cpp
+        shell: bash
+        run: |
+          if [ ! -f "apps/desktop/resources/whisper/darwin-arm64/checksums.json" ] || [ "${{ runner.os }}" != "macOS" ]; then pnpm --filter @opennan/desktop fetch:whisper; fi
+      - run: pnpm --filter @opennan/desktop check:whisper
+      - run: pnpm -w exec turbo run build --filter=@opennan/desktop...
+      - name: Desktop unit tests (ffmpeg tests use the fetched LGPL build)
+        shell: bash
+        run: |
+          dir="apps/desktop/resources/ffmpeg/$(node -p 'process.platform + "-" + process.arch')"
+          exe=""; if [ "${{ runner.os }}" = "Windows" ]; then exe=".exe"; fi
+          OPENNAN_FFMPEG="$PWD/$dir/ffmpeg$exe" OPENNAN_FFPROBE="$PWD/$dir/ffprobe$exe" pnpm --filter @opennan/desktop test
+      - run: pnpm check:licenses
+      - name: Package (unsigned)
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            macOS) pnpm --filter @opennan/desktop package --mac dmg zip --arm64 ;;
+            Windows) pnpm --filter @opennan/desktop package --win nsis --x64 ;;
+            Linux) pnpm --filter @opennan/desktop package --linux AppImage deb --x64 ;;
+          esac
+      - name: Packaged launch check (fuses on, no inspector)
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          case "${{ runner.os }}" in
+            macOS) node scripts/packaged-smoke.mjs "release/mac-arm64/OpenNan Studio.app/Contents/MacOS/OpenNan Studio" ;;
+            Windows) node scripts/packaged-smoke.mjs "release/win-unpacked/OpenNan Studio.exe" ;;
+            Linux) xvfb-run -a node scripts/packaged-smoke.mjs "release/linux-unpacked/opennan-studio" ;;
+          esac
+      - name: Playwright-Electron smoke
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then xvfb-run -a pnpm exec playwright test; else pnpm exec playwright test; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/test-results/
+            apps/desktop/playwright-report/
+          if-no-files-found: warn

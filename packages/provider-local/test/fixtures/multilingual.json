@@ -1,0 +1,12 @@
+{
+	"model": { "type": "base", "multilingual": true },
+	"params": { "model": "ggml-base.bin", "language": "auto", "translate": false },
+	"result": { "language": "th" },
+	"transcription": [
+		{ "timestamps": { "from": "00:00:00,000", "to": "00:00:02,500" }, "offsets": { "from": 0, "to": 2500 }, "text": " สวัสดีครับ" },
+		{ "timestamps": { "from": "00:00:02,500", "to": "00:00:04,000" }, "offsets": { "from": 2500, "to": 4000 }, "text": " こんにちは、\"世界\"" },
+		{ "timestamps": { "from": "00:00:04,000", "to": "00:00:05,250" }, "offsets": { "from": 4000, "to": 5250 }, "text": " café \\ back" },
+		{ "timestamps": { "from": "00:00:06,000", "to": "00:00:05,000" }, "offsets": { "from": 6000, "to": 5000 }, "text": " reversed" },
+		{ "timestamps": { "from": "00:00:07,000", "to": "00:00:08,000" }, "offsets": { "from": -10, "to": 8000 }, "text": " negative" }
+	]
+}

@@ -1,0 +1,35 @@
+{
+    "version": "7.1.5",
+    "source": {
+        "url": "https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz",
+        "sha256": "de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f"
+    },
+    "builds": {
+        "win32-x64": {
+            "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n7.1.5-12-g1fdbca85aa-win64-lgpl-7.1.zip",
+            "sha256": "b7c1c846dacca68ee4ebf5c390742c973b3d5d14a6d44b061f500d8e4ac74fc0",
+            "archive": "zip",
+            "bin": "ffmpeg-n7.1.5-12-g1fdbca85aa-win64-lgpl-7.1/bin"
+        },
+        "win32-arm64": {
+            "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n7.1.5-12-g1fdbca85aa-winarm64-lgpl-7.1.zip",
+            "sha256": "984242681e1359cd3c2ea735c2ae447f5c45c200d641f66892e16e52557cfe1e",
+            "archive": "zip",
+            "bin": "ffmpeg-n7.1.5-12-g1fdbca85aa-winarm64-lgpl-7.1/bin"
+        },
+        "linux-x64": {
+            "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n7.1.5-12-g1fdbca85aa-linux64-lgpl-7.1.tar.xz",
+            "sha256": "58057a52db17bd2fefa87f271956f04aa2277d55efc13f288594cc2c65c59479",
+            "archive": "tar.xz",
+            "bin": "ffmpeg-n7.1.5-12-g1fdbca85aa-linux64-lgpl-7.1/bin"
+        },
+        "linux-arm64": {
+            "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n7.1.5-12-g1fdbca85aa-linuxarm64-lgpl-7.1.tar.xz",
+            "sha256": "cfb4498c475e7d492cceb4706b495428d4b2061b5c797ad63d4a0cc20367e97a",
+            "archive": "tar.xz",
+            "bin": "ffmpeg-n7.1.5-12-g1fdbca85aa-linuxarm64-lgpl-7.1/bin"
+        },
+        "darwin-arm64": { "build": "build-macos.sh", "arch": "arm64" },
+        "darwin-x64": { "build": "build-macos.sh", "arch": "x86_64" }
+    }
+}

@@ -1,0 +1,90 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:proprietary
+      - run: pnpm messages:check
+      - run: pnpm tools:names:check
+      - run: pnpm schema:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm tools:coverage:check
+      - run: pnpm notices:packages:check
+      - run: pnpm --filter @opennan/mcp smoke:dist
+      - run: pnpm --filter @opennan/mcp smoke:pack
+      - run: pnpm check:licenses
+      - name: Pure and node entries carry no browser or GPL code
+        # grep exits 1 only when every file was read and none matched (2 = missing file, 0 = match).
+        run: |
+          status=0
+          grep -lE '@ffmpeg|regl|EffectRenderer' packages/export/dist/*.js packages/export/dist/*.cjs packages/export/dist/node/index.js packages/export/dist/node/index.cjs || status=$?
+          test "$status" -eq 1
+      - name: The @opennan/mcp/server bundle has no Node-only imports
+        run: pnpm --filter @opennan/mcp check:server-dist
+      - name: No ffmpeg core inside the web bundle
+        run: test "$(find apps/web/dist -name '*.wasm' -o -name 'ffmpeg-core*' | wc -l)" -eq 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @opennan/playground exec playwright install --with-deps chromium
+      - run: pnpm --filter @opennan/playground e2e
+      - run: pnpm --filter @opennan/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @opennan/web e2e
+
+  golden:
+    runs-on: macos-14
+    needs: build-test
+    # Snapshots were measured with ffmpeg 7.1 (golden/harness.ts SNAPSHOT_FFMPEG); Homebrew's `ffmpeg`
+    # formula has moved past it, so use the keg-only versioned formula and point the harness at it.
+    env:
+      OPENNAN_FFMPEG: /opt/homebrew/opt/ffmpeg@7/bin/ffmpeg
+      OPENNAN_FFPROBE: /opt/homebrew/opt/ffmpeg@7/bin/ffprobe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: brew install ffmpeg@7
+      - run: '"$OPENNAN_FFMPEG" -hide_banner -version | head -1'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -w exec turbo run build --filter=@opennan/export...
+      - run: pnpm --filter @opennan/export test:golden
+      - run: pnpm -w exec turbo run build --filter=@opennan/mcp...
+      - name: Agent-triggered export and frames on native ffmpeg (media only from <file>.media/)
+        shell: bash
+        env:
+          # headless.test.ts fails instead of skipping when ffmpeg is missing.
+          OPENNAN_REQUIRE_FFMPEG: "1"
+        run: |
+          pnpm --filter @opennan/mcp exec vitest run src/headless.test.ts --reporter=verbose | tee headless.log
+          grep -F "exports and renders frames with the native ffmpeg" headless.log | grep -F "✓"

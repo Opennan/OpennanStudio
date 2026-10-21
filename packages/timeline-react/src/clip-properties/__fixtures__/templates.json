@@ -1,0 +1,120 @@
+[
+    {
+        "id": "animated-title",
+        "name": "Animated Title",
+        "category": "text",
+        "description": "Large title with spring word-by-word entrance and optional subtitle.",
+        "params": [
+            {
+                "key": "title",
+                "label": "Title",
+                "type": "text",
+                "default": "Your Title"
+            },
+            {
+                "key": "subtitle",
+                "label": "Subtitle",
+                "type": "text",
+                "default": ""
+            },
+            {
+                "key": "color",
+                "label": "Text color",
+                "type": "color",
+                "default": "#ffffff"
+            },
+            {
+                "key": "accentColor",
+                "label": "Accent color",
+                "type": "color",
+                "default": "#7c3aed"
+            },
+            {
+                "key": "align",
+                "label": "Alignment",
+                "type": "select",
+                "default": "center",
+                "options": [
+                    "left",
+                    "center",
+                    "right"
+                ]
+            },
+            {
+                "key": "speed",
+                "label": "Animation speed",
+                "type": "number",
+                "default": 1,
+                "min": 0.25,
+                "max": 3,
+                "step": 0.25
+            }
+        ]
+    },
+    {
+        "id": "bar-chart",
+        "name": "Bar Chart",
+        "category": "data",
+        "description": "Animated horizontal bar chart growing from zero with labels and values.",
+        "params": [
+            {
+                "key": "title",
+                "label": "Chart title",
+                "type": "text",
+                "default": "Monthly Sales"
+            },
+            {
+                "key": "data",
+                "label": "Data",
+                "type": "json",
+                "default": "[{\"label\": \"Jan\", \"value\": 40}, {\"label\": \"Feb\", \"value\": 65}, {\"label\": \"Mar\", \"value\": 90}]"
+            },
+            {
+                "key": "barColor",
+                "label": "Bar color",
+                "type": "color",
+                "default": "#7c3aed"
+            },
+            {
+                "key": "textColor",
+                "label": "Text color",
+                "type": "color",
+                "default": "#ffffff"
+            }
+        ]
+    },
+    {
+        "id": "confetti-burst",
+        "name": "Confetti Burst",
+        "category": "shape",
+        "description": "Celebration confetti particles bursting across the frame.",
+        "params": [
+            {
+                "key": "count",
+                "label": "Particles",
+                "type": "number",
+                "default": 80,
+                "min": 10,
+                "max": 200,
+                "step": 5
+            },
+            {
+                "key": "colors",
+                "label": "Colors",
+                "type": "json",
+                "default": "[\"#7c3aed\", \"#06b6d4\", \"#f59e0b\", \"#ef4444\", \"#22c55e\"]"
+            },
+            {
+                "key": "origin",
+                "label": "Burst from",
+                "type": "select",
+                "default": "center",
+                "options": [
+                    "center",
+                    "bottom",
+                    "top"
+                ]
+            }
+        ]
+    }
+]

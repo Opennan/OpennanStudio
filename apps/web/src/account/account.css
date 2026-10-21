@@ -1,0 +1,149 @@
+/* Sign in with OpenNan, the account chip, and account toasts: theme tokens only
+   (packages/timeline-react/src/theme/tokens.css). */
+
+.visually-hidden {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ── Modal ── */
+.signin-backdrop {
+    background: color-mix(in oklab, var(--on-background) 60%, transparent);
+    backdrop-filter: blur(var(--on-overlay-blur)); -webkit-backdrop-filter: blur(var(--on-overlay-blur));
+}
+.signin {
+    position: relative; width: 400px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto;
+    padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+    background: var(--on-surface-overlay); color: var(--on-foreground);
+    border: 1px solid var(--on-border); border-radius: var(--on-radius-xl); box-shadow: var(--on-shadow-popover);
+    animation: dialog-in var(--on-duration) var(--on-ease); outline: none;
+}
+.signin-close { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; padding: 0; color: var(--on-icon); }
+.signin-mark {
+    display: grid; place-items: center; width: 64px; height: 64px; border-radius: var(--on-radius-full);
+    background: var(--on-fill-strong); box-shadow: 0 0 0 1px var(--on-border-strong); color: var(--on-foreground-strong); margin-bottom: 4px;
+}
+.signin-mark svg { width: 44px; height: 44px; }
+.signin-title {
+    margin: 0; font-family: var(--on-font-display); font-weight: var(--on-weight-display); font-size: 22px;
+    letter-spacing: var(--on-tracking-display); color: var(--on-foreground-strong); line-height: 1.2;
+}
+.signin-body { margin: 0; font-size: 14px; color: var(--on-text-secondary); }
+.signin-context { margin: 0; font-size: 13px; color: var(--on-foreground); padding: 8px 12px; border-radius: var(--on-radius-lg); background: var(--on-fill); }
+.signin-context em { font-style: normal; font-weight: 600; color: var(--on-foreground-strong); }
+.signin-small { margin: 0; font-size: 12px; color: var(--on-muted-foreground); }
+
+.signin-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 44px; margin-top: 6px;
+    border: 1px solid var(--on-primary); border-radius: var(--on-radius-full); background: var(--on-primary); color: var(--on-primary-foreground);
+    font: 600 14px var(--on-font-sans); text-decoration: none; cursor: pointer;
+    transition: background-color var(--on-duration), border-color var(--on-duration), box-shadow var(--on-duration);
+}
+.signin-primary:hover:not(:disabled) { background: var(--on-primary-hover); border-color: var(--on-primary-hover); }
+.signin-primary:focus-visible, .signin-secondary:focus-visible, .signin-link:focus-visible { outline: none; box-shadow: var(--on-focus-ring); }
+.signin-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.signin-secondary {
+    display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px; border-radius: var(--on-radius-full);
+    border: 1px solid var(--on-border-strong); background: var(--on-secondary); color: var(--on-foreground); font: 500 13px var(--on-font-sans); cursor: pointer;
+    transition: background-color var(--on-duration), border-color var(--on-duration);
+}
+.signin-secondary:hover { background: var(--on-fill-strong); border-color: var(--on-border-hover); }
+.signin-secondary-ghost { border-radius: var(--on-radius-full); }
+.signin-link {
+    padding: 0; border: 0; background: none; color: var(--on-link); font: inherit; font-weight: 500; cursor: pointer; border-radius: var(--on-radius-sm);
+}
+.signin-link:hover { text-decoration: underline; }
+.signin-link:disabled { opacity: 0.6; cursor: not-allowed; text-decoration: none; }
+.signin-keep { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--on-text-secondary); cursor: pointer; }
+.signin-keep input { accent-color: var(--on-primary); }
+
+.signin-code {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 16px; margin-top: 4px;
+    background: var(--on-fill); border: 1px solid var(--on-border-strong); border-radius: var(--on-radius-lg);
+}
+.signin-code-text { font-family: var(--on-font-mono); font-size: 30px; letter-spacing: 0.2em; color: var(--on-foreground-strong); padding-left: 0.2em; }
+.signin-copy { gap: 4px; color: var(--on-icon); }
+.signin-copy span { font-size: 12px; color: var(--on-success-text); }
+.signin-status { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--on-text-secondary); }
+
+.signin-spinner {
+    display: inline-block; width: 14px; height: 14px; border-radius: var(--on-radius-full);
+    border: 2px solid var(--on-fill-strong); border-top-color: var(--on-primary); animation: signin-spin 0.8s linear infinite;
+}
+@keyframes signin-spin { to { transform: rotate(360deg); } }
+
+.signin-credits { display: inline-flex; align-items: center; gap: 10px; margin: 0; font-size: 14px; color: var(--on-text-secondary); }
+.signin-credits strong { color: var(--on-foreground-strong); font-weight: 600; }
+.signin-warning {
+    margin: 0; padding: 10px 12px; font-size: 12px; border-radius: var(--on-radius-lg);
+    color: var(--on-warning-text); background: var(--on-warning-soft); border: 1px solid var(--on-warning-border);
+}
+.signin-error { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.signin-error-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--on-radius-full); }
+.signin-error-icon[data-tone="danger"] { color: var(--on-destructive-text); background: var(--on-destructive-soft); }
+.signin-error-icon[data-tone="warning"] { color: var(--on-warning-text); background: var(--on-warning-soft); }
+
+.account-avatar {
+    display: inline-grid; place-items: center; flex: none; overflow: hidden; border-radius: var(--on-radius-full);
+    background: var(--on-fill-strong); box-shadow: 0 0 0 1px var(--on-border-strong); color: var(--on-foreground-strong); font-weight: 600;
+}
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+@media (prefers-reduced-motion: reduce) {
+    .signin { animation: none; }
+    .signin-spinner { animation: none; border-color: var(--on-primary); width: 8px; height: 8px; }
+}
+
+/* ── Account toasts (non-modal: they never take focus) ── */
+.account-toasts {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 210; display: grid; gap: 6px;
+    list-style: none; margin: 0; padding: 0; width: max-content; max-width: calc(100vw - 32px);
+}
+.account-toast {
+    display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: var(--on-radius-full);
+    border: 1px solid var(--on-border-strong); background: var(--on-popover); color: var(--on-popover-foreground);
+    font-size: 13px; box-shadow: var(--on-shadow-popover); animation: dialog-in var(--on-duration) var(--on-ease);
+}
+.account-toast .button { border-radius: var(--on-radius-full); }
+@media (prefers-reduced-motion: reduce) { .account-toast { animation: none; } }
+
+/* ── Account chip and menu ── */
+.account-chip-wrap { position: relative; display: inline-flex; }
+.account-chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 8px; border-radius: var(--on-radius-full);
+    border: 1px solid var(--on-border-strong); background: transparent; color: var(--on-foreground); font: 500 12px var(--on-font-sans);
+    cursor: pointer; white-space: nowrap; transition: background-color var(--on-duration), border-color var(--on-duration);
+}
+.account-chip:hover { background: var(--on-fill); border-color: var(--on-border-hover); }
+.account-chip:focus-visible { outline: none; border-color: var(--on-ring); box-shadow: var(--on-focus-ring); }
+.account-chip-placeholder { width: 84px; border-color: var(--on-border-subtle); cursor: default; }
+.account-chip-mark { width: 16px; height: 16px; color: var(--on-foreground-strong); }
+.account-chip-signed-in { padding: 0 4px 0 4px; gap: 6px; }
+.account-chip-balance {
+    display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--on-radius-full);
+    background: var(--on-fill-strong); color: var(--on-foreground-strong); font-variant-numeric: tabular-nums;
+}
+.account-chip-balance[data-tone="low"], .account-chip-balance[data-tone="zero"] { color: var(--on-warning-text); background: var(--on-warning-soft); }
+.account-menu {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 150; width: 248px; padding: 6px; display: grid; gap: 2px;
+    background: var(--on-surface-overlay); border: 1px solid var(--on-border); border-radius: var(--on-radius-xl); box-shadow: var(--on-shadow-popover);
+    animation: dialog-in var(--on-duration) var(--on-ease);
+}
+.account-menu-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 10px; }
+.account-menu-head > span { display: grid; min-width: 0; text-align: left; }
+.account-menu-head strong { color: var(--on-foreground-strong); font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-head .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-credits {
+    display: flex; justify-content: space-between; align-items: center; margin: 0 2px 4px; padding: 8px 10px; border-radius: var(--on-radius-lg);
+    background: var(--on-fill); font-size: 12px; color: var(--on-text-secondary);
+}
+.account-menu-credits strong { color: var(--on-foreground-strong); font-size: 13px; font-variant-numeric: tabular-nums; }
+.account-menu-credits[data-tone="low"] strong, .account-menu-credits[data-tone="zero"] strong { color: var(--on-warning-text); }
+.account-menu-item {
+    display: flex; align-items: center; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: var(--on-radius-md);
+    background: transparent; color: var(--on-foreground); font: 13px var(--on-font-sans); text-align: left; text-decoration: none; cursor: pointer;
+}
+.account-menu-item:hover, .account-menu-item:focus-visible { background: var(--on-fill-strong); outline: none; }
+.account-menu-primary { color: var(--on-link); font-weight: 600; }
+.account-menu-sep { height: 1px; margin: 4px 6px; background: var(--on-border); }
+@media (prefers-reduced-motion: reduce) { .account-menu { animation: none; } }

@@ -1,0 +1,5 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": { "lib": ["ES2023", "dom", "dom.iterable"], "jsx": "react-jsx", "types": ["node", "vitest/globals"] },
+    "include": ["src/main", "src/shared", "e2e", "playwright.config.ts", "../web/src/vite-env.d.ts"]
+}

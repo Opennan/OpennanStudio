@@ -1,0 +1,51 @@
+/* Moved from components/ui/slider.tsx:67-118 (styled-jsx does not run outside Next). */
+.on-slider-input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    rgba(160, 160, 168, 0.8) 0%,
+    rgba(160, 160, 168, 0.8) var(--slider-pct),
+    rgba(255, 255, 255, 0.1) var(--slider-pct),
+    rgba(255, 255, 255, 0.1) 100%
+  );
+}
+.on-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  margin-top: -5px;
+  cursor: grab;
+}
+.on-slider-input::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.15);
+}
+.on-slider-input::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+}
+.on-slider-input::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(160, 160, 168, 0.8);
+}
+.on-slider-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
+.on-slider-input::-moz-range-thumb:active {
+  cursor: grabbing;
+}

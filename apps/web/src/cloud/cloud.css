@@ -1,0 +1,100 @@
+/* Cloud projects: the sync chip and its popover, the Cloud tab, the storage meter, and the cloud dialogs.
+   Theme tokens only (packages/timeline-react/src/theme/tokens.css); states are told apart by icon and words. */
+
+/* ── Sync chip ── */
+.sync-chip-wrap { position: relative; }
+.sync-chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--on-radius-full);
+    border: 1px solid var(--on-border); background: var(--on-fill-subtle); color: var(--on-text-secondary);
+    font: 500 12px var(--on-font-sans); cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
+    transition: background-color var(--on-duration), border-color var(--on-duration), color var(--on-duration);
+}
+.sync-chip:hover { background: var(--on-fill-strong); color: var(--on-foreground); border-color: var(--on-border-hover); }
+.sync-chip:focus-visible { outline: none; box-shadow: var(--on-focus-ring); }
+.sync-chip[data-state="saved"] { color: var(--on-text-secondary); }
+.sync-chip[data-state="conflict"], .sync-chip[data-state="over-quota"], .sync-chip[data-state="signed-out"] {
+    color: var(--on-foreground-strong); border-color: var(--on-border-strong); background: var(--on-fill);
+}
+.sync-chip[data-state="syncing"] svg, .sync-chip[data-state="opening"] svg { animation: sync-pulse 1.4s var(--on-ease) infinite; }
+@keyframes sync-pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .sync-chip svg { animation: none !important; } }
+
+.sync-popover {
+    position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 320px; padding: 14px;
+    display: grid; gap: 10px; background: var(--on-popover); color: var(--on-popover-foreground);
+    border: 1px solid var(--on-border); border-radius: var(--on-radius-lg); box-shadow: var(--on-shadow-popover);
+}
+.sync-popover-title { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; color: var(--on-foreground-strong); }
+.sync-popover-text { margin: 0; font-size: 13px; color: var(--on-text-secondary); }
+.sync-popover-text a { color: var(--on-link); }
+.sync-conflicts { margin: 0; padding: 0 0 0 18px; display: grid; gap: 6px; font-size: 13px; color: var(--on-foreground); max-height: 180px; overflow: auto; }
+.sync-popover-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+/* ── Project menu (editor top bar) ── */
+.project-menu-wrap { position: relative; }
+.project-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 220px; padding: 6px; display: grid;
+    background: var(--on-popover); border: 1px solid var(--on-border); border-radius: var(--on-radius-lg); box-shadow: var(--on-shadow-popover);
+}
+.project-menu-item {
+    display: flex; align-items: center; height: 32px; padding: 0 10px; border: 0; border-radius: var(--on-radius-md); background: transparent;
+    color: var(--on-foreground); font: 500 13px var(--on-font-sans); text-align: left; cursor: pointer;
+}
+.project-menu-item:hover, .project-menu-item:focus-visible { outline: none; background: var(--on-fill-strong); }
+
+/* ── Projects screen tabs and the Cloud tab ── */
+.projects-tabs { display: flex; gap: 4px; margin: 12px 0 4px; border-bottom: 1px solid var(--on-border-subtle); }
+.projects-tab {
+    height: 36px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--on-text-secondary);
+    font: 500 14px var(--on-font-sans); cursor: pointer; margin-bottom: -1px;
+}
+.projects-tab[aria-selected="true"] { color: var(--on-foreground-strong); border-bottom-color: var(--on-foreground-strong); }
+.projects-tab:hover { color: var(--on-foreground); }
+.projects-tab:focus-visible { outline: none; box-shadow: var(--on-focus-ring); border-radius: var(--on-radius-sm); }
+.cloud-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.segmented { display: inline-flex; padding: 2px; border-radius: var(--on-radius-full); background: var(--on-fill-subtle); box-shadow: var(--on-ring-hairline); }
+.segment {
+    height: 28px; padding: 0 12px; border: 0; border-radius: var(--on-radius-full); background: transparent; color: var(--on-text-secondary);
+    font: 500 12px var(--on-font-sans); cursor: pointer;
+}
+.segment[aria-selected="true"] { background: var(--on-fill-strong); color: var(--on-foreground-strong); }
+.segment:focus-visible { outline: none; box-shadow: var(--on-focus-ring); }
+.cloud-offline { font-size: 12px; color: var(--on-muted-foreground); }
+.cloud-card .project-actions { flex-direction: column; align-items: flex-end; }
+.cloud-thumb { max-height: 100%; max-width: 100%; border-radius: var(--on-radius-sm); object-fit: cover; }
+.cloud-more { justify-self: start; margin-top: 12px; }
+.cloud-signin { margin-top: 24px; }
+.cloud-storage { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--on-border-subtle); display: grid; gap: 12px; max-width: 560px; }
+.cloud-storage-title { font-size: 16px; margin: 0; }
+.project-save { position: absolute; left: 8px; top: 8px; opacity: 0; transition: opacity var(--on-duration); }
+.project-card:hover .project-save, .project-card:focus-within .project-save { opacity: 1; }
+.project-save .icon-button { background: var(--on-popover); box-shadow: var(--on-ring-hairline); }
+
+/* ── Storage meter ── */
+.storage-meter { display: grid; gap: 12px; }
+.storage-meter.compact { gap: 8px; }
+.storage-row { display: grid; gap: 6px; }
+.storage-row-head { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--on-text-secondary); }
+.storage-row-value { font-variant-numeric: tabular-nums; color: var(--on-foreground); }
+.storage-bar { position: relative; height: 6px; border-radius: var(--on-radius-full); background: var(--on-fill); overflow: hidden; }
+.storage-bar-fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--on-foreground-strong); transition: width var(--on-duration); }
+.storage-bar-fill[data-full="true"] { background: var(--on-destructive); }
+.storage-meter-note { margin: 0; font-size: 12px; color: var(--on-foreground); }
+.storage-meter[data-full="true"] .storage-meter-note { color: var(--on-destructive-text); }
+
+/* ── Dialogs ── */
+.cloud-dialog { width: 460px; }
+.cloud-dialog-lead { margin: 0 0 8px; }
+.cloud-plan, .cloud-progress { display: grid; gap: 6px; padding: 12px; border-radius: var(--on-radius-lg); background: var(--on-fill-subtle); box-shadow: var(--on-ring-hairline); }
+.cloud-plan p, .cloud-progress p { margin: 0; }
+
+/* ── Account menu storage section ── */
+.account-menu-storage { padding: 8px 10px; display: grid; gap: 6px; }
+.account-menu-storage-title { font-size: 12px; font-weight: 600; color: var(--on-foreground-strong); margin: 0; }
+
+/* ── Settings: Cloud media on this device (9a.1) ── */
+.media-cache-section { display: grid; gap: 10px; }
+.media-cache-section > p { margin: 0; }
+.media-cache-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.media-cache-limit { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--on-text-secondary); }
+.media-cache-limit select { min-width: 150px; }

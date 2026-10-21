@@ -1,0 +1,18 @@
+/* Generate dialog: theme tokens only (packages/timeline-react/src/theme/tokens.css). */
+.generate-kinds {
+    display: inline-flex; gap: 2px; padding: 3px; width: max-content; border-radius: var(--on-radius-full);
+    background: var(--on-fill); box-shadow: var(--on-ring-hairline);
+}
+.generate-kind {
+    height: 28px; padding: 0 14px; border: 0; border-radius: var(--on-radius-full); background: transparent;
+    color: var(--on-text-secondary); font: 500 13px var(--on-font-sans); cursor: pointer; transition: background-color var(--on-duration), color var(--on-duration);
+}
+.generate-kind[aria-checked="true"] { background: var(--on-fill-strong); color: var(--on-foreground-strong); }
+.generate-kind:focus-visible { outline: none; box-shadow: var(--on-focus-ring); }
+.generate-kind:disabled { cursor: not-allowed; }
+.generate-text { height: auto; min-height: 96px; padding: 10px 12px; resize: vertical; line-height: 1.45; }
+.generate-row { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px; }
+.generate-meta { margin: 0 0 10px; white-space: nowrap; }
+.generate-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.generate-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--on-text-secondary); }
+.generate-options { display: flex; flex-direction: column; gap: 6px; }

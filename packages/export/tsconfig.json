@@ -1,0 +1,13 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "types": ["vitest/globals", "node"],
+        "paths": {
+            "@opennan/timeline-core": ["../timeline-core/src/index.ts"],
+            "@opennan/timeline-core/*": ["../timeline-core/src/*"],
+            "@opennan/timeline-media": ["../timeline-media/src/index.ts"],
+            "@opennan/timeline-media/*": ["../timeline-media/src/*"]
+        }
+    },
+    "include": ["src", "golden", "parity"]
+}

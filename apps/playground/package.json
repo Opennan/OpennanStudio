@@ -1,0 +1,33 @@
+{
+    "name": "@opennan/playground",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview --port 4317 --strictPort",
+        "typecheck": "tsc -p tsconfig.json",
+        "e2e": "pnpm -w exec turbo run build --filter=@opennan/playground... && playwright test",
+        "golden:snapshots": "node scripts/copy-golden-assets.mjs && pnpm -w exec turbo run build --filter=@opennan/playground... && GOLDEN_SNAPSHOTS=1 playwright test e2e/golden-snapshots.spec.ts"
+    },
+    "dependencies": {
+        "@ffmpeg/ffmpeg": "^0.12.15",
+        "@ffmpeg/util": "^0.12.2",
+        "@opennan/export": "workspace:*",
+        "@opennan/timeline-core": "workspace:*",
+        "@opennan/timeline-media": "workspace:*",
+        "@opennan/timeline-react": "workspace:*",
+        "react": "19.2.3",
+        "react-dom": "19.2.3"
+    },
+    "devDependencies": {
+        "@ffmpeg/core": "0.12.10",
+        "@playwright/test": "^1.58.2",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "@vitejs/plugin-react": "^6.0.2",
+        "typescript": "^5.9.0",
+        "vite": "^8.3.0"
+    }
+}

@@ -1,0 +1,80 @@
+/*
+ * AI in the editor (phase 11): Run buttons with prices, the job tray, the inspector's AI tab and its local panels,
+ * the AI library tiles. Theme tokens only (src/theme/tokens.css); motion stays under 200 ms and turns off for
+ * prefers-reduced-motion.
+ */
+
+.on-ai-tray, .on-ai-action, .on-ai-tab, .on-ai-library {
+  --on-ai-motion: var(--on-duration, 150ms) var(--on-ease, ease);
+}
+
+/* ── Run button ─────────────────────────────────────── */
+.on-ai-action { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.on-ai-run { justify-content: center; width: 100%; }
+.on-ai-reason { margin: 0; font-size: 12px; line-height: 1.45; color: var(--on-text-secondary); }
+.on-ai-note { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--on-muted-foreground); }
+.on-ai-run[aria-busy="true"] { opacity: 0.85; }
+
+/* ── job tray ───────────────────────────────────────── */
+.on-ai-tray {
+  font-family: var(--on-font-sans); color: var(--on-foreground);
+  border: 1px solid var(--on-border-subtle); border-radius: var(--on-radius-lg); background: var(--on-popover);
+  box-shadow: var(--on-ring-hairline);
+}
+.on-ai-tray[data-inline="true"] { background: var(--on-surface-raised); box-shadow: none; }
+.on-ai-jobs { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.on-ai-job { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: var(--on-radius-md); }
+.on-ai-job + .on-ai-job { border-top: 1px solid var(--on-border-subtle); }
+.on-ai-job-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.on-ai-job-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12.5px/1.3 var(--on-font-sans); }
+.on-ai-job-done { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 12px; color: var(--on-success-text); }
+.on-ai-job-done svg { width: 13px; height: 13px; }
+.on-ai-job-stage, .on-ai-job-message { margin: 0; font-size: 12px; line-height: 1.4; color: var(--on-text-secondary); }
+.on-ai-job-error { margin: 0; font-size: 12px; line-height: 1.4; color: var(--on-destructive-text); }
+.on-ai-job-refund { color: var(--on-text-secondary); }
+.on-ai-job-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.on-ai-job-actions:empty { display: none; }
+.on-ai-job-btn { height: 26px; padding: 0 10px; font-size: 12px; }
+.on-ai-progress { position: relative; height: 3px; border-radius: var(--on-radius-full); background: var(--on-fill); overflow: hidden; }
+.on-ai-progress > span { position: absolute; inset: 0 auto 0 0; background: var(--on-brand); transition: width var(--on-ai-motion); }
+.on-ai-progress[data-indeterminate="true"] > span { width: 100% !important; opacity: 0.35; }
+
+/* ── inspector AI tab ───────────────────────────────── */
+.on-ai-tab { display: flex; flex-direction: column; gap: 16px; }
+.on-ai-desc { margin: 0; font-size: 12px; line-height: 1.45; color: var(--on-muted-foreground); }
+.on-ai-select {
+  width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--on-field-border); border-radius: var(--on-radius-md);
+  background: var(--on-field); color: var(--on-foreground); font: 400 12.5px var(--on-font-sans);
+  transition: border-color var(--on-ai-motion), box-shadow var(--on-ai-motion);
+}
+.on-ai-select:focus { outline: none; border-color: var(--on-ring); box-shadow: var(--on-focus-ring); }
+.on-ai-select option { background: var(--on-popover); color: var(--on-popover-foreground); }
+.on-ai-section[data-focused="true"] { border-radius: var(--on-radius-md); box-shadow: 0 0 0 1px var(--on-brand-border); }
+.on-ai-summary { margin: 0; font: 600 12.5px/1.4 var(--on-font-sans); color: var(--on-foreground); }
+.on-ai-error { margin: 0; font-size: 12px; line-height: 1.45; color: var(--on-destructive-text); }
+.on-ai-found { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.on-ai-found-time { margin-left: auto; font: 400 11.5px var(--on-font-mono); color: var(--on-muted-foreground); }
+.on-ai-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.on-ai-buttons > .on-btn { flex: 1; justify-content: center; }
+
+/* ── AI library ─────────────────────────────────────── */
+.on-ai-library { display: flex; flex-direction: column; gap: 12px; }
+.on-ai-tiles { list-style: none; margin: 0; padding: 0 12px 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.on-ai-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; min-height: 76px; padding: 10px;
+  border: 1px solid var(--on-border-subtle); border-radius: var(--on-radius-lg); background: var(--on-surface-raised);
+  color: var(--on-foreground); font: 600 12.5px/1.3 var(--on-font-sans); text-align: left; cursor: pointer;
+  transition: border-color var(--on-ai-motion), background-color var(--on-ai-motion), transform var(--on-ai-motion);
+}
+.on-ai-tile svg { width: 18px; height: 18px; color: var(--on-brand); }
+.on-ai-tile:hover { border-color: var(--on-border-hover); background: var(--on-fill); }
+.on-ai-tile:active { transform: scale(0.98); }
+.on-ai-tile:focus-visible { outline: none; box-shadow: var(--on-focus-ring); }
+.on-ai-tile:disabled { cursor: not-allowed; opacity: 0.5; transform: none; }
+.on-ai-tile-sub { font-weight: 400; font-size: 11.5px; color: var(--on-muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .on-ai-tray *, .on-ai-action *, .on-ai-tab *, .on-ai-library * {
+    animation: none !important; transition: none !important;
+  }
+}

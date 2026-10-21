@@ -1,0 +1,47 @@
+/* packages/timeline-react/src/layer-editor/layer-editor.css — Canva-style layer editor (on-layer-*). */
+.on-layer-editor { display: grid; gap: 12px; color: var(--on-foreground); font-family: var(--on-font-sans); }
+.on-layer-toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.on-layer-toolbar button, .on-layer-inspector button {
+  font: 600 13px/1 var(--on-font-sans); color: var(--on-foreground); background: var(--on-secondary);
+  border: 1px solid var(--on-border); border-radius: 8px; padding: 8px 12px; cursor: pointer;
+}
+.on-layer-toolbar button:disabled { opacity: .45; cursor: default; }
+.on-layer-toolbar button[aria-pressed="true"] { background: var(--on-foreground); color: var(--on-background); }
+.on-layer-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; align-items: start; }
+@media (max-width: 900px) { .on-layer-body { grid-template-columns: minmax(0, 1fr); } }
+.on-layer-stage { background: #0a0c11; border-radius: 12px; padding: 12px; min-width: 0; }
+.on-layer-canvas { position: relative; outline: none; }
+.on-layer-canvas canvas { display: block; margin: 0 auto; border-radius: 4px; touch-action: none; }
+.on-layer-text-input {
+  position: absolute; z-index: 2; resize: none; overflow: hidden; text-align: center;
+  background: rgba(10, 12, 18, .85); color: #fff; border: 2px solid #5b9bff; border-radius: 6px;
+  font: 700 18px/1.15 var(--on-font-sans); padding: 4px 6px;
+}
+.on-layer-side { display: grid; gap: 12px; min-width: 0; }
+.on-layer-panel { background: var(--on-card, var(--on-secondary)); border: 1px solid var(--on-border); border-radius: 12px; padding: 12px; min-width: 0; }
+.on-layer-panel h3 { margin: 0 0 10px; font: 700 11px/1 var(--on-font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--on-muted-foreground); }
+.on-layer-empty { color: var(--on-muted-foreground); font-size: 13px; margin: 0; }
+.on-layer-inspector { display: grid; gap: 10px; }
+.on-layer-field { display: grid; gap: 4px; font-size: 12px; color: var(--on-muted-foreground); min-width: 0; }
+.on-layer-field textarea, .on-layer-field select, .on-layer-field input[type="color"] {
+  width: 100%; font: 500 14px var(--on-font-sans); color: var(--on-foreground); background: var(--on-input);
+  border: 1px solid var(--on-border); border-radius: 7px; padding: 6px 8px;
+}
+.on-layer-field input[type="range"] { width: 100%; accent-color: var(--on-primary); }
+.on-layer-row2 { display: flex; gap: 8px; }
+.on-layer-row2 > * { flex: 1; min-width: 0; }
+.on-layer-check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.on-layer-kind { margin: 0; font: 600 12px var(--on-font-mono); color: var(--on-primary); }
+.on-layer-mode { margin: 0; font-size: 12.5px; padding: 7px 9px; border-radius: 7px; background: var(--on-muted); border-left: 3px solid var(--on-muted-foreground); }
+.on-layer-mode.is-original, .on-layer-mode.is-glyphs { border-left-color: #1f9d63; }
+.on-layer-mode.is-font { border-left-color: var(--on-primary); }
+.on-layer-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 360px; overflow: auto; }
+.on-layer-row { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
+.on-layer-row.is-selected { background: color-mix(in srgb, #5b9bff 18%, transparent); }
+.on-layer-row.is-child .on-layer-row-main { padding-left: 24px; }
+.on-layer-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 5px 6px; background: none; border: 0; color: inherit; cursor: pointer; text-align: left; font-size: 13px; }
+.on-layer-row-main:disabled { cursor: default; opacity: .7; }
+.on-layer-row-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.on-layer-thumb { width: 22px; height: 16px; border-radius: 3px; background: var(--on-muted); flex: none; display: grid; place-items: center; font: 700 10px var(--on-font-mono); color: var(--on-muted-foreground); }
+.on-layer-eye { background: none; border: 0; color: var(--on-muted-foreground); font-size: 12px; cursor: pointer; padding: 2px 6px; }
+.on-layer-editor :focus-visible { outline: 2px solid #5b9bff; outline-offset: 2px; }

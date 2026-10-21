@@ -1,0 +1,30 @@
+/* Desktop-only additions to the editor shell's styles (apps/web/src/app.css). */
+.desktop-media-banner {
+    position: fixed; left: 50%; top: 56px; transform: translateX(-50%); z-index: 150; max-width: min(760px, calc(100vw - 32px));
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--on-radius-lg);
+    border: 1px solid var(--on-border-strong); background: var(--on-surface-raised); font-size: 13px;
+}
+.desktop-media-banner-list { flex-basis: 100%; margin: 0; padding-left: 18px; font-family: var(--on-font-mono); font-size: 12px; overflow-wrap: anywhere; }
+
+.desktop-terminal { position: fixed; right: 12px; bottom: 12px; z-index: 140; display: flex; flex-direction: column; background: var(--on-surface); border: 1px solid var(--on-border-strong); border-radius: var(--on-radius-lg); }
+.desktop-terminal.open { left: 12px; height: 40vh; }
+.desktop-terminal-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--on-border); flex-wrap: wrap; }
+.desktop-terminal:not(.open) .desktop-terminal-bar { border-bottom: 0; }
+.desktop-terminal-tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
+.desktop-terminal-tab { display: inline-flex; align-items: center; border: 1px solid var(--on-border); border-radius: var(--on-radius-md); font-size: 12px; }
+.desktop-terminal-tab[data-active] { border-color: var(--on-ring); }
+.desktop-terminal-tab button { background: none; border: 0; color: inherit; padding: 2px 6px; cursor: pointer; }
+.desktop-terminal-body { flex: 1; min-height: 0; padding: 4px; }
+.desktop-terminal-pane, .desktop-terminal-view { height: 100%; }
+.desktop-terminal-body > p { padding: 8px; }
+
+.desktop-settings { margin-top: 32px; display: grid; gap: 12px; }
+.desktop-secret-actions { display: flex; gap: 6px; align-items: center; }
+.desktop-settings-fields { display: grid; gap: 8px; max-width: 520px; }
+.desktop-settings-fields label { display: grid; gap: 4px; font-size: 13px; }
+.desktop-mcp-config { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; background: var(--on-surface-raised); padding: 8px; border-radius: var(--on-radius-md); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* An agent's public share link needs the person's yes (9c.1): three answers, wrapping on a narrow window. */
+.agent-share-actions { flex-wrap: wrap; }
+.desktop-settings-check { display: flex; align-items: center; gap: 8px; }

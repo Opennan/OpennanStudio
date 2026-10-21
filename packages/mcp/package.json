@@ -1,0 +1,48 @@
+{
+    "name": "@opennan/mcp",
+    "version": "0.14.0",
+    "description": "MCP server for the OpenNan Studio editor: editor tools over TimelineController, stdio and localhost HTTP transports, and the opennan-studio CLI.",
+    "license": "SEE LICENSE IN LICENSE",
+    "type": "module",
+    "sideEffects": ["./dist/cli.js"],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "bin": { "opennan-studio": "./dist/cli.js" },
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./server": {
+            "types": "./dist/server.d.ts",
+            "import": "./dist/server.js"
+        }
+    },
+    "files": ["dist", "LICENSE", "README.md", "THIRD_PARTY_NOTICES"],
+    "engines": { "node": ">=20" },
+    "scripts": {
+        "build": "tsup",
+        "test": "vitest run",
+        "typecheck": "tsc -p tsconfig.json",
+        "smoke:dist": "node scripts/dist-smoke.mjs dist/cli.js",
+        "smoke:pack": "node scripts/pack-smoke.mjs",
+        "check:server-dist": "node scripts/check-server-dist.mjs"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.32.1",
+        "@opennan/export": "workspace:*",
+        "@opennan/mcp-schema": "workspace:*",
+        "@opennan/provider-opennan": "workspace:*",
+        "@opennan/provider-sdk": "workspace:*",
+        "@opennan/timeline-core": "workspace:*",
+        "ajv": "^8.17.1",
+        "zod": "^4.1.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "tsup": "^8.5.0",
+        "tsx": "^4.20.0",
+        "typescript": "^5.9.0",
+        "vitest": "^4.1.7"
+    }
+}

@@ -1,0 +1,27 @@
+{
+    "name": "opennan-studio",
+    "private": true,
+    "packageManager": "pnpm@10.30.3",
+    "engines": { "node": ">=20" },
+    "scripts": {
+        "build": "turbo run build",
+        "test": "turbo run test && node --test scripts/*.test.mjs apps/desktop/ffmpeg/*.test.mjs apps/desktop/whisper/*.test.mjs apps/desktop/scripts/*.test.mjs",
+        "typecheck": "turbo run typecheck",
+        "import:core": "node scripts/import-core.mjs",
+        "check:proprietary": "node scripts/check-proprietary.mjs",
+        "check:licenses": "node scripts/check-licenses.mjs",
+        "messages:extract": "node scripts/extract-timeline-messages.mjs",
+        "messages:check": "node scripts/extract-timeline-messages.mjs --check",
+        "schema:check": "pnpm --filter @opennan/mcp-schema generate:check",
+        "tools:names": "node scripts/opennan-tool-names.mjs",
+        "tools:names:check": "node scripts/opennan-tool-names.mjs --check",
+        "tools:coverage": "node scripts/ai-tool-coverage.mjs",
+        "tools:coverage:check": "node scripts/ai-tool-coverage.mjs --check",
+        "notices:packages": "node scripts/package-notices.mjs --write",
+        "notices:packages:check": "node scripts/package-notices.mjs --check"
+    },
+    "devDependencies": {
+        "turbo": "^2.5.0",
+        "typescript": "^5.9.0"
+    }
+}

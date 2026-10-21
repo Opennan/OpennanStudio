@@ -1,0 +1,4 @@
+Each package in this repository declares its own license in its package.json and LICENSE file.
+
+- OpenNan Community License 1.0: see LICENSES/OpenNan-Community-1.0.md
+- Apache License 2.0: see LICENSES/Apache-2.0.txt

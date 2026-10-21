@@ -1,0 +1,9 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+# Dependency install scripts pnpm may run: Electron downloads its binary, node-pty loads its N-API prebuilds
+# (or compiles on Linux). better-sqlite3 is built for Electron's ABI by apps/desktop/scripts/ensure-native.mjs,
+# never for the system Node. Everything else stays blocked (pnpm 10 default).
+onlyBuiltDependencies:
+  - electron
+  - node-pty

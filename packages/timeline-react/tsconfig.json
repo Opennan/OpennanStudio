@@ -1,0 +1,14 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "types": ["vitest/globals", "node", "@testing-library/jest-dom"],
+        "paths": {
+            "@opennan/timeline-core": ["../timeline-core/src/index.ts"],
+            "@opennan/timeline-core/*": ["../timeline-core/src/*"],
+            "@opennan/timeline-media": ["../timeline-media/src/index.ts"],
+            "@opennan/timeline-media/*": ["../timeline-media/src/*"]
+        }
+    },
+    "include": ["src"]
+}

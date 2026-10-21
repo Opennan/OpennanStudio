@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-e2e/
+.turbo/
+coverage/
+.env
+.env.*
+.DS_Store
+.DS_Store
+test-results/
+playwright-report/
+# export golden media and renders (generated)
+packages/export/golden/media/
+packages/export/golden/out/
+apps/playground/public/golden/
+apps/web/dist-ffmpeg-core/
+.cache/

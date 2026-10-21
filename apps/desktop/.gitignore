@@ -1,0 +1,5 @@
+dist/
+release/
+resources/ffmpeg/
+test-results/
+resources/whisper/

@@ -1,0 +1,29 @@
+.media-bin { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 44px; padding: 0 12px; border-bottom: 1px solid var(--on-border-subtle); flex-shrink: 0; }
+.panel-header h2 { font-size: 13px; font-weight: 600; }
+.media-drop { flex: 1; min-height: 0; overflow: auto; padding: 10px; }
+.media-drop[data-dragging] { outline: 2px dashed var(--on-border-hover); outline-offset: -6px; background: var(--on-fill); }
+.media-empty {
+    display: grid; gap: 4px; place-content: center; height: 100%; min-height: 160px; text-align: center;
+    border: 1px dashed var(--on-border-strong); border-radius: var(--on-radius-lg); padding: 16px; background: var(--on-fill-subtle);
+}
+.media-empty p { margin: 0; }
+.media-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.media-tile {
+    position: relative; display: grid; gap: 4px; padding: 4px; border-radius: var(--on-radius-lg); border: 1px solid transparent; cursor: grab;
+    transition: background-color var(--on-duration), border-color var(--on-duration);
+}
+.media-tile:hover, .media-tile:focus-within { border-color: var(--on-border); background: var(--on-fill-subtle); }
+.media-thumb { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 10; overflow: hidden; border-radius: var(--on-radius-md); background: var(--on-surface-raised); box-shadow: var(--on-ring-hairline); }
+.media-thumb img, .media-thumb video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.media-glyph { font-size: 11px; font-weight: 500; color: var(--on-success); }
+.media-duration {
+    position: absolute; right: 4px; bottom: 4px; padding: 1px 5px; border-radius: var(--on-radius-sm);
+    background: color-mix(in oklab, var(--on-background) 80%, transparent); color: var(--on-foreground); font-size: 10px; font-variant-numeric: tabular-nums;
+}
+.media-name { font-size: 11px; color: var(--on-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-warning { font-size: 10px; color: var(--on-warning-text); }
+.media-actions { position: absolute; top: 6px; right: 6px; display: none; gap: 2px; }
+.media-tile:hover .media-actions, .media-tile:focus-within .media-actions { display: flex; }
+.media-actions .icon-button { height: 22px; min-width: 0; padding: 0 6px; font-size: 10px; background: var(--on-popover); box-shadow: var(--on-ring-hairline); }
+.media-actions .icon-button:hover { background: var(--on-surface-overlay); }

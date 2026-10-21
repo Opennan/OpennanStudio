@@ -1,0 +1,33 @@
+{
+    "name": "@opennan/provider-fal",
+    "version": "0.2.0",
+    "description": "fal.ai provider for OpenNan Studio (bring your own key): image and video generation, voice isolation, and video upscale over fal's queue API. Reference community adapter.",
+    "license": "Apache-2.0",
+    "type": "module",
+    "sideEffects": false,
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        }
+    },
+    "files": ["dist", "LICENSE", "README.md", "THIRD_PARTY_NOTICES"],
+    "scripts": {
+        "build": "tsup",
+        "test": "vitest run",
+        "typecheck": "tsc -p tsconfig.json"
+    },
+    "dependencies": {
+        "@opennan/provider-sdk": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "tsup": "^8.5.0",
+        "typescript": "^5.9.0",
+        "vitest": "^4.1.7"
+    }
+}
