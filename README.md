@@ -1,6 +1,51 @@
-# OpenNan Studio
+# OpennanStudio
 
-Free, source-available video editor: timeline, preview, and export for web, macOS, Windows, and Linux.
+<a href="https://opennan.com/"><img src="https://opennan.com/logo-social.svg" width="64" height="64" alt="Opennan" /></a>
+
+Created and maintained by **[Opennan](https://opennan.com/)**.
+
+[Desktop app](apps/desktop/README.md) · [MCP for AI agents](packages/mcp/README.md) · [AI tool coverage](docs/ai-tool-coverage.md) · [Export](packages/export/README.md) · [Timeline engine](packages/timeline-core/README.md)
+
+A free, source-available video editor for the web, macOS, Windows and Linux:
+timeline, live preview, text, effects, transitions and MP4 export that runs on
+your own machine. AI tools (image and video generation, voice, music, auto
+captions) run on OpenNan or a provider you pick, and an MCP server lets Claude
+Code, Codex CLI or any agent edit the open timeline.
+
+## Editor
+
+Actual screenshots of the running web app (`apps/web`) with three sample clips.
+
+![OpennanStudio editor with a CAMPUS DAYS title over a video clip, the Text panel of templates on the left and the text inspector on the right](docs/images/editor-text.jpg)
+
+Add text from 40 templates, then edit its words, font, size and animation in the
+inspector. The title is its own track above the video, so it trims and moves
+like any clip.
+
+![OpennanStudio editor with an Edge glow effect on a night street clip, the Effects panel on the left and the clip inspector on the right](docs/images/editor-effects.jpg)
+
+Effects, filters, transitions and adjustments apply with one click and show in
+the preview at once. Scale, position, rotation and opacity take keyframes, and
+the same frames render in the export.
+
+![OpennanStudio editor with the Generate with AI panel: image, video, from this frame, voice, music and sound effect](docs/images/editor-ai.jpg)
+
+**Generate with AI** makes an image, a video, a voice line, music or a sound
+effect and places it at the playhead. Each run shows its price first. Projects
+stay on this device unless you save them to OpenNan cloud.
+
+## Run locally
+
+```bash
+pnpm install
+pnpm --filter @opennan/web dev        # the editor in a browser
+pnpm --filter @opennan/desktop dev    # the desktop app (see apps/desktop/README.md for ffmpeg and whisper)
+pnpm test                             # every package's tests
+```
+
+Node 20 or newer and pnpm 10.
+
+## What's inside
 
 - `packages/timeline-core`: framework-free timeline engine, canvas renderer, editing operations.
 - `packages/timeline-media`: thumbnails, waveforms, frame decode, audio probe behind a `MediaEnvironment` (plus `/dexie` and `/effects` sub-entries).
@@ -36,7 +81,7 @@ Signed in, the Projects screen has two tabs: **On this device** (local projects,
 
 ## `apps/desktop` limits
 
-- Unsigned builds for now (code-signing certificates pending, spec §12): macOS asks for right-click → Open, Windows SmartScreen warns.
+- Unsigned builds for now (code-signing certificates pending): macOS asks for right-click → Open, Windows SmartScreen warns.
 - The bundled ffmpeg is LGPL-only (no x264); H.264 comes from VideoToolbox, Media Foundation, VA-API, or OpenH264, else MPEG-4 Part 2 with a warning. The macOS build has no AV1 decoder.
 - Auto captions download a whisper model (74-465 MB) on first use; no whisper.cpp build for Windows on Arm yet.
 
@@ -44,4 +89,6 @@ Signed in, the Projects screen has two tabs: **On this device** (local projects,
 
 The ffmpeg.wasm core is a separate static asset, never inside `apps/web/dist` or the JS bundle. `pnpm --filter @opennan/web build:ffmpeg-core` copies `@ffmpeg/core@0.12.10`'s `dist/esm` files to `apps/web/dist-ffmpeg-core/ffmpeg-core/`, refuses them unless their SHA-256 matches the hashes `@opennan/export/web` pins, and writes `NOTICE.txt`; deploy that folder at `<app>/ffmpeg-core/` (dev and preview serve it automatically). `VITE_FFMPEG_CORE_BASE` (build time) points the export at another copy, which must be byte-identical, or the app refuses to load it. The core is GPL-2.0-or-later (FFmpeg built with x264): hosting it means distributing GPL binaries, with the obligation to ship its notice and offer the corresponding source (the FFmpeg, x264, and ffmpeg.wasm sources and build scripts for that version). The `apps/web` build itself contains no GPL code (`pnpm check:licenses`).
 
-Free for personal use and for organizations under USD 5M annual revenue. See `LICENSES/`.
+## License
+
+Free for personal use and for organizations under USD 5M annual revenue. See [LICENSE](LICENSE) and `LICENSES/`.
