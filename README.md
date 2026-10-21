@@ -45,6 +45,55 @@ pnpm test                             # every package's tests
 
 Node 20 or newer and pnpm 10.
 
+## MCP
+
+Claude Code, Codex CLI, Gemini CLI or any MCP client can edit a project:
+about 40 editor tools that run offline, plus generation tools that run on
+OpenNan (or another provider) once you sign in. Every tool call goes through the
+editor's undo history, and a call that fails part way is undone.
+
+```bash
+pnpm install
+pnpm exec turbo run build --filter=@opennan/mcp...
+alias opennan-studio="node $PWD/packages/mcp/dist/cli.js"
+opennan-studio project new film.opennan.json
+opennan-studio mcp-config --client claude --project film.opennan.json --write   # or --client codex / gemini
+opennan-studio login                                                             # only for the AI tools
+```
+
+Or add it to your MCP client yourself:
+
+```json
+{
+  "mcpServers": {
+    "opennan-studio": {
+      "command": "node",
+      "args": ["/absolute/path/to/OpennanStudio/packages/mcp/dist/cli.js", "mcp", "serve",
+               "--project", "/absolute/path/to/film.opennan.json"]
+    }
+  }
+}
+```
+
+`--http` serves `http://127.0.0.1:4319/mcp` with a bearer token instead of stdio,
+and `--tools offline` lists only the editor tools. The desktop app has the same
+server built in, plus a terminal panel that starts your agent already connected
+to the open timeline. Full guide: [packages/mcp](packages/mcp/README.md).
+
+| Tool | Operation |
+| --- | --- |
+| `read_timeline` | Read the project's tracks, clips, text and effects. |
+| `list_media` | List the media in the project's library. |
+| `create_timeline_clip` | Place media on a track at a time. |
+| `split_timeline_clip` / `edit_timeline_clip` / `delete_timeline_clip` | Cut, trim, move and change clips. |
+| `add_text_overlay` | Add a title or caption. |
+| `apply_visual_effect` | Add an effect, filter or adjustment to a clip. |
+| `generate_quick_image` / `generate_video_h3` | Make an image or a video and import it into the project. |
+| `generate_tts` / `add_music` / `generate_sfx` | Make a voice line, music or a sound effect. |
+| `preview_timeline_frame` | Render a still of any moment. |
+| `assemble_video` / `get_export_status` | Export the MP4 and follow the job. |
+| `undo_last_edit` | Undo the last whole tool call. |
+
 ## What's inside
 
 - `packages/timeline-core`: framework-free timeline engine, canvas renderer, editing operations.
