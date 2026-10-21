@@ -5,7 +5,7 @@
     "description": "OpenNan Studio desktop app: the editor in Electron with SQLite projects, native LGPL ffmpeg export, a built-in MCP server, and a terminal panel.",
     "license": "SEE LICENSE IN LICENSE",
     "author": "OpenNan",
-    "homepage": "https://github.com/Opennan/opennanStudio",
+    "homepage": "https://github.com/Opennan/OpennanStudio",
     "type": "module",
     "main": "dist/main/index.cjs",
     "scripts": {
