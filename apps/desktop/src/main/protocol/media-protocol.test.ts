@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { openDatabase, type DesktopDatabase } from "../store/database";
 import { createMediaStore, type MediaStore } from "../store/media-store";
-import { createMediaProtocolHandler, parseRange, type StreamSource } from "./media-protocol";
+import { createMediaProtocolHandler, parseRange } from "./media-protocol";
 
 describe("parseRange", () => {
     it.each([
@@ -88,80 +88,5 @@ describe("opennan-media protocol", () => {
     it("answers a file deleted behind the store's back with 403 or 404", async () => {
         fs.rmSync(store.pathOf(id)!);
         expect([403, 404]).toContain((await handler(get(`opennan-media://blob/${id}`))).status);
-    });
-});
-
-describe("opennan-media protocol: a cloud file still downloading", () => {
-    const BYTES = Uint8Array.from({ length: 100 }, (_, i) => i);
-    let dir: string;
-    let db: DesktopDatabase;
-    let store: MediaStore;
-    let opened: Array<[number, number]>;
-    let failing: boolean;
-    const STREAMED = "66666666-2222-4333-8444-555555555555";
-
-    beforeEach(() => {
-        dir = fs.mkdtempSync(path.join(os.tmpdir(), "opennan-mp-stream-"));
-        db = openDatabase(":memory:");
-        store = createMediaStore({ db, root: path.join(dir, "media") });
-        opened = [];
-        failing = false;
-    });
-    afterEach(() => {
-        db.close();
-        fs.rmSync(dir, { recursive: true, force: true });
-    });
-
-    const source: StreamSource = {
-        size: BYTES.byteLength,
-        mimeType: "video/webm",
-        async open(start, end) {
-            opened.push([start, end]);
-            if (failing) throw new Error("storage refused");
-            return new Response(BYTES.slice(start, end + 1)).body!;
-        },
-    };
-    const handler = () => createMediaProtocolHandler(store, { streaming: async (id) => (id === STREAMED ? source : null) });
-    const get = (range?: string, method = "GET") => new Request(`opennan-media://blob/${STREAMED}`, { method, ...(range ? { headers: { Range: range } } : {}) });
-
-    it("serves it like a stored file: whole, ranges, HEAD, 416, with the same headers", async () => {
-        const whole = await handler()(get());
-        expect(whole.status).toBe(200);
-        expect(Object.fromEntries(whole.headers)).toMatchObject({
-            "content-type": "video/webm", "accept-ranges": "bytes", "access-control-allow-origin": "opennan-app://app", "x-content-type-options": "nosniff",
-            "cache-control": "no-store", "content-length": "100",
-        });
-        expect(new Uint8Array(await whole.arrayBuffer())).toEqual(BYTES);
-        const range = await handler()(get("bytes=10-19"));
-        expect(range.status).toBe(206);
-        expect(range.headers.get("content-range")).toBe("bytes 10-19/100");
-        expect(range.headers.get("content-length")).toBe("10");
-        expect([...new Uint8Array(await range.arrayBuffer())]).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
-        expect(opened).toEqual([[0, 99], [10, 19]]);
-        const head = await handler()(get(undefined, "HEAD"));
-        expect(head.status).toBe(200);
-        expect(head.headers.get("content-length")).toBe("100");
-        expect(await head.text()).toBe("");
-        const beyond = await handler()(get("bytes=100-"));
-        expect(beyond.status).toBe(416);
-        expect(beyond.headers.get("content-range")).toBe("bytes */100");
-        expect(opened).toHaveLength(2);
-    });
-
-    it("answers 502 when the storage behind it fails, and 403 for ids nothing streams", async () => {
-        failing = true;
-        expect((await handler()(get("bytes=0-9"))).status).toBe(502);
-        expect((await handler()(new Request(`opennan-media://blob/${randomUUID()}`))).status).toBe(403);
-        // Without a streaming source the handler is the stored-files one.
-        expect((await createMediaProtocolHandler(store)(get())).status).toBe(403);
-    });
-
-    it("prefers the stored file once it is in the media store", async () => {
-        const temp = path.join(dir, "done.part");
-        fs.writeFileSync(temp, Buffer.from(BYTES));
-        await store.adoptFile({ id: STREAMED, projectId: null, path: temp, name: "a.webm", mimeType: "video/webm" });
-        const res = await handler()(get("bytes=0-1"));
-        expect(res.status).toBe(206);
-        expect(opened).toEqual([]);
     });
 });

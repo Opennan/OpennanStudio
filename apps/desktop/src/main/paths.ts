@@ -3,7 +3,6 @@
 // OPENNAN_STUDIO_USER_DATA and OPENNAN_STUDIO_EXPORTS_DIR (absolute paths only).
 import fs from "node:fs";
 import path from "node:path";
-import { caseSafeName } from "../shared/cloud-policy";
 import { isProjectRef } from "../shared/ids";
 
 export interface DesktopPaths {
@@ -15,8 +14,6 @@ export interface DesktopPaths {
     tokenFile: string;
     /** Whisper models, downloaded on first use (provider-local's model store). */
     models: string;
-    /** OpenNan cloud projects' state files and download temp folder (phase 9a). */
-    cloud: string;
     exports: string;
 }
 
@@ -39,21 +36,17 @@ export function desktopPaths({ userData, videos, env }: PathInputs): DesktopPath
         mcp,
         tokenFile: path.join(mcp, "token"),
         models: path.join(data, "models", "whisper"),
-        cloud: path.join(data, "cloud"),
         exports: absolute(env.OPENNAN_STUDIO_EXPORTS_DIR) ?? path.join(videos, "OpenNan Studio"),
     };
 }
 
-/**
- * A project's folder (terminal working directory, agent configs). Only ids LocalBackend creates, and cloud project ids
- * (spelled case-safely: server ids are case-sensitive, disks often are not).
- */
+/** A project's folder (terminal working directory, agent configs). Only ids LocalBackend creates. */
 export function projectDir(paths: Pick<DesktopPaths, "projects">, projectId: string): string {
     if (!isProjectRef(projectId)) throw new Error("invalid project id");
-    return path.join(paths.projects, caseSafeName(projectId));
+    return path.join(paths.projects, projectId);
 }
 
 /** Creates the private folders (0700); the exports folder is created by the first export. */
 export function ensureDirs(paths: DesktopPaths): void {
-    for (const dir of [paths.userData, paths.media, paths.projects, paths.mcp, paths.models, paths.cloud]) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    for (const dir of [paths.userData, paths.media, paths.projects, paths.mcp, paths.models]) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 }

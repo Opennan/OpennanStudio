@@ -5,9 +5,7 @@ import type {
     AudioInput, JobStatus, MediaSourceRef, PriceAnswer, PriceRequest, ProviderCapability, ProviderInfo, ProviderModel, ProviderVoice, Transcript,
 } from "@opennan/provider-sdk";
 import type { SessionNotice, SessionStatus } from "@opennan/provider-opennan";
-import type { CacheUsage, MediaFileInfo, UploadResult } from "@opennan/cloud-backend";
 import type { ControllerSnapshot, ExportCommandOutcome, LocalProjectState, MediaKind, UploadedMedia } from "@opennan/timeline-core";
-import type { CloudNamespace, CloudRequestMethod } from "./cloud-policy";
 import type { DesktopSettings, SecretName, SecretStatus, TerminalProfileId } from "./settings";
 
 export interface McpInfo {
@@ -102,37 +100,6 @@ export type ConsolePageName = "billing" | "usage" | "keys";
 
 export type SessionResponder = (method: string, args: unknown[]) => Promise<unknown>;
 
-/** CloudApiError.toJSON(): rebuilt with CloudApiError.fromJSON in the renderer. */
-export interface CloudErrorJson {
-    status: number;
-    code: string;
-    message: string;
-    type?: string;
-    details?: Record<string, unknown>;
-    retryAfterSeconds?: number;
-    fromServer: boolean;
-}
-
-/** A cloud call's answer: Electron passes only an Error's message, so failures come back as data. */
-export type CloudResult<T> = { ok: true; value: T } | { ok: false; error: CloudErrorJson };
-
-export interface CloudRequestPayload {
-    body?: unknown;
-    query?: Record<string, string | number | boolean>;
-    /** Idempotency-Key, If-Match, If-None-Match only. */
-    headers?: Record<string, string>;
-}
-
-/** A director turn's start request (phase 9b): a body and the allowed headers; main adds the key. */
-export interface CloudStreamPayload {
-    body?: unknown;
-    /** Idempotency-Key, If-Match, If-None-Match only. */
-    headers?: Record<string, string>;
-}
-
-/** One piece of a streamed answer, in order: chunks, then exactly one end or error. */
-export type CloudStreamEvent = { type: "chunk"; bytes: Uint8Array } | { type: "end" } | { type: "error"; error: CloudErrorJson };
-
 export interface DesktopBridge {
     readonly e2e: boolean;
     persistence: {
@@ -143,10 +110,8 @@ export interface DesktopBridge {
     };
     media: {
         import(projectId: string, file: File, kind: MediaKind): Promise<UploadedMedia>;
-        /** Deletes a media file the project owns (main refuses files of other projects, released or cached files). */
+        /** Deletes a media file the project owns (main refuses files of other projects). */
         delete(projectId: string, id: string): Promise<void>;
-        /** The project's files belong to no project any more, so deleting its document keeps them (Save to OpenNan). */
-        releaseProject(projectId: string): Promise<void>;
     };
     exports: {
         start(options: Record<string, unknown>, snapshot: ControllerSnapshot): Promise<ExportCommandOutcome>;
@@ -219,41 +184,6 @@ export interface DesktopBridge {
         price(providerId: string, request: PriceRequest): Promise<PriceAnswer>;
         voices(providerId: string): Promise<ProviderVoice[]>;
         onJob(listener: (event: ProviderJobEvent) => void): () => void;
-    };
-    /**
-     * OpenNan cloud projects (phase 9a): main calls the API with the account's key (allowlisted requests only), hashes
-     * and uploads media-store files, downloads cloud media into the media store, and keeps the cloud state files.
-     */
-    cloud: {
-        request(method: CloudRequestMethod, path: string, request: CloudRequestPayload): Promise<CloudResult<{ status: number; body: unknown; etag: string | null }>>;
-        describe(mediaId: string): Promise<MediaFileInfo | null>;
-        upload(mediaId: string, serverProjectId: string | null): Promise<CloudResult<UploadResult>>;
-        /** Export and share (phase 9c): uploads a video main exported (a file of its exports folder) for a cloud project. */
-        uploadExport(path: string, serverProjectId: string): Promise<CloudResult<UploadResult>>;
-        /** An OpenNan storage file cached in the media store: its opennan-local://media/<id> URL. */
-        cache(url: string, sizeBytes: number | null): Promise<CloudResult<{ url: string }>>;
-        /** A copy of a media-store file under a new id for a local project (Download a local copy). */
-        duplicate(mediaId: string, projectId: string): Promise<CloudResult<UploadedMedia>>;
-        storeGet(account: string, namespace: CloudNamespace, key: string): Promise<unknown>;
-        storePut(account: string, namespace: CloudNamespace, key: string, value: unknown): Promise<void>;
-        storeDelete(account: string, namespace: CloudNamespace, key: string): Promise<void>;
-        storeKeys(account: string, namespace: CloudNamespace): Promise<string[]>;
-        /** The media ids open cloud projects use now (replaces the previous set): the cache never evicts them. */
-        cachePin(ids: string[]): Promise<void>;
-        /** The cloud media cache on this device (Settings → Cloud media on this device). */
-        cacheUsage(): Promise<CloudResult<CacheUsage>>;
-        /** A new limit (null: the default, 10 GB); the cache is trimmed to it before the answer. */
-        cacheSetLimit(bytes: number | null): Promise<CloudResult<CacheUsage>>;
-        /** Evicts every cached file open cloud projects don't use. */
-        cacheClear(): Promise<CloudResult<{ freedBytes: number; keptBytes: number }>>;
-        /**
-         * Streams a director turn through main (phase 9b; only POST /v1/projects/{id}/director/turns): answers the status
-         * or the refusal; `listener` gets the body's bytes as they arrive (possibly before the answer) and then one end or
-         * error. `streamId` is the caller's ([A-Za-z0-9_-]{1,64}, unique among this window's running streams).
-         */
-        stream(streamId: string, method: CloudRequestMethod, path: string, request: CloudStreamPayload, listener: (event: CloudStreamEvent) => void): Promise<CloudResult<{ status: number }>>;
-        /** Stops a stream: main drops the request (the server cancels the turn) and the listener hears nothing more. */
-        streamAbort(streamId: string): Promise<void>;
     };
     /** On-device AI in main: transcription (provider-local, whisper.cpp) and stabilize (ffmpeg deshake). */
     ai: {

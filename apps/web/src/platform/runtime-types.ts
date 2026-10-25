@@ -3,13 +3,11 @@
 // apps/desktop builds its own and imports the shell from "@opennan/web/studio". Nothing here imports a
 // platform implementation.
 import type { ComponentType } from "react";
-import type { MediaCacheControl } from "@opennan/cloud-backend";
 import type { ProviderCapability, ProviderRegistry } from "@opennan/provider-sdk";
 import type { MediaLibraryBackend, ProjectCatalog, TimelineBackend } from "@opennan/timeline-core";
 import type { MediaEnvironment } from "@opennan/timeline-media";
 import type { TimelineMarkerStorage } from "@opennan/timeline-react";
 import type { AccountPlatform, ProviderPlatform } from "../account/account-types";
-import type { CloudPlatform } from "../cloud/cloud-platform";
 import type { ExportPlatform } from "./export-platform";
 import type { StorageGuard } from "./storage";
 
@@ -40,16 +38,6 @@ export interface StudioRuntime {
     account: AccountPlatform;
     /** Per-capability routing and bring-your-own provider keys (Settings → AI providers). */
     providerSettings: ProviderPlatform;
-    /**
-     * OpenNan cloud projects (phase 9a): the signed-in account's cloud backend, built on first use. `backend` routes
-     * "cloud-" project ids to it; hosts without cloud projects leave this out.
-     */
-    cloud?: CloudPlatform;
-    /**
-     * The download cache of cloud media on this device (phase 9a.1): its use, its size limit, and Clear cache
-     * (Settings). Web: one per origin (OPFS); desktop: main's media store.
-     */
-    mediaCache?: MediaCacheControl;
     /** Why a capability has no provider on this platform (desktop: "no whisper.cpp for win32-arm64"), shown with the guidance. */
     capabilityNote?(capability: ProviderCapability): string | null;
     ui: StudioUi;

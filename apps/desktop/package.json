@@ -29,8 +29,6 @@
     },
     "devDependencies": {
         "@modelcontextprotocol/sdk": "^1.32.1",
-        "@opennan/cloud-backend": "workspace:*",
-        "@opennan/director-client": "workspace:*",
         "@opennan/export": "workspace:*",
         "@opennan/mcp": "workspace:*",
         "@opennan/mcp-schema": "workspace:*",

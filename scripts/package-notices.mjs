@@ -1,5 +1,5 @@
 // THIRD_PARTY_NOTICES for the packages pack-smoke packs and npm would ship (spec §3, §11):
-// @opennan/timeline-core, @opennan/export, @opennan/provider-sdk, @opennan/provider-local, @opennan/provider-opennan, @opennan/provider-fal, @opennan/cloud-backend, @opennan/director-client, @opennan/mcp-schema, @opennan/mcp. Every
+// @opennan/timeline-core, @opennan/export, @opennan/provider-sdk, @opennan/provider-local, @opennan/provider-opennan, @opennan/provider-fal, @opennan/director-client, @opennan/mcp-schema, @opennan/mcp. Every
 // production dependency needs an allowed license (no GPL family, SSPL, or unknown);
 // dependencies reached through workspace packages count too (`pnpm licenses list` does not
 // follow workspace links, see scripts/check-licenses.mjs); the Apache-2.0 packages depend only on
@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-local", "provider-opennan", "provider-fal", "cloud-backend", "director-client", "mcp-schema", "mcp"];
+const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-local", "provider-opennan", "provider-fal", "director-client", "mcp-schema", "mcp"];
 
 /** Add an id here only after reviewing it; anything else fails the check. */
 export const ALLOWED_LICENSES = new Set([

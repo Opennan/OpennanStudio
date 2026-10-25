@@ -1,23 +1,10 @@
 // A DesktopBridge for renderer tests: an in-memory project store and vi.fn() everywhere else.
 import type { LocalProjectState } from "@opennan/timeline-core";
-import type { CloudNamespace } from "../shared/cloud-policy";
 import type { DesktopBridge } from "../shared/bridge";
 import { DEFAULT_SETTINGS } from "../shared/settings";
 
-/** What the test bridge's cache answers: empty, the default limit. */
-export const TEST_CACHE_USAGE = Object.freeze({
-    usedBytes: 0, entries: 0, limitBytes: 10 * 1024 ** 3, defaultLimitBytes: 10 * 1024 ** 3, maxLimitBytes: 1024 * 1024 ** 3, pinnedBytes: 0, custom: false,
-});
-
 export function createTestBridge(overrides: Partial<DesktopBridge> = {}) {
     const projects = new Map<string, LocalProjectState>();
-    /** The cloud file store: "<account>|<namespace>" → key → JSON text. */
-    const cloudFiles = new Map<string, Map<string, string>>();
-    const cloudNs = (account: string, namespace: CloudNamespace) => {
-        const id = `${account}|${namespace}`;
-        if (!cloudFiles.has(id)) cloudFiles.set(id, new Map());
-        return cloudFiles.get(id)!;
-    };
     const bridge: DesktopBridge = {
         e2e: false,
         persistence: {
@@ -29,7 +16,6 @@ export function createTestBridge(overrides: Partial<DesktopBridge> = {}) {
         media: {
             import: vi.fn(async (_projectId: string, file: File) => ({ url: "opennan-local://media/3f2b8c1e-1d2a-4c3b-9e8f-0a1b2c3d4e5f", name: file.name, size: file.size, mimeType: file.type, durationSeconds: 6 })),
             delete: vi.fn(async () => undefined),
-            releaseProject: vi.fn(async () => undefined),
         },
         exports: {
             start: vi.fn(async () => ({ jobId: "export-1" })), cancel: vi.fn(async () => undefined), reset: vi.fn(async () => undefined),
@@ -63,27 +49,6 @@ export function createTestBridge(overrides: Partial<DesktopBridge> = {}) {
             transcribe: vi.fn(async () => ({ jobId: "job-main1" })), cancel: vi.fn(async () => ({ cancelled: true })),
             price: vi.fn(async () => ({ kind: "unknown" as const })), voices: vi.fn(async () => []), onJob: vi.fn(() => () => undefined),
         },
-        cloud: {
-            request: vi.fn(async () => ({ ok: true as const, value: { status: 200, body: {}, etag: null } })),
-            describe: vi.fn(async () => null),
-            upload: vi.fn(async () => ({ ok: false as const, error: { status: 0, code: "missing_file", message: "No uploads in tests", fromServer: false } })),
-            uploadExport: vi.fn(async () => ({ ok: false as const, error: { status: 0, code: "missing_file", message: "No export uploads in tests", fromServer: false } })),
-            cache: vi.fn(async () => ({ ok: false as const, error: { status: 400, code: "download_refused", message: "No downloads in tests", fromServer: false } })),
-            duplicate: vi.fn(async () => ({ ok: false as const, error: { status: 0, code: "missing_file", message: "No copies in tests", fromServer: false } })),
-            storeGet: vi.fn(async (account: string, namespace: CloudNamespace, key: string) => {
-                const text = cloudNs(account, namespace).get(key);
-                return text === undefined ? null : JSON.parse(text);
-            }),
-            storePut: vi.fn(async (account: string, namespace: CloudNamespace, key: string, value: unknown) => void cloudNs(account, namespace).set(key, JSON.stringify(value))),
-            storeDelete: vi.fn(async (account: string, namespace: CloudNamespace, key: string) => void cloudNs(account, namespace).delete(key)),
-            storeKeys: vi.fn(async (account: string, namespace: CloudNamespace) => [...cloudNs(account, namespace).keys()]),
-            cachePin: vi.fn(async () => undefined),
-            cacheUsage: vi.fn(async () => ({ ok: true as const, value: { ...TEST_CACHE_USAGE } })),
-            cacheSetLimit: vi.fn(async (bytes: number | null) => ({ ok: true as const, value: { ...TEST_CACHE_USAGE, limitBytes: bytes ?? TEST_CACHE_USAGE.defaultLimitBytes, custom: bytes !== null } })),
-            cacheClear: vi.fn(async () => ({ ok: true as const, value: { freedBytes: 0, keptBytes: 0 } })),
-            stream: vi.fn(async () => ({ ok: false as const, error: { status: 503, code: "director_unavailable", message: "No streams in tests", fromServer: false } })) as DesktopBridge["cloud"]["stream"],
-            streamAbort: vi.fn(async () => undefined),
-        },
         ai: {
             status: vi.fn(async () => ({ available: false, reason: "No whisper.cpp in tests" })),
             models: vi.fn(async () => []),
@@ -94,5 +59,5 @@ export function createTestBridge(overrides: Partial<DesktopBridge> = {}) {
         },
         ...overrides,
     };
-    return { bridge, projects, cloudFiles };
+    return { bridge, projects };
 }

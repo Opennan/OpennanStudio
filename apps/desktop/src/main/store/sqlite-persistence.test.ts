@@ -6,7 +6,7 @@ import { LocalBackend, createEmptyProject, type LocalProjectState } from "@openn
 import { describeTimelineBackendContract } from "@opennan/timeline-core/testing";
 import { openDatabase } from "./database";
 import { createMediaStore } from "./media-store";
-import { createLocalReferenceScan, createSqlitePersistence } from "./sqlite-persistence";
+import { createSqlitePersistence } from "./sqlite-persistence";
 
 function tempStore() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "opennan-persist-"));
@@ -82,24 +82,5 @@ describe("createSqlitePersistence", () => {
         await p.deleteBlob!(id);
         expect(await p.getBlob(id)).toBeNull();
         await expect(p.putBlob("nope", new Blob(["x"], { type: "image/png" }))).rejects.toThrow("invalid media id");
-    });
-
-    it("tells whether any local project's saved document names a media file (in either URL form)", async () => {
-        const p = createSqlitePersistence({ db: store.db, media: store.media });
-        const named = randomUUID();
-        const viaProtocol = randomUUID();
-        const a = randomUUID();
-        await p.saveProject(a, { ...stateFor(a), scenes: [{ id: "s1", mediaUrl: `opennan-local://media/${named}`, posterUrl: `opennan-media://blob/${viaProtocol}` }] as never });
-        const scan = createLocalReferenceScan(store.db);
-        const unnamed = randomUUID();
-        // One pass over the projects for every candidate (review: Clear cache with many files never stalls main).
-        expect([...scan([named, viaProtocol, unnamed, "not-a-uuid"])].sort()).toEqual([named, viaProtocol, "not-a-uuid"].sort());
-        expect(scan([])).toEqual(new Set());
-    });
-
-    it("counts every candidate as named when the projects can't be read (fail closed)", () => {
-        const broken = { prepare: () => { throw new Error("database is locked"); } } as unknown as Parameters<typeof createLocalReferenceScan>[0];
-        const id = randomUUID();
-        expect([...createLocalReferenceScan(broken)([id])]).toEqual([id]);
     });
 });

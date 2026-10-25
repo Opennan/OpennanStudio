@@ -22,5 +22,4 @@ export function registerProjectIpc(ipc: IpcMainLike, { persistence, media }: { p
     handle(ipc, IPC.mediaDelete, async ({ projectId, id }) => {
         await media.deleteOwned(projectId, id);
     });
-    handle(ipc, IPC.mediaReleaseProject, ({ projectId }) => media.releaseProject(projectId));
 }

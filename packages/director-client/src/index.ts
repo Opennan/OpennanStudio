@@ -1,25 +1,20 @@
-// Public API of @opennan/director-client (OpenNan Community License, as cloud-backend): the OpenNan AI director for
-// OpenNan Studio over the cloud projects API client.
-export const DIRECTOR_CLIENT_VERSION = "0.2.0";
+// Public API of @opennan/director-client (OpenNan Community License): the client for OpenNan's project pipeline
+// routes (story plan, storyboard, scene video, copy-video) and the script cue cutter. No Studio host uses the pipeline
+// client since cloud projects were removed; see README.md.
+export const DIRECTOR_CLIENT_VERSION = "0.3.0";
 
-export { readSse, SseIdleError, SSE_IDLE_MS, type SseEvent, type ReadSseOptions } from "./director-sse";
 export {
-    parseTurn, parseEvent, parseProposal, parseChange, parseToolResult, parseToolCard, parseLimits, parseQuote, parseTask, eventsOfTurn, isRecord,
-    DEFAULT_TURN_LIMITS, MAX_MESSAGE_CHARS, MAX_SELECTION_CLIPS, MAX_SELECTION_SCENES, TURN_STATUSES,
-    type DirectorEvent, type DirectorTurn, type TurnStatus, type TurnLimits, type TurnCard, type ToolCard, type ToolResult, type TurnTask, type TurnError,
-    type TurnChange, type Proposal, type Quote, type PipelineRequest,
-} from "./director-types";
+    createProjectApi, ProjectApiError, isProjectApiError, isAbortError, isAllowedProjectApiBase,
+    type ProjectApi, type ProjectApiMethod, type ProjectApiRequest, type ProjectApiResponse, type ProjectApiOptions, type ProjectApiErrorInit,
+} from "./api";
+export { parseQuote, isRecord, type Quote, type PipelineRequest } from "./director-types";
 export {
-    streamTurn, listTurns, getTurn, cancelTurn, turnBody, MAX_TOOL_USD, STREAM_INTERRUPTED, FINAL_TURN_READS,
-    type TurnBody, type TurnSelection, type StreamTurnOptions, type TurnPage,
-} from "./director-turns";
-export {
-    checkPipelineRequest, pipelineRequest, proposalToolId, quoteBodyOf, projectVideoModels, videoQualities, PROJECT_TOOL_IDS, PROJECT_VIDEO_MODELS, AUTO_VIDEO_MODEL, VIDEO_QUALITIES, MAX_PIPELINE_BODY_CHARS,
+    checkPipelineRequest, pipelineRequest, quoteBodyOf, projectVideoModels, videoQualities, PROJECT_TOOL_IDS, PROJECT_VIDEO_MODELS, AUTO_VIDEO_MODEL, VIDEO_QUALITIES, MAX_PIPELINE_BODY_CHARS,
     type ProjectToolId, type CheckedRequest,
 } from "./director-pipelines";
 export {
-    createQuotes, formatUsdUp, formatUsdNear, formatUsdExact, TURN_QUOTE_MS, TOOL_QUOTE_MS, QUOTE_UNSUPPORTED_MS, QUOTE_RETRY_MS,
-    type DirectorQuotes, type TurnQuote, type ToolQuote,
+    createQuotes, formatUsdUp, formatUsdNear, formatUsdExact, TOOL_QUOTE_MS,
+    type DirectorQuotes, type ToolQuote,
 } from "./director-quotes";
 export {
     createProjectTasks, parseTaskState, TASK_WAIT_SECONDS, MIN_POLL_MS, TASK_DEADLINE_MS, CANCEL_TOO_LATE, CANCEL_UNKNOWN,

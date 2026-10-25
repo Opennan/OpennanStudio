@@ -5,13 +5,9 @@ import type { ExportErrorCode } from "@opennan/export";
 import { OPEN_CAPABILITIES, OPENNAN_CAPABILITIES } from "@opennan/provider-sdk";
 import { z } from "zod";
 import { IPC } from "./channels";
-import {
-    CLOUD_NAMESPACES, CLOUD_REQUEST_METHODS, CLOUD_STREAM_ID, MAX_CLOUD_MEDIA_BYTES, MAX_CLOUD_VALUE_BYTES, SERVER_PROJECT_ID, checkCloudRequest, checkCloudStream,
-    isAllowedCloudPath, isCloudStoreKey, isStreamablePath, jsonLength,
-} from "./cloud-policy";
-import { CLOUD_PROJECT_ID, UUID } from "./ids";
+import { UUID } from "./ids";
 import { localMediaId } from "./media-policy";
-import { CacheLimitSchema, MAX_CACHE_PINS, SECRET_NAMES, SettingsPatchSchema, TERMINAL_PROFILES } from "./settings";
+import { SECRET_NAMES, SettingsPatchSchema, TERMINAL_PROFILES } from "./settings";
 
 export { IPC, EVENTS } from "./channels";
 
@@ -35,8 +31,8 @@ export const EXPORT_ERROR_CODES = [
 export const GPU_VIDEO_CODECS = ["avc", "vp9", "av1", "vp8"] as const;
 
 export const Uuid = z.string().regex(UUID, "must be an id");
-/** A project the editor can open: a local project's id or a cloud project's "cloud-<server id>" (phase 9a). */
-export const ProjectRef = z.string().refine((value) => UUID.test(value) || CLOUD_PROJECT_ID.test(value), { message: "must be a project id" });
+/** A project the editor can open: a local project's id (projects stay on this device). */
+export const ProjectRef = Uuid;
 /** createJob ids (job-<base36>). */
 export const AiJobId = z.string().regex(/^job-[A-Za-z0-9_-]{1,64}$/, "must be a job id");
 /** provider host job ids (job-main<n>). */
@@ -54,28 +50,6 @@ export const LocalMediaSourceSchema = z.object({
     endSeconds: SourceSeconds.optional(),
 }).strict().refine((ref) => ref.startSeconds === undefined || ref.endSeconds === undefined || ref.endSeconds > ref.startSeconds, { message: "endSeconds must come after startSeconds" });
 const Empty = z.object({}).strict();
-/** The OpenNan account a cloud store belongs to (main hashes it into a folder name). */
-const CloudAccount = z.string().min(1).max(320);
-const CloudNamespace = z.enum(CLOUD_NAMESPACES);
-const CloudKey = z.string().refine(isCloudStoreKey, { message: "must be a cloud store key" });
-/** The sync engine's and the catalog's API calls, and nothing else (cloud-policy.ts). */
-const CloudRequestSchema = z.object({
-    method: z.enum(CLOUD_REQUEST_METHODS),
-    path: z.string().max(200).refine(isAllowedCloudPath, { message: "is not a cloud project route" }),
-    body: z.unknown().optional(),
-    query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
-    headers: z.record(z.string(), z.string()).optional(),
-}).strict().refine((request) => checkCloudRequest(request.method, request.path, request) === null, { message: "is not a request Studio sends" });
-
-const CloudStreamId = z.string().regex(CLOUD_STREAM_ID, "must be a stream id");
-/** A director turn streamed by main (phase 9b): the one streamable route, a body and the allowed headers, no query. */
-const CloudStreamSchema = z.object({
-    streamId: CloudStreamId,
-    method: z.literal("POST"),
-    path: z.string().max(200).refine(isStreamablePath, { message: "is not a streamable route" }),
-    body: z.unknown().optional(),
-    headers: z.record(z.string(), z.string()).optional(),
-}).strict().refine((request) => checkCloudStream(request.method, request.path, request) === null, { message: "is not a stream Studio starts" });
 
 /** JSON size in UTF-16 code units (a cheap bound that works in every process). */
 function jsonBytes(value: unknown): number {
@@ -128,10 +102,8 @@ export const PAYLOADS = {
     [IPC.persistenceDelete]: z.object({ projectId: Uuid }).strict(),
     [IPC.mediaImportPath]: z.object({ projectId: ProjectRef, path: Path, kind: MediaKindSchema }).strict(),
     [IPC.mediaImportBytes]: importBytesSchema(),
-    // Only a file the project owns (a cloud working copy's or a released file is never deleted by a local project).
+    // Only a file the project owns.
     [IPC.mediaDelete]: z.object({ projectId: ProjectRef, id: Uuid }).strict(),
-    // Save to OpenNan detaches a local project: its files stay (the cloud working copy uses them).
-    [IPC.mediaReleaseProject]: z.object({ projectId: Uuid }).strict(),
     [IPC.exportStart]: z.object({
         options: z.object({ resolution: z.enum(["720p", "1080p", "4k"]).optional(), format: z.enum(["video", "gif"]).optional() }).strict(),
         snapshot: SnapshotSchema,
@@ -248,28 +220,6 @@ export const PAYLOADS = {
         }).strict(),
     }).strict(),
     [IPC.providersVoices]: z.object({ providerId: ProviderIdSchema }).strict(),
-    // OpenNan cloud projects (phase 9a): main adds the key; media are named by media-store id only.
-    [IPC.cloudRequest]: CloudRequestSchema,
-    [IPC.cloudDescribe]: z.object({ mediaId: Uuid }).strict(),
-    [IPC.cloudUpload]: z.object({ mediaId: Uuid, serverProjectId: z.string().regex(SERVER_PROJECT_ID, "must be a cloud project id").nullable() }).strict(),
-    // Export and share (phase 9c): main uploads a file of its own exports folder (checked again in main) for a cloud project.
-    [IPC.cloudUploadExport]: z.object({ path: z.string().min(1).max(4096), serverProjectId: z.string().regex(SERVER_PROJECT_ID, "must be a cloud project id") }).strict(),
-    [IPC.cloudCache]: z.object({ url: z.string().max(4096), sizeBytes: z.number().int().min(0).max(MAX_CLOUD_MEDIA_BYTES).nullable() }).strict(),
-    [IPC.cloudDuplicate]: z.object({ mediaId: Uuid, projectId: Uuid }).strict(),
-    [IPC.cloudStoreGet]: z.object({ account: CloudAccount, namespace: CloudNamespace, key: CloudKey }).strict(),
-    [IPC.cloudStorePut]: z.object({
-        account: CloudAccount, namespace: CloudNamespace, key: CloudKey,
-        value: z.unknown().refine((value) => value !== undefined && jsonLength(value) <= MAX_CLOUD_VALUE_BYTES, { message: `must be JSON of at most ${MAX_CLOUD_VALUE_BYTES} bytes` }),
-    }).strict(),
-    [IPC.cloudStoreDelete]: z.object({ account: CloudAccount, namespace: CloudNamespace, key: CloudKey }).strict(),
-    [IPC.cloudStoreKeys]: z.object({ account: CloudAccount, namespace: CloudNamespace }).strict(),
-    // The cloud media cache (phase 9a.1): the media ids open cloud projects use, and Settings' usage, limit and clear.
-    [IPC.cloudCachePin]: z.object({ ids: z.array(Uuid).max(MAX_CACHE_PINS) }).strict(),
-    [IPC.cloudCacheUsage]: Empty,
-    [IPC.cloudCacheSetLimit]: z.object({ bytes: CacheLimitSchema }).strict(),
-    [IPC.cloudCacheClear]: Empty,
-    [IPC.cloudStreamStart]: CloudStreamSchema,
-    [IPC.cloudStreamAbort]: z.object({ streamId: CloudStreamId }).strict(),
 } as const;
 
 export type IpcChannel = keyof typeof PAYLOADS;

@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { STUDIO_TOOLS } from "@opennan/mcp-schema";
-import { CLOUD_UNAVAILABLE } from "./handlers/cloud";
+import { NO_PIPELINES } from "./handlers/pipelines";
 import { writeProjectFile } from "./project-file";
 import { fixtureProject } from "./testing/fixture";
 
@@ -60,10 +60,10 @@ describe("stdio transport", () => {
         const result = (await client.callTool({ name: "qc_check", arguments: {} })) as CallToolResult;
         expect(result.isError).toBe(true);
         expect((result.content[0] as { text: string }).text).toBe("Connect OpenNan to use qc_check.");
-        // Phase 9b: project pipelines run on OpenNan cloud projects in the app; headless has no cloud runtime.
+        // Phase 9b: project pipelines run only on projects stored on OpenNan; no host supplies them.
         const pipeline = (await client.callTool({ name: "generate_storyboard", arguments: { scene_order: 1 } })) as CallToolResult;
         expect(pipeline.isError).toBe(true);
-        expect((pipeline.content[0] as { text: string }).text).toBe(CLOUD_UNAVAILABLE);
+        expect((pipeline.content[0] as { text: string }).text).toBe(NO_PIPELINES);
         await client.close();
     });
 });

@@ -1,15 +1,12 @@
 // The editor: <TimelineProvider> over the shared LocalBackend, composed from the
 // package's <Timeline>, <Preview>, and <ClipProperties> (spec §5.3) like apps/playground/src/app.tsx.
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MutableRefObject } from "react";
-import type { ProjectLock } from "../cloud/tab-lock";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import {
     AiJobTray, EditorLibrary, Inspector, Preview, Timeline, TimelineProvider, useEditorStore, useEditorStoreApi, useTimelineController, useTimelineMessages,
     type GenerateKind, type TimelineHandle,
 } from "@opennan/timeline-react";
 import type { AiTargetRef, EditorStore, TimelineController } from "@opennan/timeline-core";
-import { useAccount, useAccountStatus } from "../account/account-context";
-import { isCloudProjectId } from "@opennan/cloud-backend";
-import { shotsEditUrl } from "../cloud/cloud-copy";
+import { useAccount } from "../account/account-context";
 import { createEditorAi } from "../ai/editor-ai";
 import { accountHold, notEnoughCreditsMessage } from "../ai/hold-check";
 import { createFrameCapture } from "../ai/capture-frame";
@@ -27,40 +24,16 @@ import { DEFAULT_LAYOUT, LAYOUT_LIMITS, loadLayout, saveLayout, type EditorLayou
 import { EditorTopBar } from "./editor-topbar";
 import { Splitter } from "./splitter";
 import { useEditorShortcuts } from "./shortcuts/use-editor-shortcuts";
-import { RightDock, loadRightDockTab, saveRightDockTab, type RightDockTab } from "./right-dock";
-import { DirectorPanel } from "../ai/director-panel";
-import { useDirectorHost } from "../ai/use-director";
-import { useCloudBackend } from "../cloud/use-cloud";
-import { ShareDialog } from "../share/share-dialog";
-import { useShareHost } from "../share/use-share";
-import type { TimelineToast } from "@opennan/timeline-core";
 import { ToastList } from "./toast-list";
 import { useToastQueue } from "./use-toast-queue";
 import "./editor.css";
 
 export function EditorRoute({ projectId }: { projectId: string }) {
     const { backend, retainProject, platform } = useStudioRuntime();
-    const { account, openSignIn } = useAccount();
-    const status = useAccountStatus(account);
-    const cloudProject = isCloudProjectId(projectId);
-    const signedIn = status.state === "signed-in";
     const [state, setState] = useState<"checking" | "ready" | "missing" | "failed">("checking");
-    const { cloud } = useStudioRuntime();
-    const [lock, setLock] = useState<ProjectLock | null>(null);
-    useEffect(() => {
-        if (!cloudProject || !signedIn || !cloud?.locks) return;
-        const handle = cloud.locks.acquire(projectId);
-        setLock(handle.lock);
-        return () => handle.release();
-    }, [cloud, projectId, cloudProject, signedIn]);
-    const lockState = useSyncExternalStore(
-        (listener) => lock?.subscribe(listener) ?? (() => undefined),
-        () => (cloud?.locks ? lock?.state() ?? "waiting" : "held"),
-    );
     // Leaving the editor closes the project (ProjectCatalog.closeProject, via the runtime's hold count).
     useEffect(() => retainProject(projectId), [retainProject, projectId]);
     useEffect(() => {
-        if (cloudProject && !signedIn) return;
         let live = true;
         backend.hasProject(projectId).then((exists) => {
             if (live) setState(exists ? "ready" : "missing");
@@ -70,28 +43,8 @@ export function EditorRoute({ projectId }: { projectId: string }) {
         return () => {
             live = false;
         };
-    }, [backend, projectId, cloudProject, signedIn]);
-    if (cloudProject && !signedIn) {
-        if (status.state === "restoring") return <p className="screen-message muted">Opening project…</p>;
-        return (
-            <div className="screen-message" data-testid="cloud-editor-signin">
-                <h1>Sign in to open this cloud project</h1>
-                <p className="muted">OpenNan cloud projects open on any device signed in to the same account.</p>
-                <button type="button" className="button primary" onClick={() => void openSignIn({ reason: "Open this cloud project" })}>Sign in with OpenNan</button>
-            </div>
-        );
-    }
-    if (cloudProject && lockState !== "held") {
-        if (lockState === "waiting") return <p className="screen-message muted">Opening project…</p>;
-        return (
-            <div className="screen-message" data-testid="cloud-editor-locked">
-                <h1>{lockState === "lost" ? "This cloud project was opened in another tab" : "This cloud project is open in another tab"}</h1>
-                <p className="muted">One tab at a time edits a cloud project, so their edits never overwrite each other on this device.</p>
-                <button type="button" className="button primary" onClick={() => lock?.takeOver()}>Open it here</button>
-            </div>
-        );
-    }
-    if (state === "failed") return <ScreenMessage title="Can't open this cloud project" message="OpenNan can't be reached and this project is not on this device yet. Try again when you're online." />;
+    }, [backend, projectId]);
+    if (state === "failed") return <ScreenMessage title="Can't open this project" message="It could not be read from this device's storage. Reload and try again." />;
     if (state === "checking") return <p className="screen-message muted">Opening project…</p>;
     if (state === "missing") {
         return <ScreenMessage title="Project not found" message={platform === "desktop" ? "It may have been deleted." : "It may have been deleted, or it was created in another browser."} />;
@@ -149,14 +102,6 @@ function EditorScreen({ projectId }: { projectId: string }) {
     }), [providers, account, openSignIn, pushToast]);
     bridge.current.ai = ai;
     useEffect(() => () => ai.dispose(), [ai]);
-    // Cloud projects: "edited elsewhere" after an undo, and other sync notices, as toasts.
-    const { cloud } = useStudioRuntime();
-    useEffect(() => {
-        if (!isCloudProjectId(projectId)) return;
-        return cloud?.backend()?.onNotice((message, id) => {
-            if (id === projectId) void pushToast({ kind: "info", message });
-        });
-    }, [cloud, projectId, pushToast]);
     return (
         <TimelineProvider
             backend={backend}
@@ -171,7 +116,7 @@ function EditorScreen({ projectId }: { projectId: string }) {
             onAiRun={onAiRun}
             ai={ai}
         >
-            <EditorWorkspace library={library} exporting={exporting} setExporting={setExporting} localExport={localExport} bridge={bridge} projectId={projectId} toast={pushToast} />
+            <EditorWorkspace library={library} exporting={exporting} setExporting={setExporting} localExport={localExport} bridge={bridge} projectId={projectId} />
             {ui.EditorAddons && <ui.EditorAddons projectId={projectId} />}
             <div className="editor-ai-jobs"><AiJobTray /></div>
             <ToastList toasts={toasts.toasts} onDismiss={toasts.dismiss} />
@@ -179,9 +124,8 @@ function EditorScreen({ projectId }: { projectId: string }) {
     );
 }
 
-function EditorWorkspace({ library, exporting, setExporting, localExport, bridge, projectId, toast }: {
+function EditorWorkspace({ library, exporting, setExporting, localExport, bridge, projectId }: {
     projectId: string;
-    toast(toast: TimelineToast): void;
     library: MediaLibrary;
     exporting: boolean;
     setExporting(open: boolean): void;
@@ -189,8 +133,6 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
     bridge: MutableRefObject<EditorBridge>;
 }) {
     const timeline = useRef<TimelineHandle>(null);
-    const { account } = useStudioRuntime();
-    const shotsUrl = shotsEditUrl(account.consoleOrigin, projectId);
     const controller = useTimelineController();
     const store = useEditorStoreApi();
     const [captioning, setCaptioning] = useState<false | { target?: AiTargetRef }>(false);
@@ -201,28 +143,17 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
     bridge.current.openAutoCaptions = (target) => setCaptioning(target ? { target } : {});
     // A dialog owns the keyboard: the editor keymap and the timeline's own listeners are both off.
     const pastingAttributes = useEditorStore((s) => s.attributePastePicker !== null);
-    const [sharing, setSharing] = useState(false);
-    const dialogOpen = exporting || captioning !== false || generating !== null || pastingAttributes || sharing;
+    const dialogOpen = exporting || captioning !== false || generating !== null || pastingAttributes;
     useEditorShortcuts(timeline, { enabled: !dialogOpen });
     const { debug, providers, backend, media } = useStudioRuntime();
     const captureFrame = useMemo(() => createFrameCapture({
         snapshot: () => controller.snapshot(), backend, projectId, resolveMediaUrl: (url) => media.resolveMediaUrl(url),
     }), [controller, backend, projectId, media]);
     const t = useTimelineMessages("studioEditor");
-    // The right dock: Inspector | AI (phase 9b). The AI director needs the cloud backend the router already built.
-    const cloudBackend = useCloudBackend(false);
-    const director = useDirectorHost(projectId, isCloudProjectId(projectId) ? cloudBackend : null, toast);
-    const [dockTab, setDockTab] = useState<RightDockTab>(loadRightDockTab);
-    const chooseDockTab = useCallback((next: RightDockTab) => {
-        setDockTab(next);
-        saveRightDockTab(next);
-    }, []);
-    const projectName = useEditorStore((s) => s.projectMeta?.name ?? "");
-    const shareHost = useShareHost({ projectId, projectName, open: sharing, cloudBackend: isCloudProjectId(projectId) ? cloudBackend : null, localExport, controller, backend });
     useEffect(() => {
         // providers: e2e screenshots register a stand-in transcriber to show the auto-captions styles.
-        if (debug) Object.assign(window, { __studio: { controller, store, timeline, providers, ai: bridge.current.ai, director } });
-    }, [controller, store, debug, providers, director]);
+        if (debug) Object.assign(window, { __studio: { controller, store, timeline, providers, ai: bridge.current.ai } });
+    }, [controller, store, debug, providers]);
     const [layout, setLayout] = useState<EditorLayout>(loadLayout);
     const layoutRef = useRef(layout);
     layoutRef.current = layout;
@@ -238,8 +169,6 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
         <div className="editor" style={style}>
             <EditorTopBar
                 onExport={() => setExporting(true)} onAutoCaptions={() => setCaptioning({})} onGenerate={() => setGenerating({ kind: "image" })}
-                aiOpen={dockTab === "ai"} onToggleAi={() => chooseDockTab(dockTab === "ai" ? "inspector" : "ai")}
-                onShare={() => setSharing(true)}
             />
             <aside className="editor-library" aria-label={t("libraryLabel")}>
                 <EditorLibrary media={<MediaBin library={library} kind="visual" />} audio={<MediaBin library={library} kind="audio" />} />
@@ -256,11 +185,7 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
                 onResize={resize("inspector")} onCommit={commit} onReset={reset("inspector")}
             />
             <aside className="editor-inspector" aria-label="Properties">
-                <RightDock
-                    tab={dockTab} onTab={chooseDockTab} enabled={!dialogOpen}
-                    inspector={<Inspector shotsEditUrl={shotsUrl} />}
-                    ai={<DirectorPanel projectId={projectId} projectName={projectName} host={director} />}
-                />
+                <Inspector />
             </aside>
             <Splitter
                 className="editor-split-timeline" orientation="horizontal" label={t("resizeTimeline")} direction={-1}
@@ -270,7 +195,6 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
             <section className="editor-timeline" aria-label="Timeline"><Timeline ref={timeline} className="timeline-host" shortcutsEnabled={!dialogOpen} /></section>
             {exporting && <ExportDialog onClose={() => setExporting(false)} local={localExport} />}
             {captioning && <AutoCaptionsDialog target={captioning.target} onClose={() => setCaptioning(false)} />}
-            {sharing && <ShareDialog projectId={projectId} projectName={projectName} host={shareHost} onClose={() => setSharing(false)} />}
             {generating && <GenerateDialog initialKind={generating.kind} fromFrame={generating.fromFrame} captureFrame={captureFrame} onClose={() => setGenerating(null)} />}
         </div>
     );

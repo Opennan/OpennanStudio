@@ -7,7 +7,6 @@ import { BrandMark } from "../ui/brand-mark";
 import { useAccount } from "./account-context";
 import { Avatar } from "./avatar";
 import { chipCreditsLabel, creditsTone, formatCredits } from "./format-credits";
-import { CloudStorageSection } from "../cloud/cloud-storage-section";
 
 export const BALANCE_REFRESH_MS = 60_000;
 /** A focus right after the last refresh does not refresh again. */
@@ -119,7 +118,6 @@ export function AccountChip() {
                             Credits <strong>{formatCredits(balance)}</strong>
                         </div>
                     )}
-                    <CloudStorageSection compact active={open} />
                     <button type="button" role="menuitem" className="account-menu-item account-menu-primary" onClick={run(() => account.openConsole("billing"))}>Buy credits</button>
                     <button type="button" role="menuitem" className="account-menu-item" onClick={run(() => account.openConsole("usage"))}>Usage</button>
                     <button type="button" role="menuitem" className="account-menu-item" onClick={run(() => account.openConsole("keys"))}>Manage keys</button>

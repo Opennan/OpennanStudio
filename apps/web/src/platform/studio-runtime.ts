@@ -8,14 +8,6 @@ import { ProviderRegistry } from "@opennan/provider-sdk";
 import { DEFAULT_API_BASE, DEFAULT_CONSOLE_BASE, createOpenNanProvider } from "@opennan/provider-opennan";
 import { FAL_PROVIDER_ID, createFalProvider } from "@opennan/provider-fal";
 import { LocalBackend, createIndexedDbPersistence, type LocalPersistence } from "@opennan/timeline-core";
-import { BackendRouter, createCloudApi, type OpenNanCloudBackend } from "@opennan/cloud-backend";
-import { createCloudPlatform } from "../cloud/cloud-platform";
-import { cloudUrlCheck, createWebCloudBackend, localCacheReferences } from "../cloud/web-cloud";
-import { createWebMediaCache } from "../cloud/media-cache";
-import { createTabLocks } from "../cloud/tab-lock";
-import { hashInWorker } from "../cloud/hash";
-import { createExportUpload } from "../share/share-upload";
-import { removeOpfsExport } from "@opennan/export/web";
 import { createBrowserMediaEnvironment } from "@opennan/timeline-media";
 import { createLocalStorageMarkerStorage } from "@opennan/timeline-react";
 import { connectRouting } from "../settings/routing-groups";
@@ -78,40 +70,15 @@ export interface StudioRuntimeOptions {
     storage?: StorageManagerLike | null;
     /** The browser account by default (tests pass one over a fake server). */
     account?: WebAccount;
-    /** Builds the cloud backend for an account (tests pass one over memory stores). */
-    buildCloud?(accountId: string, blobs: LocalPersistence): OpenNanCloudBackend;
 }
 
 export function createStudioRuntime(options: StudioRuntimeOptions = {}): StudioRuntime {
     const persistence = options.persistence ?? createIndexedDbPersistence({ dbName: options.dbName ?? STUDIO_DB_NAME });
-    const local = new LocalBackend({ persistence });
+    const backend = new LocalBackend({ persistence });
     // OpenNan is on by default for every AI capability it offers (Settings → AI providers can change that);
     // signed out, its features stay visible and open Sign in with OpenNan.
     const account = options.account ?? createBrowserAccount();
-    // Cloud projects (phase 9a): nothing is built until someone opens the Cloud tab or a cloud project.
-    // Downloaded cloud media (phase 9a.1): one cache per origin under a size limit, shared by every account's backend.
-    const mediaCache = createWebMediaCache({
-        isAllowed: cloudUrlCheck(OPENNAN_API_BASE, E2E), fallback: persistence, localReferences: () => localCacheReferences(persistence),
-        ...(options.storage === null ? { storage: null } : {}),
-    });
-    const tabLocks = createTabLocks();
-    const cloud = createCloudPlatform({
-        account, local, locks: tabLocks,
-        build: (accountId, migration) => options.buildCloud?.(accountId, persistence) ?? createWebCloudBackend({
-            accountId, apiBase: OPENNAN_API_BASE, apiKey: () => account.session.apiKey(), blobs: persistence, e2e: E2E, cache: mediaCache,
-            ...(migration ? { migration } : {}), inUseElsewhere: (projectId) => tabLocks.inUseElsewhere(projectId),
-        }),
-        api: () => createCloudApi({ baseUrl: OPENNAN_API_BASE, apiKey: () => account.session.apiKey() }),
-        // Export and share (phase 9c): the export's file goes up from the page with the project's id.
-        uploadExport: createExportUpload({
-            api: () => (account.session.apiKey() ? createCloudApi({ baseUrl: OPENNAN_API_BASE, apiKey: () => account.session.apiKey() }) : null),
-            hash: (blob, signal) => hashInWorker(blob, signal), removeFile: (name) => removeOpfsExport(name),
-        }),
-    });
-    const backend = new BackendRouter(local, () => cloud.backend());
-    // e2e builds only: specs read sync states and flush through the same backend the screens use.
-    if (E2E && typeof window !== "undefined") Object.assign(window, { __studioCloud: cloud });
-    const media = createBrowserMediaEnvironment({ resolveLocalUrl: (url) => local.resolveLocalUrl(url) ?? cloud.resolveLocalUrl(url) });
+    const media = createBrowserMediaEnvironment({ resolveLocalUrl: (url) => backend.resolveLocalUrl(url) });
     const markerStorage = createLocalStorageMarkerStorage(MARKER_STORAGE_PREFIX);
     const providers = new ProviderRegistry();
     // AI tools upload the clip's used range, prepared in the page (phase 11): the key and the upload stay here.
@@ -133,8 +100,6 @@ export function createStudioRuntime(options: StudioRuntimeOptions = {}): StudioR
     return {
         platform: "web",
         backend,
-        cloud,
-        mediaCache,
         media,
         markerStorage,
         storage: createStorageGuard(options.storage === undefined ? globalThis.navigator?.storage : options.storage),

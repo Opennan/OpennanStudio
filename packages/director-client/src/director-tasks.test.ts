@@ -1,14 +1,14 @@
-import { CloudApiError, type CloudApi, type CloudMethod, type CloudRequest } from "@opennan/cloud-backend";
+import { ProjectApiError, type ProjectApi, type ProjectApiMethod, type ProjectApiRequest } from "./api";
 import { pipelineRequest } from "./director-pipelines";
 import { CANCEL_TOO_LATE, createProjectTasks, parseTaskState, type ProjectTaskState } from "./director-tasks";
 
-interface Call { method: CloudMethod; path: string; request?: CloudRequest }
+interface Call { method: ProjectApiMethod; path: string; request?: ProjectApiRequest }
 
 function fakeApi(handler: (call: Call) => unknown) {
     const calls: Call[] = [];
-    const api: CloudApi = {
+    const api: ProjectApi = {
         baseUrl: "https://api.opennan.com",
-        async request<T>(method: CloudMethod, path: string, request?: CloudRequest) {
+        async request<T>(method: ProjectApiMethod, path: string, request?: ProjectApiRequest) {
             const call = { method, path, request };
             calls.push(call);
             await Promise.resolve();
@@ -54,9 +54,9 @@ describe("createProjectTasks", () => {
         expect(updates.map((u) => u.status)).toEqual(["queued", "running", "running", "succeeded"]);
     });
 
-    it("a refused POST rejects done and id with the CloudApiError, nothing polled", async () => {
+    it("a refused POST rejects done and id with the ProjectApiError, nothing polled", async () => {
         const { api, calls } = fakeApi(() => {
-            throw new CloudApiError(402, "insufficient_balance", "low");
+            throw new ProjectApiError(402, "insufficient_balance", "low");
         });
         const handle = createProjectTasks(api, instant).start(pipelineRequest("story-scenes", "p1"));
         await expect(handle.done).rejects.toMatchObject({ code: "insufficient_balance" });
@@ -69,7 +69,7 @@ describe("createProjectTasks", () => {
         const { api } = fakeApi(({ method }) => {
             if (method === "POST") return { id: "task_1", status: "queued" };
             polls += 1;
-            if (polls <= 2) throw new CloudApiError(0, "network", "down");
+            if (polls <= 2) throw new ProjectApiError(0, "network", "down");
             return { id: "task_1", status: "succeeded", project_revision: 3 };
         });
         const outcome = await createProjectTasks(api, instant).start(pipelineRequest("story-scenes", "p1")).done;
@@ -99,9 +99,9 @@ describe("createProjectTasks", () => {
         const { api } = fakeApi(({ method, path }) => {
             if (method === "POST" && path.endsWith("/cancel")) {
                 cancels += 1;
-                if (mode === "busy" && cancels < 3) throw new CloudApiError(409, "task_busy_retry", "busy", { retryAfterSeconds: 1 });
-                if (mode === "late") throw new CloudApiError(409, "task_not_cancellable", "late");
-                if (mode === "finished") throw new CloudApiError(409, "task_already_finished", "done");
+                if (mode === "busy" && cancels < 3) throw new ProjectApiError(409, "task_busy_retry", "busy", { retryAfterSeconds: 1 });
+                if (mode === "late") throw new ProjectApiError(409, "task_not_cancellable", "late");
+                if (mode === "finished") throw new ProjectApiError(409, "task_already_finished", "done");
                 return { id: "task_3", status: "cancelled" };
             }
             if (method === "POST") return { id: "task_3", status: "running" };
@@ -125,7 +125,7 @@ describe("createProjectTasks", () => {
         expect(await finished.done).toMatchObject({ status: "succeeded", projectRevision: 4 });
     });
 
-    it("follows a task the director started", async () => {
+    it("follows a task another surface started", async () => {
         const { api, calls } = fakeApi(() => ({ id: "task_9", status: "succeeded", project_revision: 2 }));
         const outcome = await createProjectTasks(api, instant).follow("task_9").done;
         expect(outcome).toMatchObject({ status: "succeeded", projectRevision: 2 });

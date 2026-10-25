@@ -41,20 +41,4 @@ describe("desktop settings", () => {
         host.remove();
     });
 
-    it("offers \"Let agents create share links without asking\", off by default (9c.1)", async () => {
-        const { bridge } = createTestBridge();
-        const host = document.createElement("div");
-        document.body.append(host);
-        const root = createRoot(host);
-        act(() => root.render(<SettingsAddonsView bridge={bridge} />));
-        await flush();
-        const toggle = host.querySelector('input[type="checkbox"][aria-describedby]') as HTMLInputElement;
-        expect(toggle.closest("label")?.textContent).toContain("Let agents create share links without asking");
-        expect(toggle.checked).toBe(false);
-        expect(host.textContent).toContain("asks you before an agent makes a public view link");
-        await act(async () => toggle.click());
-        expect(bridge.settings.update).toHaveBeenCalledWith({ agentSharesWithoutAsking: true });
-        act(() => root.unmount());
-        host.remove();
-    });
 });

@@ -1,7 +1,7 @@
 {
     "name": "@opennan/director-client",
-    "version": "0.2.0",
-    "description": "The OpenNan AI director for OpenNan Studio: streamed director turns over SSE, turn and project-tool quotes, project pipeline tasks, the proposal allowlist, and the script cue cutter, over the cloud projects API client.",
+    "version": "0.3.0",
+    "description": "Client for OpenNan's project pipeline routes (story plan, storyboard, scene video, copy-video): requests, quotes and tasks, plus the script cue cutter. Not used by any Studio host since cloud projects were removed.",
     "license": "SEE LICENSE IN LICENSE",
     "type": "module",
     "sideEffects": false,
@@ -21,11 +21,7 @@
         "test": "vitest run",
         "typecheck": "tsc -p tsconfig.json"
     },
-    "dependencies": {
-        "@opennan/cloud-backend": "workspace:*"
-    },
     "devDependencies": {
-        "@opennan/provider-opennan": "workspace:*",
         "@types/node": "^20.0.0",
         "tsup": "^8.5.0",
         "typescript": "^5.9.0",

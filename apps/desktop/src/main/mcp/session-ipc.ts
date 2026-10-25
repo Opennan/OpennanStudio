@@ -7,7 +7,7 @@ import type { RenderedFrame } from "@opennan/timeline-core";
 import { EVENTS, IPC } from "../../shared/ipc";
 import { handle, type IpcMainLike } from "../ipc/handle";
 import type { MediaStore } from "../store/media-store";
-import { createDesktopSession, createShareConsent } from "./desktop-session";
+import { createDesktopSession } from "./desktop-session";
 import type { McpHost } from "./mcp-host";
 import { createRendererRpc, type RendererRpc, type SessionResponse } from "./renderer-rpc";
 
@@ -22,10 +22,6 @@ export interface SessionIpcOptions {
     providers?: PriceRegistry;
     /** The user's captions routing pick (see DesktopSessionOptions.captionsRoute). */
     captionsRoute?(): string | null;
-    /** Settings → "Let agents create share links without asking" (9c.1; off: the person is asked each time). */
-    shareWithoutAsking?(): boolean;
-    /** The OpenNan API is this machine's loopback (the e2e fake): agents may get share links there. */
-    loopbackShares?: boolean;
 }
 
 export interface SessionIpc {
@@ -36,8 +32,6 @@ export interface SessionIpc {
 
 export function registerSessionIpc(ipc: IpcMainLike, options: SessionIpcOptions): SessionIpc {
     let current: { projectId: string; rpc: RendererRpc } | null = null;
-    // One per app run: "Allow for this project during this session" lasts until the app quits (9c.1).
-    const shareConsent = createShareConsent(() => options.shareWithoutAsking?.() === true);
     const detachAll = async (reason: string) => {
         const was = current;
         current = null;
@@ -48,9 +42,9 @@ export function registerSessionIpc(ipc: IpcMainLike, options: SessionIpcOptions)
         await detachAll("The editor opened another project");
         const dir = options.projectDir(projectId);
         fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-        const rpc = createRendererRpc({ send: (request) => options.send(EVENTS.sessionRequest, request), loopbackShares: options.loopbackShares === true });
+        const rpc = createRendererRpc({ send: (request) => options.send(EVENTS.sessionRequest, request) });
         current = { projectId, rpc };
-        const session = await createDesktopSession({ projectId, rpc, exporter: options.exporter, mediaStore: options.mediaStore, projectDir: dir, capturePage: options.capturePage, ...(options.providers ? { providers: options.providers } : {}), ...(options.captionsRoute ? { captionsRoute: options.captionsRoute } : {}), shareConsent });
+        const session = await createDesktopSession({ projectId, rpc, exporter: options.exporter, mediaStore: options.mediaStore, projectDir: dir, capturePage: options.capturePage, ...(options.providers ? { providers: options.providers } : {}), ...(options.captionsRoute ? { captionsRoute: options.captionsRoute } : {}) });
         await options.host.open(session);
         return { ok: true as const };
     });

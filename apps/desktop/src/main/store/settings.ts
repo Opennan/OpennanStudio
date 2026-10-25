@@ -1,6 +1,6 @@
 // Typed settings in the `settings` table (one JSON value per key, defaults for missing keys). Read once when the app
 // starts and changed only through update (9c.1 review): a write to the database file behind the app's back (an agent
-// with a shell turning "Let agents create share links without asking" on) is not seen while the app runs.
+// with a shell) is not seen while the app runs. Rows of keys the app no longer has are ignored.
 import { DEFAULT_SETTINGS, SettingsPatchSchema, SettingsSchema, type DesktopSettings } from "../../shared/settings";
 import type { DesktopDatabase } from "./database";
 

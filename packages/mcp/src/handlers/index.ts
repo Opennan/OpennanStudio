@@ -4,7 +4,6 @@ import { AI_TOOL_HANDLERS } from "./ai-tools";
 import { ANALYSIS_HANDLERS } from "./analysis";
 import { capabilityUnavailable } from "./capability";
 import { CLIP_HANDLERS } from "./clips";
-import { CLOUD_HANDLERS } from "./cloud";
 import { EDITOR_HANDLERS } from "./editor";
 import { GENERATE_HANDLERS } from "./generate";
 import { LOOK_HANDLERS } from "./looks";
@@ -33,9 +32,7 @@ export const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
     ...GENERATE_HANDLERS,
     // Phase 11: the editor's AI tools (priced first), estimate_cost, check_generation_status, list_voices.
     ...AI_TOOL_HANDLERS,
-    // Phase 9a: OpenNan cloud projects on the host's cloud runtime.
-    ...CLOUD_HANDLERS,
-    // Phase 9b: OpenNan project pipelines (and plan_scenes / set_project_script) on cloud projects.
+    // Phase 9b: OpenNan project pipelines (and plan_scenes / set_project_script); no current host supplies them.
     ...PIPELINE_HANDLERS,
 };
 

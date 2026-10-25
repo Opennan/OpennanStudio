@@ -2,8 +2,6 @@
 // the other providers with Add provider (OpenNan API key, bring-your-own keys, the on-device provider), and which
 // provider runs each capability. opennan.* rows are locked to OpenNan (spec §2.1).
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import { CloudStorageSection } from "../cloud/cloud-storage-section";
-import { MediaCacheSection } from "../cloud/media-cache-section";
 import type { OpenCapability, ProviderCapability, ProviderModel } from "@opennan/provider-sdk";
 import { AccountChip } from "../account/account-chip";
 import { useAccount } from "../account/account-context";
@@ -31,7 +29,7 @@ function useRouting() {
 }
 
 export function ProviderSettingsScreen() {
-    const { ui, platform, mediaCache } = useStudioRuntime();
+    const { ui, platform } = useStudioRuntime();
     const [dialog, setDialog] = useState<AddDialog>(null);
     return (
         <div className="settings">
@@ -50,7 +48,6 @@ export function ProviderSettingsScreen() {
                 <OpenNanCard />
                 <OtherProviders onAdd={setDialog} />
                 <RoutingTable />
-                {mediaCache && <MediaCacheSection cache={mediaCache} />}
                 {ui.SettingsAddons && <ui.SettingsAddons />}
             </main>
             {dialog?.kind === "opennan-key" && <OpenNanKeyDialog onClose={() => setDialog(null)} />}
@@ -96,7 +93,6 @@ function OpenNanCard() {
                     <span className="muted small">One click in your browser. No password in Studio.</span>
                 </div>
             )}
-            {signedIn && <CloudStorageSection />}
             <div className="provider-switch-row">
                 <button type="button" role="switch" aria-checked={routing.opennanDefault} aria-labelledby={`${titleId}-switch`} className="switch" onClick={toggle}>
                     <span className="switch-thumb" />

@@ -2,15 +2,10 @@
 // renderer's controller over the validated RPC; previews, exports, uploads, screenshots, and file reads
 // stay in main. Commands carrying media desktop does not serve are refused here, before the renderer sees them.
 // Phase 11: prices come from main's provider host (the keys live here); the agent's own ai.run calls are kept as job
-// records for check_generation_status (the renderer's job tray keeps the person's). Phase 9a: cloud project tools run
-// on the renderer's cloud runtime over the same RPC (answers checked in renderer-rpc.ts and copied field by field).
-// Phase 9b: the project pipeline seam (StudioCloud.pipelines) runs there too, over the renderer's CloudApi proxy (the
-// key stays in main's cloud host); a step's task is followed in the renderer, whose controller records its result.
-import type {
-    PriceRegistry, StudioCloud, StudioCloudPipelines, StudioCloudProject, StudioCloudShares, StudioShareLink, StudioExporter, StudioHost, StudioPipelineQuote, StudioPipelineResult, StudioPipelineStep,
-    StudioSession, StudioUiState,
-} from "@opennan/mcp";
-import { ShareNotAllowedError, createLocalFileReader, priceOnRegistry, voicesOnRegistry } from "@opennan/mcp";
+// records for check_generation_status (the renderer's job tray keeps the person's). Projects are local: the session
+// has no OpenNan project pipelines (those tools answer unavailable).
+import type { PriceRegistry, StudioExporter, StudioHost, StudioSession, StudioUiState } from "@opennan/mcp";
+import { createLocalFileReader, priceOnRegistry, voicesOnRegistry } from "@opennan/mcp";
 import type { AiJobRecord } from "@opennan/provider-sdk";
 import {
     timelineDurationSeconds, type CommandResult, type ControllerSnapshot, type EditorCommand, type EffectDef, type HistoryDepth,
@@ -18,7 +13,7 @@ import {
 } from "@opennan/timeline-core";
 import { disallowedMediaUrls } from "../../shared/media-policy";
 import type { MediaStore } from "../store/media-store";
-import { RendererTimeoutError, type RendererRpc } from "./renderer-rpc";
+import type { RendererRpc } from "./renderer-rpc";
 
 /** ai.run waits on a provider job (a model download, then whisper.cpp): far longer than an edit. */
 export const AI_RUN_TIMEOUT_MS = 30 * 60_000;
@@ -39,160 +34,6 @@ export interface DesktopSessionOptions {
      * makes captions without an explicit engine run (and be priced) in the cloud; absent or "local" keeps them on the device.
      */
     captionsRoute?(): string | null;
-    /** Whether an agent's share link needs the person's yes (9c.1); a fresh one per session when absent (always asks). */
-    shareConsent?: ShareConsent;
-    /** Main's own deadline for the person's answer (SHARE_CONFIRM_TIMEOUT_MS); tests shorten it. */
-    shareConfirmTimeoutMs?: number;
-}
-
-/**
- * When an agent may make a public share link without asking (9c.1): the person turned asking off in Settings, or
- * chose "Allow for this project during this session" (kept in memory until the app quits).
- */
-export interface ShareConsent {
-    withoutAsking(): boolean;
-    allowedForSession(projectId: string): boolean;
-    allowForSession(projectId: string): void;
-}
-
-export function createShareConsent(withoutAsking: () => boolean): ShareConsent {
-    const allowed = new Set<string>();
-    return {
-        withoutAsking,
-        allowedForSession: (projectId) => allowed.has(projectId),
-        allowForSession: (projectId) => void allowed.add(projectId),
-    };
-}
-
-/**
- * The renderer closes the question as unanswered after 2 minutes (SHARE_CONFIRM_MS there); main waits a little longer
- * and counts its own deadline as unanswered too.
- */
-export const SHARE_CONFIRM_TIMEOUT_MS = 2 * 60_000 + 15_000;
-
-/** Save to OpenNan uploads the project's media first: far longer than an edit. */
-export const CLOUD_SAVE_TIMEOUT_MS = 30 * 60_000;
-
-/** A project pipeline task runs up to an hour (director-client's deadline), then its result is pulled into the editor. */
-export const PIPELINE_RUN_TIMEOUT_MS = 65 * 60_000;
-/** A no-charge scene edit answers at once, then waits a few seconds for the editor to pull it. */
-export const PIPELINE_EDIT_TIMEOUT_MS = 60_000;
-
-const stepOf = (step: StudioPipelineStep) => ({
-    tool: step.tool, ...(step.sceneId !== undefined ? { sceneId: step.sceneId } : {}), ...(step.index !== undefined ? { index: step.index } : {}), body: step.body, label: step.label,
-});
-
-/**
- * The pipeline seam of a desktop session. Signals cannot cross IPC, and a submitted step is not cancelled when the MCP
- * call stops waiting: the task keeps running on OpenNan and its result still lands in the editor through sync.
- */
-export function createDesktopPipelines(rpc: RendererRpc): StudioCloudPipelines {
-    return {
-        async quote(step) {
-            const value = (await rpc.call("cloud.quote", [{ step: stepOf(step) }])) as StudioPipelineQuote;
-            if (value.kind === "quote") return { kind: "quote", priceUsd: value.priceUsd, holdUsd: value.holdUsd };
-            if (value.kind === "refused") return { kind: "refused", code: value.code, message: value.message };
-            return { kind: "unavailable" };
-        },
-        async run(step, options = {}) {
-            const value = (await rpc.call("cloud.run", [{ step: stepOf(step), ...(options.maxHoldUsd !== undefined ? { maxHoldUsd: options.maxHoldUsd } : {}) }], { timeoutMs: PIPELINE_RUN_TIMEOUT_MS })) as StudioPipelineResult;
-            return {
-                taskId: value.taskId, status: value.status, chargedUsd: value.chargedUsd, projectRevision: value.projectRevision, synced: value.synced, undoable: value.undoable,
-                error: value.error ? { message: value.error.message, code: value.error.code, refunded: value.error.refunded } : null,
-            };
-        },
-        async editScene(edit) {
-            const value = (await rpc.call("cloud.edit", [{ ...edit }], { timeoutMs: PIPELINE_EDIT_TIMEOUT_MS })) as { synced: boolean };
-            return { synced: value.synced };
-        },
-        async setScript(texts) {
-            await rpc.call("cloud.script", [{ ...texts }]);
-        },
-    };
-}
-
-/** The cloud seam of a desktop session: the renderer answers from runtime.cloud (signed out: an error to show); `ask` gets the person's yes before an agent's public link. */
-export function createDesktopCloud(rpc: RendererRpc, ask: (signal?: AbortSignal) => Promise<void>): StudioCloud {
-    const opened = (value: unknown) => {
-        const v = value as { projectId: string; name: string };
-        return { projectId: v.projectId, name: v.name };
-    };
-    return {
-        async listProjects({ trash, cursor }) {
-            const page = (await rpc.call("cloud.list", [{ trash: trash === true, cursor: cursor ?? null }])) as { projects: StudioCloudProject[]; nextCursor: string | null };
-            return {
-                projects: page.projects.map((p) => ({
-                    id: p.id, name: p.name, aspectRatio: p.aspectRatio, durationSeconds: p.durationSeconds, mediaBytes: p.mediaBytes, updatedAt: p.updatedAt,
-                    lastEditedDevice: p.lastEditedDevice, origin: p.origin, deletedAt: p.deletedAt,
-                })),
-                nextCursor: page.nextCursor,
-            };
-        },
-        saveCurrentProject: async () => opened(await rpc.call("cloud.save", [{}], { timeoutMs: CLOUD_SAVE_TIMEOUT_MS })),
-        openProject: async (projectId) => opened(await rpc.call("cloud.open", [{ projectId }])),
-        async syncStatus(projectId) {
-            const status = (await rpc.call("cloud.status", [projectId === undefined ? {} : { projectId }])) as { projectId: string; state: string; label: string; pending: number; conflicts: string[] } | null;
-            return status ? { projectId: status.projectId, state: status.state, label: status.label, pending: status.pending, conflicts: [...status.conflicts] } : null;
-        },
-        pipelines: createDesktopPipelines(rpc),
-        shares: createDesktopShares(rpc, ask),
-    };
-}
-
-/**
- * Asks the person in the editor before an agent makes a public link of `projectId` (9c.1), unless their setting or an
- * earlier "Allow for this project during this session" says not to. Throws ShareNotAllowedError on a no or no answer.
- */
-export function createShareAsk(rpc: RendererRpc, projectId: string, consent: ShareConsent, timeoutMs = SHARE_CONFIRM_TIMEOUT_MS): (signal?: AbortSignal) => Promise<void> {
-    return async (signal) => {
-        if (signal?.aborted) throw new ShareNotAllowedError("unanswered");
-        if (consent.withoutAsking() || consent.allowedForSession(projectId)) return;
-        let answer: unknown;
-        let onAbort: (() => void) | null = null;
-        try {
-            answer = await Promise.race([
-                rpc.call("confirmShare", [{}], { timeoutMs }),
-                // The agent's call ended (cancelled, timed out): the question closes in the editor and counts as no answer.
-                new Promise<never>((_resolve, reject) => {
-                    onAbort = () => {
-                        void rpc.call("cancelConfirmShare").catch(() => undefined);
-                        reject(new ShareNotAllowedError("unanswered"));
-                    };
-                    signal?.addEventListener("abort", onAbort, { once: true });
-                }),
-            ]);
-        } catch (error) {
-            if (error instanceof RendererTimeoutError) throw new ShareNotAllowedError("unanswered");
-            throw error;
-        } finally {
-            if (onAbort) signal?.removeEventListener("abort", onAbort);
-        }
-        if (signal?.aborted) throw new ShareNotAllowedError("unanswered");
-        if (answer === "allow") return;
-        if (answer === "allow-session") {
-            consent.allowForSession(projectId);
-            return;
-        }
-        throw new ShareNotAllowedError(answer === "timeout" ? "unanswered" : "declined");
-    };
-}
-
-/** Share links of the open cloud project (phase 9c): the renderer answers over its cloud API client (the key stays in main). */
-function createDesktopShares(rpc: RendererRpc, ask: (signal?: AbortSignal) => Promise<void>): StudioCloudShares {
-    const link = (value: unknown): StudioShareLink => {
-        const v = value as StudioShareLink;
-        return { id: v.id, url: v.url, status: v.status, allowDownload: v.allowDownload, expiresAt: v.expiresAt, createdAt: v.createdAt, revokedAt: v.revokedAt, views: v.views, lastViewedAt: v.lastViewedAt };
-    };
-    return {
-        // A public link: the person says yes first (9c.1). Listing and turning off never ask.
-        create: async (options, run = {}) => {
-            await ask(run.signal);
-            if (run.signal?.aborted) throw new ShareNotAllowedError("unanswered");
-            return link(await rpc.call("cloud.shareCreate", [{ ...options }]));
-        },
-        list: async () => ((await rpc.call("cloud.shareList", [{}])) as unknown[]).map(link),
-        revoke: async (shareId) => ((await rpc.call("cloud.shareRevoke", [shareId ? { shareId } : {}])) as unknown[]).map(link),
-    };
 }
 
 /** The agent's ai.run calls through this session, newest first (at most this many kept). */
@@ -284,7 +125,6 @@ export async function createDesktopSession(options: DesktopSessionOptions): Prom
             return media;
         },
         aiJobs: async () => jobs.list(),
-        cloud: createDesktopCloud(rpc, createShareAsk(rpc, projectId, options.shareConsent ?? createShareConsent(() => false), options.shareConfirmTimeoutMs)),
     };
     if (providers) {
         session.estimate = async (question) => {

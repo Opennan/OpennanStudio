@@ -3,7 +3,7 @@
 // Server is used because those schemas are JSON Schema, not zod.
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, type CallToolResult, type Tool } from "@modelcontextprotocol/sdk/types.js";
-import { CLOUD_TOOLS, STUDIO_TOOLS, capabilityUnavailableMessage, type ToolDefinition } from "@opennan/mcp-schema";
+import { PIPELINE_TOOLS, STUDIO_TOOLS, capabilityUnavailableMessage, type ToolDefinition } from "@opennan/mcp-schema";
 import Ajv from "ajv";
 import { presentFields, type Args } from "./args";
 import { TOOL_HANDLERS, type ToolHandler } from "./handlers";
@@ -19,9 +19,9 @@ export const DEFAULT_CALL_TIMEOUT_MS = 10 * 60_000;
 
 export type ToolPreset = "all" | "offline";
 
-/** "offline": only the tools that run without a provider or an OpenNan account (the editor and studio tools, not cloud projects). */
+/** "offline": only the tools that run without a provider or an OpenNan account (the editor and studio tools, not the OpenNan project pipelines). */
 export function toolsForPreset(preset: ToolPreset = "all"): readonly ToolDefinition[] {
-    return preset === "offline" ? STUDIO_TOOLS.filter((tool) => tool.kind !== "capability" && !CLOUD_TOOLS.includes(tool)) : STUDIO_TOOLS;
+    return preset === "offline" ? STUDIO_TOOLS.filter((tool) => tool.kind !== "capability" && !PIPELINE_TOOLS.includes(tool)) : STUDIO_TOOLS;
 }
 
 export const SERVER_INSTRUCTIONS =

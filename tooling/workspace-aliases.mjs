@@ -16,7 +16,6 @@ const PACKAGES = {
     "@opennan/provider-local": "packages/provider-local/src",
     "@opennan/provider-opennan": "packages/provider-opennan/src",
     "@opennan/provider-fal": "packages/provider-fal/src",
-    "@opennan/cloud-backend": "packages/cloud-backend/src",
     "@opennan/director-client": "packages/director-client/src",
 };
 

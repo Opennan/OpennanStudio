@@ -45,23 +45,10 @@ export interface StudioHost {
     graphicsTemplateIds?(): Promise<string[]>;
 }
 
-/** A cloud project as the cloud tools list it. */
-export interface StudioCloudProject {
-    id: string;
-    name: string;
-    aspectRatio: string;
-    durationSeconds: number;
-    mediaBytes: number;
-    updatedAt: number;
-    lastEditedDevice: string | null;
-    origin: "studio" | "web";
-    deletedAt: number | null;
-}
-
 /** The OpenNan project pipeline a priced step runs (the route's tool id, as POST /v1/quotes names it). */
 export type StudioPipelineTool = "story-scenes" | "storyboard" | "smart-scene-video" | "copy-video-detect" | "copy-video-edit" | "copy-video-recreate";
 
-/** One priced pipeline step on the open cloud project. */
+/** One priced pipeline step on an OpenNan server project. */
 export interface StudioPipelineStep {
     tool: StudioPipelineTool;
     /** The scene's id (every tool but story-scenes). */
@@ -103,11 +90,12 @@ export type StudioSceneEdit =
     | { kind: "shot-text"; sceneId: string; index: number; action: string };
 
 /**
- * OpenNan project pipelines of the open cloud project (phase 9b), answered by the host over its cloud API client (the
- * key stays with the host). The MCP handlers resolve scenes, check `accept_max_usd` against `quote` and only then
- * call `run`; prices are never estimated locally.
+ * OpenNan project pipelines (phase 9b), answered by the host over its API client (the key stays with the host). OpenNan
+ * runs them only on a project stored on its server; no current host supplies them, since OpenNan Studio projects are
+ * local. The MCP handlers resolve scenes, check `accept_max_usd` against `quote` and only then call `run`; prices are
+ * never estimated locally.
  */
-export interface StudioCloudPipelines {
+export interface StudioProjectPipelines {
     quote(step: StudioPipelineStep): Promise<StudioPipelineQuote>;
     /**
      * Submits the step (a fresh Idempotency-Key), follows its task to the end and has the editor pull until it holds
@@ -119,48 +107,6 @@ export interface StudioCloudPipelines {
     editScene(edit: StudioSceneEdit): Promise<{ synced: boolean }>;
     /** Stores the project's script text and/or SRT subtitles (null clears one; scenes are untouched). */
     setScript(texts: { scriptText?: string | null; srtContent?: string | null }): Promise<void>;
-}
-
-/** A view-only share link of a cloud project (phase 9c), as the host reports it: the link only while it is active. */
-export interface StudioShareLink {
-    id: string;
-    /** https://opennan.com/s/<token> while active; null once turned off or expired. */
-    url: string | null;
-    status: "active" | "expired" | "revoked";
-    allowDownload: boolean;
-    expiresAt: number | null;
-    createdAt: number | null;
-    revokedAt: number | null;
-    views: number;
-    lastViewedAt: number | null;
-}
-
-/** Share links of the open cloud project (phase 9c), answered by the host over its cloud API client. */
-export interface StudioCloudShares {
-    /**
-     * Creates the project's link (or replaces it: the old one stops at once). A public link: the host asks the person
-     * first (or follows their setting) and throws ShareNotAllowedError when they decline or leave it unanswered (9c.1);
-     * `signal` (the agent's call ended) closes an open question as unanswered.
-     * Throws with OpenNan's reason otherwise.
-     */
-    create(options: { expiresInDays?: number; allowDownload?: boolean }, run?: { signal?: AbortSignal }): Promise<StudioShareLink>;
-    list(): Promise<StudioShareLink[]>;
-    /** Turns one link off, or (no id) every active one; answers exactly the links turned off. Never asks the person. */
-    revoke(shareId?: string): Promise<StudioShareLink[]>;
-}
-
-/** OpenNan cloud projects on the host (phase 9a): the desktop app signed in to OpenNan. */
-export interface StudioCloud {
-    listProjects(options: { trash?: boolean; cursor?: string | null }): Promise<{ projects: StudioCloudProject[]; nextCursor: string | null }>;
-    /** Moves the session's open local project to the cloud and opens it there. */
-    saveCurrentProject(): Promise<{ projectId: string; name: string }>;
-    openProject(projectId: string): Promise<{ projectId: string; name: string }>;
-    /** The sync state of a cloud project (the open one when omitted); null when it is not a cloud project. */
-    syncStatus(projectId?: string): Promise<{ projectId: string; state: string; label: string; pending: number; conflicts: string[] } | null>;
-    /** Project pipelines of the open cloud project (phase 9b); absent on hosts without them. */
-    pipelines?: StudioCloudPipelines;
-    /** Share links of the open cloud project (phase 9c); absent on hosts without them. */
-    shares?: StudioCloudShares;
 }
 
 export interface StudioSession {
@@ -187,8 +133,8 @@ export interface StudioSession {
     aiJobs?(): Promise<AiJobRecord[]>;
     /** Voices of the routed text-to-speech provider (list_voices); null when no provider offers speech. */
     voices?(): Promise<ProviderVoice[] | null>;
-    /** OpenNan cloud projects (list, save, open, sync status); absent on hosts without them (headless). */
-    cloud?: StudioCloud;
+    /** OpenNan project pipelines (storyboard, scene video, copy-video, story plan); absent on every current host. */
+    pipelines?: StudioProjectPipelines;
 }
 
 export interface ControllerSessionOptions {

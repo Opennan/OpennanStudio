@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import { EVENTS, IPC } from "../shared/channels";
 import type { AudioInput, MediaSourceRef } from "@opennan/provider-sdk";
-import { E2E_ARGUMENT, EXPORT_PORTS_MESSAGE, MAX_IN_MEMORY_IMPORT, type CloudErrorJson, type CloudResult, type CloudStreamEvent, type DesktopBridge } from "../shared/bridge";
+import { E2E_ARGUMENT, EXPORT_PORTS_MESSAGE, MAX_IN_MEMORY_IMPORT, type DesktopBridge } from "../shared/bridge";
 
 const invoke = <T>(channel: string, payload: unknown = {}) => ipcRenderer.invoke(channel, payload) as Promise<T>;
 
@@ -15,40 +15,7 @@ function listen<A extends unknown[]>(channel: string, map: (payload: never) => A
     };
 }
 
-/**
- * Streamed answers (phase 9b): one listener per event channel, dispatching by stream id to the stream's own listener,
- * which is dropped at its end, error, refusal or abort.
- */
-function createStreamRouter() {
-    const streams = new Map<string, (event: CloudStreamEvent) => void>();
-    let listening = false;
-    function listenOnce(): void {
-        if (listening) return;
-        listening = true;
-        ipcRenderer.on(EVENTS.cloudStreamChunk, (_event: IpcRendererEvent, payload: { streamId?: unknown; bytes?: unknown }) => {
-            const listener = typeof payload?.streamId === "string" ? streams.get(payload.streamId) : undefined;
-            if (listener && payload.bytes instanceof Uint8Array) listener({ type: "chunk", bytes: payload.bytes });
-        });
-        ipcRenderer.on(EVENTS.cloudStreamEnd, (_event: IpcRendererEvent, payload: { streamId?: unknown; error?: CloudErrorJson }) => {
-            const listener = typeof payload?.streamId === "string" ? streams.get(payload.streamId) : undefined;
-            if (!listener) return;
-            streams.delete(payload.streamId as string);
-            listener(payload.error ? { type: "error", error: payload.error } : { type: "end" });
-        });
-    }
-    return {
-        add(streamId: string, listener: (event: CloudStreamEvent) => void): void {
-            listenOnce();
-            streams.set(streamId, (event) => listener(event));
-        },
-        drop(streamId: string): void {
-            streams.delete(streamId);
-        },
-    };
-}
-
 export function createBridge(): DesktopBridge {
-    const streams = createStreamRouter();
     return {
         e2e: process.argv.includes(E2E_ARGUMENT),
         persistence: {
@@ -66,7 +33,6 @@ export function createBridge(): DesktopBridge {
                 return invoke(IPC.mediaImportBytes, { projectId, name: file.name || "media", mimeType: file.type, kind, bytes });
             },
             delete: (projectId, id) => invoke(IPC.mediaDelete, { projectId, id }),
-            releaseProject: (projectId) => invoke(IPC.mediaReleaseProject, { projectId }),
         },
         exports: {
             start: (options, snapshot) => invoke(IPC.exportStart, { options, snapshot }),
@@ -144,42 +110,6 @@ export function createBridge(): DesktopBridge {
             price: (providerId, request) => invoke(IPC.providersPrice, { providerId, request: { capability: request.capability, input: request.input, units: request.units } }),
             voices: (providerId) => invoke(IPC.providersVoices, { providerId }),
             onJob: (listener) => listen(EVENTS.providersJob, (event: never) => [event] as [never], listener),
-        },
-        cloud: {
-            request: (method, path, { body, query, headers }) => invoke(IPC.cloudRequest, {
-                method, path, ...(body === undefined ? {} : { body }), ...(query === undefined ? {} : { query }), ...(headers === undefined ? {} : { headers }),
-            }),
-            describe: (mediaId) => invoke(IPC.cloudDescribe, { mediaId }),
-            upload: (mediaId, serverProjectId) => invoke(IPC.cloudUpload, { mediaId, serverProjectId }),
-            uploadExport: (path, serverProjectId) => invoke(IPC.cloudUploadExport, { path, serverProjectId }),
-            cache: (url, sizeBytes) => invoke(IPC.cloudCache, { url, sizeBytes }),
-            duplicate: (mediaId, projectId) => invoke(IPC.cloudDuplicate, { mediaId, projectId }),
-            storeGet: (account, namespace, key) => invoke(IPC.cloudStoreGet, { account, namespace, key }),
-            storePut: (account, namespace, key, value) => invoke(IPC.cloudStorePut, { account, namespace, key, value }),
-            storeDelete: (account, namespace, key) => invoke(IPC.cloudStoreDelete, { account, namespace, key }),
-            storeKeys: (account, namespace) => invoke(IPC.cloudStoreKeys, { account, namespace }),
-            cachePin: (ids) => invoke(IPC.cloudCachePin, { ids }),
-            cacheUsage: () => invoke(IPC.cloudCacheUsage, {}),
-            cacheSetLimit: (bytes) => invoke(IPC.cloudCacheSetLimit, { bytes }),
-            cacheClear: () => invoke(IPC.cloudCacheClear, {}),
-            async stream(streamId, method, path, { body, headers }, listener) {
-                // Listening before asking: main may send bytes before its answer arrives.
-                streams.add(streamId, listener);
-                try {
-                    const result = await invoke<CloudResult<{ status: number }>>(IPC.cloudStreamStart, {
-                        streamId, method, path, ...(body === undefined ? {} : { body }), ...(headers === undefined ? {} : { headers }),
-                    });
-                    if (!result?.ok) streams.drop(streamId);
-                    return result;
-                } catch (error) {
-                    streams.drop(streamId);
-                    throw error;
-                }
-            },
-            streamAbort(streamId) {
-                streams.drop(streamId);
-                return invoke(IPC.cloudStreamAbort, { streamId });
-            },
         },
         ai: {
             status: () => invoke(IPC.aiStatus),

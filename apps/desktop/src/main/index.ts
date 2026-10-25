@@ -8,11 +8,9 @@ import { BrowserWindow, Menu, MessageChannelMain, app, dialog, ipcMain, protocol
 import * as nodePty from "node-pty";
 import { E2E_ARGUMENT } from "../shared/bridge";
 import { EVENTS, IPC } from "../shared/ipc";
-import { MCP_CLIENTS, buildMcpConfig, isLoopbackHttpUrl } from "@opennan/mcp";
+import { MCP_CLIENTS, buildMcpConfig } from "@opennan/mcp";
 import { registerAccountIpc } from "./account/account-ipc";
 import { createAccountService, openNanBases } from "./account/account-service";
-import { createCloudHost, type CloudHost } from "./cloud/cloud-host";
-import { registerCloudIpc } from "./cloud/cloud-ipc";
 import { registerAiIpc } from "./ai/ai-ipc";
 import { createDesktopMediaPreparer } from "./ai/prepare-media";
 import { createStabilizeService } from "./ai/stabilize";
@@ -45,7 +43,7 @@ import { createMediaStore } from "./store/media-store";
 import { createSecretStore } from "./store/secrets";
 import { createSettingsStore } from "./store/settings";
 import { startUpdates, type UpdaterLike } from "./updates";
-import { createLocalReferenceScan, createSqlitePersistence } from "./store/sqlite-persistence";
+import { createSqlitePersistence } from "./store/sqlite-persistence";
 
 const RENDERER_DIR = path.join(__dirname, "..", "renderer");
 const PRELOAD = path.join(__dirname, "..", "preload", "index.cjs");
@@ -111,9 +109,7 @@ function startApp(): void {
         const ipc = ipcMain as unknown as IpcMainLike;
 
         protocol.handle(APP_SCHEME, createAppProtocolHandler(RENDERER_DIR));
-        // Cloud files still downloading are served through the cloud host, created further down (phase 9a.1).
-        let cloudHost: CloudHost | null = null;
-        protocol.handle(MEDIA_SCHEME, createMediaProtocolHandler(media, { streaming: (id) => cloudHost?.streamSource(id) ?? null }));
+        protocol.handle(MEDIA_SCHEME, createMediaProtocolHandler(media));
         lockPermissions(session.defaultSession);
 
         let sessions: ReturnType<typeof registerSessionIpc> | null = null;
@@ -146,14 +142,14 @@ function startApp(): void {
             env: process.env, resourcesPath: process.resourcesPath, appPath: app.getAppPath(),
             platform: process.platform, arch: process.arch, isPackaged: app.isPackaged,
         });
-        // AI tools' media (phase 11): ranges of imported media trimmed by the bundled ffmpeg, for whisper and the cloud uploads.
+        // AI tools' media (phase 11): ranges of imported media trimmed by the bundled ffmpeg, for whisper and the AI tool uploads.
         const preparer = createDesktopMediaPreparer({ ffmpeg, mediaStore: media });
         const transcription = createTranscriptionService({ whisperDir: whisper.dir, reason: whisper.reason, ffmpeg, mediaStore: media, modelsDir: paths.models, preparer });
         const stabilize = createStabilizeService({ ffmpeg, mediaStore: media, preparer });
         cleanups.push(registerAiIpc(ipc, { service: transcription, stabilize, send }));
         cleanups.push(() => transcription.cancelAll());
         cleanups.push(() => stabilize.cancelAll());
-        // Sign in with OpenNan and cloud providers: the key and every cloud call stay in main (phase 8).
+        // Sign in with OpenNan and the AI providers: the key and every API call stay in main (phase 8).
         const bases = openNanBases(process.env, app.isPackaged);
         const account = createAccountService({
             apiBase: bases.apiBase, consoleBase: bases.consoleBase, secrets, deviceName: os.hostname(), send, warn: console.warn,
@@ -171,15 +167,6 @@ function startApp(): void {
             session: account.session, mediaStore: media, send, allowLoopbackDownloads: bases.overridden, falKey: () => secrets.get("FAL_KEY"), prepareMedia: preparer.prepareMedia,
         });
         registerProvidersIpc(ipc, { host: providerHost });
-        // OpenNan cloud projects (phase 9a): the renderer's cloud backend calls the API, uploads and downloads through
-        // main, with the same account and API base; cloud state files live under userData/cloud. The media cache keeps
-        // to the limit in settings and never evicts a file a local project's saved document names (phase 9a.1).
-        cloudHost = createCloudHost({
-            apiBase: bases.apiBase, session: account.session, mediaStore: media, root: paths.cloud, warn: console.warn,
-            limit: { get: () => settings.get().cloudCacheLimitBytes, set: (bytes) => void settings.update({ cloudCacheLimitBytes: bytes }) },
-            localReferences: createLocalReferenceScan(db),
-        });
-        cleanups.push(registerCloudIpc(ipc, { host: cloudHost, exportsDir: paths.exports }));
         cleanups.push(() => providerHost.cancelAll());
         registerProjectIpc(ipc, { persistence, media });
         registerSettingsIpc(ipc, { settings, secrets, onSecretsChange: () => providerHost.syncKeys() });
@@ -191,14 +178,6 @@ function startApp(): void {
         sessions = registerSessionIpc(ipc, {
             host: mcp, exporter: exportJobs, mediaStore: media, projectDir: (id) => projectDir(paths, id), send, providers: providerHost.registry,
             captionsRoute: () => settings.get().providerRouting.overrides["audio.transcribe"] ?? null,
-            shareWithoutAsking: () => settings.get().agentSharesWithoutAsking,
-            loopbackShares: (() => {
-                try {
-                    return isLoopbackHttpUrl(new URL(bases.apiBase));
-                } catch {
-                    return false;
-                }
-            })(),
             capturePage: async () => {
                 if (!window) throw new Error("The editor window is closed");
                 const image = await window.webContents.capturePage();

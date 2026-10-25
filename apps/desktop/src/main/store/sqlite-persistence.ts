@@ -53,29 +53,3 @@ export function createSqlitePersistence({ db, media, now = Date.now }: SqlitePer
         },
     };
 }
-
-/**
- * The candidate media ids local projects' saved documents name (phase 9a.1: the cloud cache never evicts such a file).
- * One pass over the projects per call, matched by id, so opennan-local://media/<id> and opennan-media://blob/<id> both
- * count. An id that isn't a media id, or projects that can't be read, count as named (fail closed).
- */
-export function createLocalReferenceScan(db: DesktopDatabase): (ids: string[]) => Set<string> {
-    return (ids) => {
-        if (ids.length === 0) return new Set();
-        const named = new Set<string>(ids.filter((id) => !isUuid(id)));
-        const wanted = new Set<string>(ids.filter((id) => isUuid(id)));
-        if (wanted.size === 0) return named;
-        try {
-            const rows = db.prepare("select state from projects").iterate() as Iterable<{ state: string }>;
-            for (const row of rows) {
-                for (const match of row.state.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g)) {
-                    if (wanted.has(match[0])) named.add(match[0]);
-                }
-                if (named.size === ids.length) break;
-            }
-        } catch {
-            return new Set(ids);
-        }
-        return named;
-    };
-}

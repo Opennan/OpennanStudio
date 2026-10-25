@@ -1,20 +1,19 @@
-// OpenNan project pipeline tools (phase 9b, design §5): on an OpenNan cloud project, the OpenNan-named pipeline tools
-// (storyboard, smart scene video, copy-video steps) and Studio's plan_scenes / set_project_script run on the host's
-// cloud seam (StudioCloud.pipelines). A priced step is quoted by OpenNan first; a quote above `accept_max_usd` (or no
-// quote at all: prices are never estimated here) stops it before anything is submitted. The host then submits it,
-// follows the task to its end and has the editor pull the result (one undo step where it can). There is no director
-// tool: an MCP client is already an agent. Local projects are asked to be saved to OpenNan first; headless hosts have
-// no cloud runtime. This module holds no network code: the host owns the API client and its key.
+// OpenNan project pipeline tools (phase 9b, design §5): the OpenNan-named pipeline tools (storyboard, smart scene
+// video, copy-video steps) and Studio's plan_scenes / set_project_script run on the host's pipeline seam
+// (StudioSession.pipelines). OpenNan runs these only on a project stored on its server; OpenNan Studio projects are
+// local, so no current host supplies the seam and every tool answers unavailable. The handlers stay until OpenNan
+// offers these pipelines as project-free tools. A priced step is quoted by OpenNan first; a quote above
+// `accept_max_usd` (or no quote at all: prices are never estimated here) stops it before anything is submitted. The
+// host then submits it and follows the task to its end. This module holds no network code: the host owns the API
+// client and its key.
 import { scenesInOrder, sceneByOrder, type Args } from "../args";
 import { failure, success, unavailable, type ToolOutcome } from "../outcome";
 import { formatUsd } from "../prices";
-import type { StudioCloudPipelines, StudioPipelineQuote, StudioPipelineStep, StudioPipelineTool, StudioSession } from "../session";
-import { CLOUD_UNAVAILABLE } from "./cloud";
+import type { StudioPipelineQuote, StudioPipelineStep, StudioPipelineTool, StudioProjectPipelines, StudioSession } from "../session";
 import type { ToolContext, ToolHandler } from "./types";
 
-export const NEEDS_CLOUD_PROJECT = "This needs an OpenNan cloud project: save it to OpenNan first (save_project_to_cloud).";
 export const PRICE_UNAVAILABLE = "OpenNan can't price this right now, so it didn't run.";
-export const NO_PIPELINES = "This OpenNan Studio host can't run OpenNan project pipelines yet: update the OpenNan Studio app.";
+export const NO_PIPELINES = "OpenNan runs this only on projects stored on OpenNan, and OpenNan Studio keeps projects on this device, so it is not available.";
 
 /** The server's limits on the stored script (PATCH /v1/projects/{id}). */
 export const MAX_SCRIPT_TEXT_CHARS = 20_000;
@@ -33,12 +32,9 @@ function quoteLine(quote: { priceUsd: number; holdUsd: number }): string {
     return `OpenNan quotes ≈ ${usdUp(quote.priceUsd)}${hold}`;
 }
 
-/** The open project's pipelines, or the guidance when it has none. */
-function pipelinesOf(session: StudioSession, context: ToolContext): StudioCloudPipelines | ToolOutcome {
-    const capability = context.tool.capability;
-    if (!session.cloud) return unavailable(CLOUD_UNAVAILABLE, capability);
-    if (!session.projectId.startsWith("cloud-")) return unavailable(NEEDS_CLOUD_PROJECT, capability);
-    return session.cloud.pipelines ?? unavailable(NO_PIPELINES, capability);
+/** The host's pipelines, or the guidance when it has none. */
+function pipelinesOf(session: StudioSession, context: ToolContext): StudioProjectPipelines | ToolOutcome {
+    return session.pipelines ?? unavailable(NO_PIPELINES, context.tool.capability);
 }
 
 const isOutcome = (value: unknown): value is ToolOutcome => typeof value === "object" && value !== null && "ok" in value && "text" in value;
@@ -189,7 +185,7 @@ function pricedHandler(spec: PricedSpec): ToolHandler {
             if (result.status === "succeeded") {
                 const charged = result.chargedUsd !== null ? `, charged ${formatUsd(result.chargedUsd)}` : "";
                 const landed = !result.synced
-                    ? " OpenNan saved the result; the editor shows it once it syncs."
+                    ? " OpenNan saved the result; the editor shows it once it arrives."
                     : result.undoable ? " The result is in the editor; undo_last_edit takes it back in one step." : " The result is in the editor.";
                 return success(`${line}. ${step.label} finished${charged}.${landed}`, data);
             }
@@ -219,7 +215,7 @@ const setCopyVideoSource: ToolHandler = async (args, context) => {
     if (typeof scene === "string") return failure(scene);
     try {
         const { synced } = await pipelines.editScene({ kind: "copy-video-source", sceneId: scene.id, videoUrl: url, ...trim });
-        return success(`Scene ${scene.order} now copies ${url}${synced ? "" : "; the editor shows it once it syncs"}. No charge; detect_copy_video_shots finds its shots next.`, { sceneId: scene.id, synced });
+        return success(`Scene ${scene.order} now copies ${url}${synced ? "" : "; the editor shows it once it arrives"}. No charge; detect_copy_video_shots finds its shots next.`, { sceneId: scene.id, synced });
     } catch (error) {
         return failure(error instanceof Error ? error.message : String(error));
     }
@@ -236,7 +232,7 @@ const editCopyVideoShotDescription: ToolHandler = async (args, context) => {
     if (typeof scene === "string") return failure(scene);
     try {
         const { synced } = await pipelines.editScene({ kind: "shot-text", sceneId: scene.id, index, action: description as string });
-        return success(`Rewrote shot ${index + 1} of scene ${scene.order}${synced ? "" : "; the editor shows it once it syncs"}. No charge; its panel stays as it was.`, { sceneId: scene.id, shotIndex: index, synced });
+        return success(`Rewrote shot ${index + 1} of scene ${scene.order}${synced ? "" : "; the editor shows it once it arrives"}. No charge; its panel stays as it was.`, { sceneId: scene.id, shotIndex: index, synced });
     } catch (error) {
         return failure(error instanceof Error ? error.message : String(error));
     }

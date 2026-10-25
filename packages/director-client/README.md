@@ -1,17 +1,22 @@
 # @opennan/director-client
 
-The OpenNan AI director for OpenNan Studio (phase 9b). OpenNan Community License (as `@opennan/cloud-backend`, whose
-API client it uses); runs in browsers and Node.
+The client for OpenNan's **project pipeline** routes, plus the script cue cutter. OpenNan Community License; runs in
+browsers and Node.
 
-- **Director turns.** `streamTurn` posts one turn to `POST /v1/projects/{id}/director/turns` and yields its named
-  server-sent events (`turn.started`, `turn.thinking`, `message`, `tool.started`, `tool.finished`, `proposal`,
-  `project.revision`, `error`, `turn.finished`) as typed objects, parsed by our own reader over the response stream.
-  Aborting stops the stream and asks the server to cancel the turn. `listTurns`, `getTurn` and `cancelTurn` read
-  and stop turns.
-- **Quotes.** `createQuotes` reads a turn's hold and typical price and a project tool's quote from `POST /v1/quotes`,
-  cached; an older server answers null and Studio says so.
-- **Project tasks.** `createProjectTasks` submits the paid project pipelines (story plan, storyboard, scene video,
-  copy-video), follows the task with long polls, cancels by the server's codes and reports the project revision the
-  result landed in. Nothing is ever retried on its own.
-- **Proposals.** `checkProposalRequest` lets through only the pipeline routes of the open project.
+**Not used by any Studio host.** OpenNan Studio keeps projects on the device and runs AI through OpenNan's tools and
+models API (`@opennan/provider-opennan`). The pipelines below exist on OpenNan only as routes of a project stored on
+OpenNan's server (`/v1/projects/{id}/...`), so they cannot run on a local project. This package keeps their request
+shapes, pricing and task handling until OpenNan offers them as project-free tools (story plan, storyboard, scene
+video, copy-video shot detection, shot image edit, copy-video recreate), at which point a host can call them with the
+local project's data.
+
+- **Project API client.** `createProjectApi` sends JSON to the opennan.com API with the signed-in key as a bearer and
+  turns the error envelope into `ProjectApiError`.
+- **Pipeline requests.** `pipelineRequest` builds one step's request (`POST /v1/projects/{id}/story/plan`,
+  `/scenes/{scene}/storyboard`, `/scenes/{scene}/videos`, `/scenes/{scene}/copy-video/detections`,
+  `/scenes/{scene}/shots/{n}/image-edits`, `/scenes/{scene}/copy-video/recreate`); `checkPipelineRequest` lets through
+  only those routes of one project, with each route's own fields.
+- **Quotes.** `createQuotes` reads a step's price and hold from `POST /v1/quotes`, cached 60 s per body.
+- **Tasks.** `createProjectTasks` submits a step once with an Idempotency-Key, follows the task with long polls of
+  `GET /v1/tasks/{id}?wait=50`, and cancels by the server's codes. Nothing is ever retried on its own.
 - **Scripts.** `cutScript` cuts plain text into subtitle cues; `parseSrt` / `toSrt` read and write SRT.

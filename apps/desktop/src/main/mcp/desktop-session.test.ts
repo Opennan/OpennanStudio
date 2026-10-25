@@ -7,11 +7,10 @@ import { createStudioExporter, createStudioMcpServer } from "@opennan/mcp";
 import { STUDIO_TOOLS } from "@opennan/mcp-schema";
 import { ProviderRegistry, createAiRunner, createJob } from "@opennan/provider-sdk";
 import { LocalBackend, TimelineController, createEditorStore, createMemoryPersistence, type TimelineControllerOptions } from "@opennan/timeline-core";
-import { CLOUD_SIGN_IN, createSessionResponder, type ResponderCloud } from "../../renderer/session-responder";
+import { createSessionResponder } from "../../renderer/session-responder";
 import { openDatabase, type DesktopDatabase } from "../store/database";
 import { createMediaStore } from "../store/media-store";
-import { AI_RUN_TIMEOUT_MS, CLOUD_SAVE_TIMEOUT_MS, PIPELINE_RUN_TIMEOUT_MS, SHARE_CONFIRM_TIMEOUT_MS, createDesktopSession, createShareConsent, type ShareConsent } from "./desktop-session";
-import type { ShareQuestion } from "../../renderer/session-responder";
+import { AI_RUN_TIMEOUT_MS, createDesktopSession } from "./desktop-session";
 import { createRendererRpc, type SessionRequest } from "./renderer-rpc";
 
 const ID = "3f2b8c1e-1d2a-4c3b-9e8f-0a1b2c3d4e5f";
@@ -33,8 +32,7 @@ describe("desktop session over the renderer controller", () => {
     });
 
     async function setup(options: {
-        onAiRun?: TimelineControllerOptions["onAiRun"]; callTimeoutMs?: number; providers?: ProviderRegistry; captionsRoute?: () => string | null; cloud?: ResponderCloud; openProject?(id: string): void; projectId?: string; notify?(message: string): void;
-        confirmShare?(question: ShareQuestion): Promise<"allow" | "allow-session" | "deny">; shareConfirmMs?: number; shareConsent?: ShareConsent; shareConfirmTimeoutMs?: number; projectName?: string;
+        onAiRun?: TimelineControllerOptions["onAiRun"]; callTimeoutMs?: number; providers?: ProviderRegistry; captionsRoute?: () => string | null; projectId?: string; projectName?: string;
     } = {}) {
         const projectId = options.projectId ?? ID;
         const backend = new LocalBackend({ persistence: createMemoryPersistence() });
@@ -42,12 +40,7 @@ describe("desktop session over the renderer controller", () => {
         const store = createEditorStore();
         const controller = new TimelineController({ backend, store, projectId, onAiRun: options.onAiRun });
         await controller.load();
-        // An agent's share link is allowed by default in these tests (the person's answer is tested on its own).
-        const confirmShare = options.confirmShare ?? (async () => "allow" as const);
-        const respond = createSessionResponder({
-            projectId, controller, store, backend, ...(options.cloud ? { cloud: options.cloud } : {}), ...(options.openProject ? { openProject: options.openProject } : {}), ...(options.notify ? { notify: options.notify } : {}),
-            confirmShare, ...(options.shareConfirmMs !== undefined ? { shareConfirmMs: options.shareConfirmMs } : {}),
-        });
+        const respond = createSessionResponder({ projectId, controller, store, backend });
         const execute = vi.fn();
         const rpc = createRendererRpc({
             send: (request: SessionRequest) => {
@@ -66,7 +59,6 @@ describe("desktop session over the renderer controller", () => {
         const call = vi.spyOn(rpc, "call");
         const session = await createDesktopSession({
             projectId, rpc, exporter, mediaStore, projectDir, ...(options.providers ? { providers: options.providers } : {}), ...(options.captionsRoute ? { captionsRoute: options.captionsRoute } : {}),
-            ...(options.shareConsent ? { shareConsent: options.shareConsent } : {}), ...(options.shareConfirmTimeoutMs !== undefined ? { shareConfirmTimeoutMs: options.shareConfirmTimeoutMs } : {}),
         });
         const server = createStudioMcpServer(session, options.callTimeoutMs ? { callTimeoutMs: options.callTimeoutMs } : undefined);
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -75,290 +67,6 @@ describe("desktop session over the renderer controller", () => {
         await client.connect(clientTransport);
         return { client, controller, backend, execute, projectDir, exporter, call };
     }
-
-    it("answers the cloud project tools from the renderer's cloud runtime (phase 9a)", async () => {
-        const summary = { id: "cloud-srv1", name: "Trip", aspectRatio: "9:16", createdAt: 1, updatedAt: Date.parse("2026-10-20T10:00:00Z"), durationSeconds: 75, mediaCount: 0, kind: "cloud" as const, origin: "studio" as const, mediaBytes: 5 * 1024 ** 2, lastEditedDevice: "Studio laptop", thumbnailUrl: null, deletedAt: null };
-        const cloudBackend = {
-            listCloudProjects: vi.fn(async () => ({ projects: [summary], nextCursor: null })),
-            saveLocalProject: vi.fn(async () => ({ ...summary, id: "cloud-new", name: "Mine" })),
-            hasProject: vi.fn(async () => true),
-            loadProject: vi.fn(async (id: string) => ({ id, name: "Trip" })),
-            syncState: vi.fn(() => ({ kind: "saved", at: 1 })),
-        };
-        const openProject = vi.fn();
-        const { client, call } = await setup({ cloud: { backend: () => cloudBackend as never, local: {} as never, syncLabel: () => "Saved" }, openProject });
-        const listed = await client.callTool({ name: "list_cloud_projects", arguments: {} });
-        expect(listed.isError, text(listed)).toBeFalsy();
-        expect(text(listed)).toContain("Trip (cloud-srv1)");
-        const saved = await client.callTool({ name: "save_project_to_cloud", arguments: {} });
-        expect(text(saved)).toContain("cloud-new");
-        expect(call).toHaveBeenCalledWith("cloud.save", [{}], { timeoutMs: CLOUD_SAVE_TIMEOUT_MS });
-        const opened = await client.callTool({ name: "open_cloud_project", arguments: { project_id: "cloud-srv1" } });
-        expect(text(opened)).toContain("Opened \"Trip\"");
-        await vi.waitFor(() => expect(openProject).toHaveBeenCalledWith("cloud-srv1"));
-        const status = await client.callTool({ name: "get_cloud_sync_status", arguments: { project_id: "cloud-srv1" } });
-        expect(text(status)).toContain("Saved");
-    });
-
-    it("runs OpenNan project pipelines of a cloud project through the renderer's cloud runtime (phase 9b)", async () => {
-        const requests: Array<{ method: string; path: string; body?: unknown }> = [];
-        const api = {
-            baseUrl: "https://api.opennan.test",
-            async request(method: string, path: string, request: { body?: unknown } = {}) {
-                requests.push({ method, path, ...(request.body !== undefined ? { body: request.body } : {}) });
-                // The task is already done when the submit answers (no long poll); a no-charge edit is the next revision.
-                if (method === "PUT") revision += 1;
-                if (method === "POST" && path !== "/v1/quotes") revision = 4;
-                const body = path === "/v1/quotes" ? { price_usd: 0.31, hold_usd: 0.31 }
-                    : method === "POST" ? { id: "task_1", status: "succeeded", price_usd: 0.3, project_revision: 4 } : {};
-                return { status: 200, body, etag: null };
-            },
-        };
-        let revision = 3;
-        const cloudBackend = {
-            api, serverId: (id: string) => id.slice("cloud-".length), revision: async () => revision, waitForRevision: async (_id: string, wanted: number) => revision >= wanted, setAiActive: vi.fn(),
-            beginRemoteGroup: async () => 1, endRemoteGroup: async () => undefined,
-            recordRemoteGroup: vi.fn(async () => ({ stepId: 2, label: "AI: Storyboard of scene 1", before: { tracks: [], clips: [], scenes: [] }, after: { tracks: [], clips: [], scenes: [{ id: "s1", order: 0, caption: "Drawn", status: "ready" }] }, changed: { scenes: ["s1"], clips: [] } })),
-        };
-        const { client, controller, call } = await setup({ projectId: "cloud-srv1", cloud: { backend: () => cloudBackend as never, local: {} as never } });
-        await controller.execute({ type: "scene.add", input: { afterOrder: -1, caption: "Opening" } });
-        const sceneId = controller.snapshot().scenes[0]!.id;
-
-        const over = await client.callTool({ name: "generate_storyboard", arguments: { scene_order: 1, accept_max_usd: 0.1 } });
-        expect(over.isError).toBe(true);
-        expect(text(over)).toContain("OpenNan quotes ≈ $0.31");
-        expect(requests.map((r) => r.path)).toEqual(["/v1/quotes"]);
-
-        const ran = await client.callTool({ name: "generate_storyboard", arguments: { scene_order: 1 } });
-        expect(ran.isError).toBe(false);
-        expect(ran.structuredContent).toMatchObject({ quoted: true, holdUsd: 0.31, status: "succeeded", chargedUsd: 0.3, projectRevision: 4, synced: true, undoable: true });
-        expect(requests.filter((r) => r.method === "POST" && r.path !== "/v1/quotes")).toEqual([{ method: "POST", path: `/v1/projects/srv1/scenes/${sceneId}/storyboard`, body: {} }]);
-        expect(cloudBackend.recordRemoteGroup).toHaveBeenCalledWith("cloud-srv1", 1, expect.objectContaining({ label: "AI: Storyboard of scene 1", toRevision: 4 }), { timeoutMs: 0 });
-        expect(call).toHaveBeenCalledWith("cloud.run", [expect.objectContaining({ step: expect.objectContaining({ tool: "storyboard", sceneId }) })], { timeoutMs: PIPELINE_RUN_TIMEOUT_MS });
-
-        const script = await client.callTool({ name: "set_project_script", arguments: { script_text: "Hello there.", srt_content: null } });
-        expect(script.isError).toBe(false);
-        expect(requests.at(-1)).toEqual({ method: "PATCH", path: "/v1/projects/srv1", body: { script_text: "Hello there.", srt_content: null } });
-
-        const source = await client.callTool({ name: "set_copy_video_source", arguments: { scene_id: sceneId, video_url: "https://cdn.example.com/v.mp4" } });
-        expect(source.isError).toBe(false);
-        expect(requests.at(-1)).toEqual({ method: "PUT", path: `/v1/projects/srv1/scenes/${sceneId}/copy-video/source`, body: { video_url: "https://cdn.example.com/v.mp4" } });
-        expect(source.structuredContent).toMatchObject({ synced: true });
-    });
-
-    it("manages the cloud project's share links through the renderer's cloud runtime (phase 9c)", async () => {
-        const TOKEN = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL";
-        const shareJson = (overrides: Record<string, unknown> = {}) => ({
-            object: "project_share", id: "shr_0123456789abcdef01234567", project_id: "srv1", token: TOKEN, url: `https://evil.example/s/${TOKEN}`, status: "active",
-            allow_download: false, expires_at: "2026-10-28T10:00:00Z", created_at: "2026-10-21T10:00:00Z", revoked_at: null, views: 2, last_viewed_at: null, ...overrides,
-        });
-        const requests: Array<{ method: string; path: string; body?: unknown }> = [];
-        let refuse: { status: number; code: string } | null = null;
-        const api = {
-            baseUrl: "https://api.opennan.test",
-            async request(method: string, path: string, request: { body?: unknown } = {}) {
-                requests.push({ method, path, ...(request.body !== undefined ? { body: request.body } : {}) });
-                if (refuse) {
-                    const { CloudApiError } = await import("@opennan/cloud-backend");
-                    throw new CloudApiError(refuse.status, refuse.code, "refused", { fromServer: true });
-                }
-                const body = method === "POST" ? { ...shareJson(), replaced: [] }
-                    : method === "GET" ? { object: "list", data: [shareJson()] }
-                    : path.endsWith("/shares") ? { object: "list", data: [shareJson({ status: "revoked", revoked_at: "2026-10-21T11:00:00Z" })] }
-                    : shareJson({ status: "revoked", revoked_at: "2026-10-21T11:00:00Z" });
-                return { status: 200, body, etag: null };
-            },
-        };
-        const cloudBackend = { api, serverId: (id: string) => id.slice("cloud-".length) };
-        const notify = vi.fn();
-        const { client, call } = await setup({ projectId: "cloud-srv1", cloud: { backend: () => cloudBackend as never, local: {} as never }, notify });
-        const created = await client.callTool({ name: "create_share_link", arguments: { expires_in_days: 7 } });
-        expect(created.isError).toBe(false);
-        expect(requests[0]).toEqual({ method: "POST", path: "/v1/projects/srv1/shares", body: { expires_in_days: 7, allow_download: false } });
-        // The link an agent gets is the checked one (opennan.com), never a URL from elsewhere.
-        expect(text(created)).toContain(`https://opennan.com/s/${TOKEN}`);
-        expect(text(created)).not.toContain("evil.example");
-        expect(call).toHaveBeenCalledWith("cloud.shareCreate", [{ expiresInDays: 7 }]);
-        // The person sees in Studio that an agent shared the project (never the link itself in the notice).
-        expect(notify).toHaveBeenCalledWith(expect.stringMatching(/agent made a view-only share link/i));
-        expect(notify.mock.calls.flat().join()).not.toContain(TOKEN);
-        const listed = await client.callTool({ name: "list_share_links", arguments: {} });
-        expect(listed.structuredContent).toMatchObject({ links: [{ share_id: "shr_0123456789abcdef01234567", status: "active", views: 2 }] });
-        const one = await client.callTool({ name: "revoke_share_link", arguments: { share_id: "shr_0123456789abcdef01234567" } });
-        expect(one.isError).toBe(false);
-        expect(requests.at(-1)).toEqual({ method: "DELETE", path: "/v1/projects/srv1/shares/shr_0123456789abcdef01234567" });
-        await client.callTool({ name: "revoke_share_link", arguments: {} });
-        expect(requests.at(-1)).toEqual({ method: "DELETE", path: "/v1/projects/srv1/shares" });
-        refuse = { status: 409, code: "share_nothing_to_show" };
-        const nothing = await client.callTool({ name: "create_share_link", arguments: {} });
-        expect(nothing.isError).toBe(true);
-        expect(text(nothing)).toContain("nothing to show");
-    });
-
-    describe("an agent's share link needs the person's yes (9c.1)", () => {
-        const TOKEN = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL";
-        function shareCloud() {
-            const requests: Array<{ method: string; path: string }> = [];
-            const shareJson = (overrides: Record<string, unknown> = {}) => ({
-                object: "project_share", id: "shr_0123456789abcdef01234567", project_id: "srv1", token: TOKEN, url: `https://opennan.com/s/${TOKEN}`, share_base_url: "https://opennan.com/s",
-                status: "active", allow_download: false, expires_at: "2026-10-28T10:00:00Z", created_at: "2026-10-21T10:00:00Z", revoked_at: null, views: 0, last_viewed_at: null, ...overrides,
-            });
-            const api = {
-                baseUrl: "https://api.opennan.test",
-                async request(method: string, path: string) {
-                    requests.push({ method, path });
-                    const body = method === "POST" ? { ...shareJson(), replaced: [] } : method === "GET" ? { object: "list", data: [shareJson()] }
-                        : path.endsWith("/shares") ? { object: "list", data: [shareJson({ status: "revoked", revoked_at: "2026-10-21T11:00:00Z" })] } : shareJson({ status: "revoked", revoked_at: "2026-10-21T11:00:00Z" });
-                    return { status: 200, body, etag: null };
-                },
-            };
-            const posts = () => requests.filter((r) => r.method === "POST");
-            return { cloud: { backend: () => ({ api, serverId: (id: string) => id.slice("cloud-".length) }) as never, local: {} as never }, requests, posts };
-        }
-
-        it("asks with the project's name before every link (Allow makes it), and never for listing or turning off", async () => {
-            const { cloud, posts, requests } = shareCloud();
-            const confirmShare = vi.fn(async (_question: ShareQuestion) => "allow" as const);
-            const { client, call } = await setup({ projectId: "cloud-srv1", projectName: "Holiday", cloud, confirmShare });
-            const created = await client.callTool({ name: "create_share_link", arguments: {} });
-            expect(created.isError, text(created)).toBe(false);
-            expect(confirmShare).toHaveBeenCalledTimes(1);
-            expect(confirmShare.mock.calls[0]![0]).toMatchObject({ projectName: "Holiday" });
-            expect(call.mock.calls.map((c) => c[0]).filter((m) => m === "confirmShare" || m === "cloud.shareCreate")).toEqual(["confirmShare", "cloud.shareCreate"]);
-            expect(posts()).toHaveLength(1);
-            // A rotation is a new public link: asked again.
-            await client.callTool({ name: "create_share_link", arguments: {} });
-            expect(confirmShare).toHaveBeenCalledTimes(2);
-            await client.callTool({ name: "list_share_links", arguments: {} });
-            await client.callTool({ name: "revoke_share_link", arguments: {} });
-            expect(confirmShare).toHaveBeenCalledTimes(2);
-            expect(requests.map((r) => r.method)).toEqual(["POST", "POST", "GET", "DELETE"]);
-        });
-
-        it("Deny is a clear tool error and nothing is sent; Allow for this project lasts the app's session for that project only", async () => {
-            const consent = createShareConsent(() => false);
-            const denied = shareCloud();
-            const no = await setup({ projectId: "cloud-srv1", cloud: denied.cloud, confirmShare: async () => "deny", shareConsent: consent });
-            const refused = await no.client.callTool({ name: "create_share_link", arguments: {} });
-            expect(refused.isError).toBe(true);
-            expect(text(refused)).toMatch(/declined.*no share link was made/i);
-            expect(refused.structuredContent).toMatchObject({ declined: true, reason: "declined" });
-            expect(denied.posts()).toEqual([]);
-
-            const always = shareCloud();
-            const confirmShare = vi.fn(async () => "allow-session" as const);
-            const yes = await setup({ projectId: "cloud-srv1", cloud: always.cloud, confirmShare, shareConsent: consent });
-            await yes.client.callTool({ name: "create_share_link", arguments: {} });
-            await yes.client.callTool({ name: "create_share_link", arguments: {} });
-            expect(confirmShare).toHaveBeenCalledTimes(1);
-            expect(always.posts()).toHaveLength(2);
-            // The same app session, another project: asked.
-            const other = shareCloud();
-            const asked = vi.fn(async () => "deny" as const);
-            const second = await setup({ projectId: "cloud-srv2", cloud: other.cloud, confirmShare: asked, shareConsent: consent });
-            expect((await second.client.callTool({ name: "create_share_link", arguments: {} })).isError).toBe(true);
-            expect(asked).toHaveBeenCalledTimes(1);
-            // A new app session (a fresh consent) asks again for the first project.
-            const fresh = vi.fn(async () => "deny" as const);
-            const later = await setup({ projectId: "cloud-srv1", cloud: shareCloud().cloud, confirmShare: fresh, shareConsent: createShareConsent(() => false) });
-            await later.client.callTool({ name: "create_share_link", arguments: {} });
-            expect(fresh).toHaveBeenCalledTimes(1);
-        });
-
-        it("no answer within the time counts as deny: the question closes and nothing is sent", async () => {
-            const { cloud, posts } = shareCloud();
-            let closed = false;
-            const confirmShare = vi.fn((question: ShareQuestion) => new Promise<"allow">((resolve) => {
-                question.signal.addEventListener("abort", () => { closed = true; });
-                setTimeout(() => resolve("allow"), 5_000);
-            }));
-            const { client } = await setup({ projectId: "cloud-srv1", cloud, confirmShare, shareConfirmMs: 30 });
-            const answer = await client.callTool({ name: "create_share_link", arguments: {} });
-            expect(answer.isError).toBe(true);
-            expect(text(answer)).toMatch(/within 2 minutes.*no share link was made/i);
-            expect(answer.structuredContent).toMatchObject({ declined: true, reason: "unanswered" });
-            expect(closed).toBe(true);
-            expect(posts()).toEqual([]);
-            expect(SHARE_CONFIRM_TIMEOUT_MS).toBeGreaterThan(2 * 60_000);
-        });
-
-        it("a renderer that never answers is unanswered too (main's own deadline)", async () => {
-            const { cloud, posts } = shareCloud();
-            const { client } = await setup({ projectId: "cloud-srv1", cloud, confirmShare: () => new Promise(() => undefined), shareConfirmMs: 60_000, shareConfirmTimeoutMs: 40 });
-            const answer = await client.callTool({ name: "create_share_link", arguments: {} });
-            expect(answer.structuredContent).toMatchObject({ declined: true, reason: "unanswered" });
-            expect(posts()).toEqual([]);
-        });
-
-        it("a call the client stops while the question is open closes it, and a late Allow makes nothing (review 9c.1)", async () => {
-            const { cloud, posts } = shareCloud();
-            let question: ShareQuestion | null = null;
-            let allow: (() => void) | null = null;
-            const confirmShare = vi.fn((q: ShareQuestion) => new Promise<"allow" | "deny">((resolve) => {
-                question = q;
-                allow = () => resolve("allow");
-                q.signal.addEventListener("abort", () => resolve("deny"));
-            }));
-            const { client } = await setup({ projectId: "cloud-srv1", cloud, confirmShare });
-            const stop = new AbortController();
-            const pending = client.callTool({ name: "create_share_link", arguments: {} }, undefined, { signal: stop.signal }).catch((error: unknown) => error);
-            await vi.waitFor(() => expect(question).not.toBeNull());
-            stop.abort();
-            await pending;
-            await vi.waitFor(() => expect(question!.signal.aborted).toBe(true));
-            allow!();
-            await new Promise((r) => setTimeout(r, 50));
-            expect(posts()).toEqual([]);
-        });
-
-        it("Settings → Let agents create share links without asking skips the question", async () => {
-            const { cloud, posts } = shareCloud();
-            let withoutAsking = true;
-            const confirmShare = vi.fn(async () => "deny" as const);
-            const { client } = await setup({ projectId: "cloud-srv1", cloud, confirmShare, shareConsent: createShareConsent(() => withoutAsking) });
-            expect((await client.callTool({ name: "create_share_link", arguments: {} })).isError).toBe(false);
-            expect(confirmShare).not.toHaveBeenCalled();
-            withoutAsking = false;
-            expect((await client.callTool({ name: "create_share_link", arguments: {} })).isError).toBe(true);
-            expect(confirmShare).toHaveBeenCalledTimes(1);
-            expect(posts()).toHaveLength(1);
-        });
-
-        it("a signed-out cloud project is told to sign in without a question", async () => {
-            const confirmShare = vi.fn(async () => "allow" as const);
-            const { client } = await setup({ projectId: "cloud-srv1", cloud: { backend: () => null, local: {} as never }, confirmShare });
-            const answer = await client.callTool({ name: "create_share_link", arguments: {} });
-            expect(answer.isError).toBe(true);
-            expect(text(answer)).toContain(CLOUD_SIGN_IN);
-            expect(confirmShare).not.toHaveBeenCalled();
-        });
-    });
-
-    it("share links on a local project ask to save it to OpenNan first and send nothing (phase 9c)", async () => {
-        const backend = vi.fn(() => null);
-        const { client, call } = await setup({ cloud: { backend, local: {} as never } });
-        const answer = await client.callTool({ name: "create_share_link", arguments: {} });
-        expect(answer.isError).toBe(true);
-        expect(text(answer)).toContain("save it to OpenNan first");
-        expect(call).not.toHaveBeenCalledWith("cloud.shareCreate", expect.anything());
-    });
-
-    it("project pipelines on a local project ask to save it to OpenNan first and send nothing (phase 9b)", async () => {
-        const backend = vi.fn(() => null);
-        const { client, call } = await setup({ cloud: { backend, local: {} as never } });
-        const answer = await client.callTool({ name: "plan_scenes", arguments: {} });
-        expect(answer.isError).toBe(true);
-        expect(text(answer)).toBe("This needs an OpenNan cloud project: save it to OpenNan first (save_project_to_cloud).");
-        expect(call.mock.calls.filter(([method]) => String(method).startsWith("cloud."))).toEqual([]);
-        expect(backend).not.toHaveBeenCalled();
-    });
-
-    it("cloud tools while signed out answer with the sign-in message", async () => {
-        const { client } = await setup({ cloud: { backend: () => null, local: {} as never } });
-        const listed = await client.callTool({ name: "list_cloud_projects", arguments: {} });
-        expect(listed.isError).toBe(true);
-        expect(text(listed)).toContain(CLOUD_SIGN_IN);
-    });
 
     it("lists tools and edits the renderer's timeline", async () => {
         const { client, controller } = await setup();
