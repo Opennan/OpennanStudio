@@ -23,7 +23,7 @@ const shotIndex = int("0-based shot index.");
 const scene = { scene_order: sceneOrder, scene_id: sceneId };
 const shot = { ...scene, shot_index: shotIndex };
 const timelinePlacement = { timeline_track_index: int(), timeline_start_time: num() };
-/** Phase 9b: the OpenNan project pipelines run on cloud projects after OpenNan prices them; a quote above this refuses. */
+/** Phase 9b: the OpenNan project pipelines run after OpenNan prices them; a quote above this refuses. */
 export const acceptMaxUsd = { ...num("Highest OpenNan quote, in US dollars, to go ahead with; a higher quote stops before anything is submitted."), minimum: 0 };
 
 /** Tools estimate_cost prices: the editor's AI tools (studio-capability.ts, the local ones answer free) and the generators. */
@@ -59,29 +59,29 @@ export const CAPABILITY_TOOLS: readonly ToolDefinition[] = [
     cap("run_pipeline", "Run story pipeline", "opennan.story.plan", "Runs the full story pipeline for the project: plan, images, and videos."),
     cap("generate_camera_shots", "Plan camera shots", "opennan.story.plan", "Plans the camera shots of a scene.", { scene_order: sceneOrder, duration: int() }, ["scene_order"]),
     cap("generate_all_camera_shots", "Plan all camera shots", "opennan.story.plan", "Plans the camera shots of every scene."),
-    cap("generate_storyboard", "Generate storyboard", "opennan.story.storyboard", "Draws a scene's storyboard on an OpenNan cloud project, one panel per shot. OpenNan quotes it first; the panels arrive in the editor as one undo step.", {
+    cap("generate_storyboard", "Generate storyboard", "opennan.story.storyboard", "Draws a scene's storyboard on a project stored on OpenNan, one panel per shot. OpenNan quotes it first.", {
         ...scene, regenerate: bool("Draw again over a storyboard the scene already has."), accept_max_usd: acceptMaxUsd,
     }),
-    cap("generate_video_from_panels", "Video from storyboard", "opennan.story.storyboard", "Turns the shot panels of a copied scene on an OpenNan cloud project into a new video, shot by shot. OpenNan quotes it first.", {
+    cap("generate_video_from_panels", "Video from storyboard", "opennan.story.storyboard", "Turns the shot panels of a copied scene on a project stored on OpenNan into a new video, shot by shot. OpenNan quotes it first.", {
         ...scene, accept_max_usd: acceptMaxUsd,
     }),
     cap("recrop_storyboard_panels", "Recrop storyboard", "opennan.story.storyboard", "Re-detects and crops the panels of a scene's storyboard sheet.", scene),
     cap("undo_shot_image", "Undo shot image", "opennan.story.storyboard", "Restores the previous image of a shot.", shot, ["shot_index"]),
-    cap("set_copy_video_source", "Set copy-video source", "opennan.copy-video", "Makes a scene of an OpenNan cloud project copy an https video, optionally trimmed. No charge; the change syncs into the editor.", {
+    cap("set_copy_video_source", "Set copy-video source", "opennan.copy-video", "Makes a scene of a project stored on OpenNan copy an https video, optionally trimmed. No charge.", {
         ...scene, video_url: str("https link of the video to copy (up to 10 minutes)."), trim_start: num("Seconds into the video where the copy starts."), trim_end: num("Seconds into the video where the copy ends."),
     }, ["video_url"]),
-    cap("detect_copy_video_shots", "Detect copy-video shots", "opennan.copy-video", "Finds the shots, actions and camera moves of the video a scene of an OpenNan cloud project copies. OpenNan quotes it first.", {
+    cap("detect_copy_video_shots", "Detect copy-video shots", "opennan.copy-video", "Finds the shots, actions and camera moves of the video a scene of a project stored on OpenNan copies. OpenNan quotes it first.", {
         ...scene, accept_max_usd: acceptMaxUsd,
     }),
-    cap("edit_copy_video_shot_image", "Edit copy-video shot image", "opennan.copy-video", "Redraws the panel of one copied shot on an OpenNan cloud project from an instruction. OpenNan quotes it first.", {
+    cap("edit_copy_video_shot_image", "Edit copy-video shot image", "opennan.copy-video", "Redraws the panel of one copied shot on a project stored on OpenNan from an instruction. OpenNan quotes it first.", {
         ...shot, instruction: str("What to change in the panel."), accept_max_usd: acceptMaxUsd,
     }, ["shot_index", "instruction"]),
-    cap("edit_copy_video_shot_description", "Edit copy-video shot text", "opennan.copy-video", "Rewrites the words for what one copied shot shows on an OpenNan cloud project; its panel stays. No charge.", {
+    cap("edit_copy_video_shot_description", "Edit copy-video shot text", "opennan.copy-video", "Rewrites the words for what one copied shot shows on a project stored on OpenNan; its panel stays. No charge.", {
         ...shot, description: str("What the shot shows, in plain words."),
     }, ["shot_index", "description"]),
     cap("detach_scene_audio", "Detach scene audio", "opennan.copy-video", "Moves a copy-video scene's original audio to its own audio clip.", { scene_id: sceneId }),
     cap("reattach_scene_audio", "Reattach scene audio", "opennan.copy-video", "Puts a detached copy-video audio clip back into its scene.", { scene_id: sceneId }),
-    cap("generate_scene_videos_smart", "Smart scene videos", "opennan.video.smart-scene", "Renders a scene of an OpenNan cloud project as video, joining shots that belong together. OpenNan quotes it first; dry_run answers with the quote alone.", {
+    cap("generate_scene_videos_smart", "Smart scene videos", "opennan.video.smart-scene", "Renders a scene of a project stored on OpenNan as video, joining shots that belong together. OpenNan quotes it first; dry_run answers with the quote alone.", {
         ...scene, model_id: enumOf(["auto", "seedance-2", "kling-o3", "kling-3"], "Video model (default auto)."), dry_run: bool("Only ask OpenNan for the price."),
         accept_max_usd: acceptMaxUsd,
     }),

@@ -3,7 +3,7 @@
 import { expect, type Page } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { fakeControl } from "./fixtures/fake-opennan";
+import { FAKE_OPENNAN, fakeControl } from "./fixtures/fake-opennan";
 import { snapshot, waitForSaves } from "./helpers";
 
 export const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -68,3 +68,19 @@ export const aiTool = (page: Page, tool: string, params: Record<string, unknown>
 export const aiRun = (page: Page, tool: string, params: Record<string, unknown>) =>
     page.evaluate(([t, p]) => (window as unknown as AiHostWindow).__studio.ai.run(t as string, p as Record<string, unknown>), [tool, params] as const);
 export const aiJobs = (page: Page) => page.evaluate(() => (window as unknown as AiHostWindow).__studio.ai.jobs());
+
+/** Sets one of the fake server's upload knobs (they live under /__test/cloud/ on the fake). */
+export async function uploadControl(name: string, body: Record<string, unknown> = {}): Promise<unknown> {
+    const response = await fetch(`${FAKE_OPENNAN}/__test/cloud/${name}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!response.ok) throw new Error(`fake upload knob ${name}: ${response.status} ${await response.text()}`);
+    return response.json();
+}
+
+export interface FakeUploadsView {
+    uploads: Array<{ id: string; scope: string; project_id: string | null; sha256: string | null; size_bytes: number; puts: number; completed: boolean }>;
+}
+
+/** The uploads the fake server has seen. */
+export async function uploadState(): Promise<FakeUploadsView> {
+    return (await fetch(`${FAKE_OPENNAN}/__test/cloud/state`)).json() as Promise<FakeUploadsView>;
+}

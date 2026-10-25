@@ -1,7 +1,6 @@
 // Desktop settings (StudioUi.SettingsAddons): API keys (write-only), the terminal's custom command and default
-// profile, the MCP server's address with the config each CLI gets, and whether agents may make share links without
-// asking (9c.1, off by default). Secret values never come back.
-import { useCallback, useEffect, useId, useState } from "react";
+// profile, and the MCP server's address with the config each CLI gets. Secret values never come back.
+import { useCallback, useEffect, useState } from "react";
 import type { DesktopBridge, McpInfo } from "../shared/bridge";
 import { PROVIDER_SECRET_NAMES, TERMINAL_PROFILES, type DesktopSettings, type SecretName, type SecretStatus } from "../shared/settings";
 import { PROFILE_LABELS } from "./terminal-panel";
@@ -47,7 +46,6 @@ export function SettingsAddonsView({ bridge }: { bridge: DesktopBridge }) {
     const [settings, setSettings] = useState<DesktopSettings | null>(null);
     const [command, setCommand] = useState("");
     const [mcp, setMcp] = useState<McpInfo | null>(null);
-    const shareHint = useId();
     const refresh = useCallback(() => {
         // Provider keys (fal.ai) live in Settings → AI providers above; this list is the terminal CLIs' keys.
         void bridge.secrets.list().then((list) => setSecrets(list.filter((s) => !PROVIDER_SECRET_NAMES.includes(s.name))));
@@ -98,19 +96,6 @@ export function SettingsAddonsView({ bridge }: { bridge: DesktopBridge }) {
                             <pre className="desktop-mcp-config">{mcp.configs[client]}</pre>
                         </details>
                     ))}
-                </div>
-            )}
-
-            <h2>Agents</h2>
-            {settings && (
-                <div className="desktop-settings-fields">
-                    <label className="desktop-settings-check">
-                        <input type="checkbox" aria-describedby={shareHint} checked={settings.agentSharesWithoutAsking} onChange={(event) => void update({ agentSharesWithoutAsking: event.target.checked })} />
-                        Let agents create share links without asking
-                    </label>
-                    <p id={shareHint} className="muted small">
-                        Off: OpenNan Studio asks you before an agent makes a public view link of a cloud project (anyone with the link can watch it). Turning a link off never asks.
-                    </p>
                 </div>
             )}
         </section>

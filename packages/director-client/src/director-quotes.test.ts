@@ -1,12 +1,12 @@
-import { CloudApiError, type CloudApi, type CloudMethod, type CloudRequest } from "@opennan/cloud-backend";
+import { ProjectApiError, type ProjectApi, type ProjectApiMethod, type ProjectApiRequest } from "./api";
 import { pipelineRequest } from "./director-pipelines";
-import { createQuotes, formatUsdExact, formatUsdNear, formatUsdUp, QUOTE_UNSUPPORTED_MS, TOOL_QUOTE_MS, TURN_QUOTE_MS } from "./director-quotes";
+import { createQuotes, formatUsdExact, formatUsdNear, formatUsdUp, TOOL_QUOTE_MS } from "./director-quotes";
 
 function fakeApi(answer: (body: Record<string, unknown>) => unknown) {
     const calls: Array<Record<string, unknown>> = [];
-    const api: CloudApi = {
+    const api: ProjectApi = {
         baseUrl: "https://api.opennan.com",
-        async request<T>(_method: CloudMethod, _path: string, request?: CloudRequest) {
+        async request<T>(_method: ProjectApiMethod, _path: string, request?: ProjectApiRequest) {
             calls.push(request?.body as Record<string, unknown>);
             return { status: 200, body: (await answer(request?.body as Record<string, unknown>)) as T, etag: null };
         },
@@ -14,53 +14,7 @@ function fakeApi(answer: (body: Record<string, unknown>) => unknown) {
     return { api, calls };
 }
 
-const TURN_QUOTE = { object: "quote", tool: "director-turn", price_usd: 0.429, hold_usd: 0.429, priced: { rounds: 6, tool_calls: 10, typical_usd: 0.078 } };
-
 describe("createQuotes", () => {
-    it("reads a turn's hold and typical price and keeps it 10 minutes", async () => {
-        let t = 0;
-        const { api, calls } = fakeApi(() => TURN_QUOTE);
-        const quotes = createQuotes(api, { now: () => t });
-        expect(await quotes.turn()).toEqual({ holdUsd: 0.429, typicalUsd: 0.078, limits: expect.objectContaining({ rounds: 6, toolCalls: 10 }) });
-        expect(calls).toEqual([{ tool: "director-turn" }]);
-        t = TURN_QUOTE_MS - 1;
-        await quotes.turn();
-        expect(calls).toHaveLength(1);
-        t = TURN_QUOTE_MS + 1;
-        await quotes.turn();
-        expect(calls).toHaveLength(2);
-    });
-
-    it("an older server (404) answers null and is not asked again for a while; a typical above the hold is capped", async () => {
-        let t = 0;
-        let mode: "404" | "odd" = "404";
-        const { api, calls } = fakeApi(() => {
-            if (mode === "404") throw new CloudApiError(404, "not_found", "Not Found");
-            return { price_usd: 0.2, hold_usd: 0.2, priced: { typical_usd: 0.5 } };
-        });
-        const quotes = createQuotes(api, { now: () => t });
-        expect(await quotes.turn()).toBeNull();
-        t = QUOTE_UNSUPPORTED_MS - 1;
-        expect(await quotes.turn()).toBeNull();
-        expect(calls).toHaveLength(1);
-        mode = "odd";
-        t = QUOTE_UNSUPPORTED_MS + 1;
-        expect(await quotes.turn()).toMatchObject({ holdUsd: 0.2, typicalUsd: 0.2 });
-    });
-
-    it("a network failure is not cached", async () => {
-        let fail = true;
-        const { api, calls } = fakeApi(() => {
-            if (fail) throw new CloudApiError(0, "network", "x");
-            return TURN_QUOTE;
-        });
-        const quotes = createQuotes(api);
-        expect(await quotes.turn()).toBeNull();
-        fail = false;
-        expect(await quotes.turn()).toMatchObject({ holdUsd: 0.429 });
-        expect(calls).toHaveLength(2);
-    });
-
     it("quotes a pipeline request with its own body, cached per body for 60 s and shared in flight", async () => {
         let t = 0;
         const { api, calls } = fakeApi((body) => ({ price_usd: body.scene_id === "s1" ? 0.31 : 0.62, hold_usd: body.scene_id === "s1" ? 0.31 : 0.62 }));
@@ -81,8 +35,8 @@ describe("createQuotes", () => {
     it("a refusal answers its reason; an outage answers unavailable; neither is cached", async () => {
         let mode: "400" | "503" | "ok" = "400";
         const { api, calls } = fakeApi(() => {
-            if (mode === "400") throw new CloudApiError(400, "invalid_request", "srt_content: add subtitles first", { fromServer: true });
-            if (mode === "503") throw new CloudApiError(503, "unavailable", "down");
+            if (mode === "400") throw new ProjectApiError(400, "invalid_request", "srt_content: add subtitles first", { fromServer: true });
+            if (mode === "503") throw new ProjectApiError(503, "unavailable", "down");
             return { price_usd: 0.2, hold_usd: 0.25 };
         });
         const quotes = createQuotes(api);

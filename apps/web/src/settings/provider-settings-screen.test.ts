@@ -7,7 +7,6 @@ import { memoryProviderSettings, type ProviderPlatform } from "../account/accoun
 import { createFakeAccount, TEST_ACCOUNT, type FakeAccount } from "../account/fake-account";
 import { StudioRuntimeProvider } from "../platform/runtime-context";
 import type { StudioRuntime } from "../platform/runtime-types";
-import type { CacheUsage, MediaCacheControl } from "@opennan/cloud-backend";
 import css from "./settings.css?raw";
 import { ProviderSettingsScreen } from "./provider-settings-screen";
 import { connectRouting } from "./routing-groups";
@@ -149,59 +148,5 @@ describe("ProviderSettingsScreen", () => {
         render(createFakeAccount(), { addons: () => createElement("p", { id: "addon" }, "Desktop settings") });
         expect(document.getElementById("addon")).not.toBeNull();
         expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
-    });
-});
-
-describe("Settings → Cloud media on this device (9a.1)", () => {
-    const GB = 1024 ** 3;
-    function fakeCache() {
-        let usage: CacheUsage = { usedBytes: 1.5 * GB, entries: 3, limitBytes: 10 * GB, defaultLimitBytes: 10 * GB, maxLimitBytes: 40 * GB, pinnedBytes: 0.5 * GB, custom: false };
-        const calls: string[] = [];
-        const cache: MediaCacheControl = {
-            usage: async () => usage,
-            setLimit: async (bytes) => {
-                calls.push(`limit ${bytes}`);
-                usage = { ...usage, limitBytes: bytes ?? usage.defaultLimitBytes, custom: bytes !== null };
-                return usage;
-            },
-            clear: async () => {
-                calls.push("clear");
-                usage = { ...usage, usedBytes: usage.pinnedBytes, entries: 1 };
-                return { freedBytes: 1 * GB, keptBytes: 0.5 * GB };
-            },
-        };
-        return { cache, calls };
-    }
-    const flush = () => act(async () => {
-        for (let i = 0; i < 5; i++) await Promise.resolve();
-    });
-
-    it("shows the cache's use and limit, changes the limit, and clears it (keeping what open projects use)", async () => {
-        const { cache, calls } = fakeCache();
-        render(createFakeAccount(), { extra: { mediaCache: cache } });
-        await flush();
-        const section = document.querySelector("[data-testid=media-cache-section]") as HTMLElement;
-        expect(section.textContent).toContain("Cloud media on this device");
-        expect(section.querySelector("[role=meter]")!.getAttribute("aria-valuetext")).toBe("1.50 GB of 10 GB");
-        const select = section.querySelector("select") as HTMLSelectElement;
-        // Choices above what this device offers (40 GB here) are not listed.
-        expect([...select.options].map((o) => o.textContent)).toEqual(["Default (10 GB)", "1 GB", "2 GB", "5 GB", "10 GB", "20 GB"]);
-        choose(select, String(2 * GB));
-        await flush();
-        expect(calls).toEqual([`limit ${2 * GB}`]);
-        expect(section.querySelector("[role=meter]")!.getAttribute("aria-valuetext")).toBe("1.50 GB of 2 GB");
-        choose(select, "default");
-        await flush();
-        expect(calls.at(-1)).toBe("limit null");
-        await act(async () => button("Clear cache").click());
-        await flush();
-        expect(calls.at(-1)).toBe("clear");
-        expect(section.querySelector("[role=status]")!.textContent).toBe("Freed 1.00 GB. 512.0 MB stayed because open projects use it.");
-    });
-
-    it("is not shown on a host without a media cache", async () => {
-        render(createFakeAccount());
-        await flush();
-        expect(document.querySelector("[data-testid=media-cache-section]")).toBeNull();
     });
 });

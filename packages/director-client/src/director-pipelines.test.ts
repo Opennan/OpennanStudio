@@ -1,4 +1,4 @@
-import { checkPipelineRequest, pipelineRequest, projectVideoModels, proposalToolId, quoteBodyOf, videoQualities } from "./director-pipelines";
+import { checkPipelineRequest, pipelineRequest, projectVideoModels, quoteBodyOf, videoQualities } from "./director-pipelines";
 
 describe("checkPipelineRequest", () => {
     it("lets through the pipeline routes of this project with their own fields", () => {
@@ -38,41 +38,5 @@ describe("pipelineRequest and quotes", () => {
         expect(projectVideoModels("storyboard")).toEqual(["auto", "seedance-2", "kling-o3"]);
         expect(videoQualities("auto")).toEqual(["480p", "720p", "1080p"]);
         expect(videoQualities("kling-3")).toEqual(["720p", "1080p"]);
-    });
-});
-
-describe("the proposal run route (phase 9c)", () => {
-    const run = "/v1/projects/p1/director/turns/turn_0123456789abcdef01234567/proposals/prop_89abcdef0123456789abcdef/run";
-
-    it("lets through this project's run path with an empty body when the proposal's tool is given", () => {
-        expect(checkPipelineRequest("p1", { method: "POST", path: run, body: {} }, { tool: "storyboard" })).toEqual({
-            method: "POST", path: run, body: {}, tool: "storyboard", projectId: "p1",
-            run: { turnId: "turn_0123456789abcdef01234567", proposalId: "prop_89abcdef0123456789abcdef" },
-        });
-        expect(checkPipelineRequest("p1", { method: "POST", path: run }, { tool: "story-scenes" })).toMatchObject({ tool: "story-scenes", body: {} });
-    });
-
-    it("refuses it without a tool, with a body, for another project, with odd ids, a query or another method", () => {
-        expect(checkPipelineRequest("p1", { method: "POST", path: run, body: {} })).toBeNull();
-        expect(checkPipelineRequest("p1", { method: "POST", path: run, body: { model: "auto" } }, { tool: "storyboard" })).toBeNull();
-        expect(checkPipelineRequest("p2", { method: "POST", path: run, body: {} }, { tool: "storyboard" })).toBeNull();
-        expect(checkPipelineRequest("p1", { method: "POST", path: run.replace("turn_0123", "turn_XYZ3"), body: {} }, { tool: "storyboard" })).toBeNull();
-        expect(checkPipelineRequest("p1", { method: "POST", path: run.replace("prop_89ab", "prop_89a"), body: {} }, { tool: "storyboard" })).toBeNull();
-        expect(checkPipelineRequest("p1", { method: "POST", path: `${run}?x=1`, body: {} }, { tool: "storyboard" })).toBeNull();
-        expect(checkPipelineRequest("p1", { method: "GET", path: run, body: {} }, { tool: "storyboard" })).toBeNull();
-        expect(checkPipelineRequest("p1", { method: "POST", path: run.replace("/run", "/cancel"), body: {} }, { tool: "storyboard" })).toBeNull();
-        // A route path never takes a run's tool hint as a pass.
-        expect(checkPipelineRequest("p1", { method: "POST", path: "/v1/projects/p1/exports", body: {} }, { tool: "storyboard" })).toBeNull();
-    });
-
-    it("maps the director's paid tool names to the project tools", () => {
-        expect(proposalToolId("plan_scenes")).toBe("story-scenes");
-        expect(proposalToolId("generate_storyboard")).toBe("storyboard");
-        expect(proposalToolId("generate_scene_videos_smart")).toBe("smart-scene-video");
-        expect(proposalToolId("detect_copy_video_shots")).toBe("copy-video-detect");
-        expect(proposalToolId("edit_copy_video_shot_image")).toBe("copy-video-edit");
-        expect(proposalToolId("generate_video_from_panels")).toBe("copy-video-recreate");
-        expect(proposalToolId("edit_project_timeline")).toBeNull();
-        expect(proposalToolId("__proto__")).toBeNull();
     });
 });

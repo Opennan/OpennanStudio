@@ -6,10 +6,7 @@ export function isUuid(value: unknown): value is string {
     return typeof value === "string" && UUID.test(value);
 }
 
-/** OpenNan cloud projects' Studio ids (phase 9a): "cloud-" + the server's id, whose characters are safe in file names. */
-export const CLOUD_PROJECT_ID = /^cloud-[A-Za-z0-9_-]{1,36}$/;
-
-/** A project the editor can open: a local project's UUID or a cloud project's "cloud-<server id>". */
+/** A project the editor can open: a local project's UUID (projects stay on this device). */
 export function isProjectRef(value: unknown): value is string {
-    return typeof value === "string" && (UUID.test(value) || CLOUD_PROJECT_ID.test(value));
+    return isUuid(value);
 }

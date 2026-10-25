@@ -1,11 +1,10 @@
-// The opennan.com public API as cloud projects use it: JSON in and out, the ETag of every answer, 304 passed
-// through, and the error envelope {"error": {type, message, code, details}} as CloudApiError. The key is read from
-// the host on every call and goes only to the API's own origin as a bearer; nothing here stores or logs it. Desktop
-// renderers use an IPC proxy with the same interface (the key stays in main).
+// The opennan.com public API client for the project pipeline routes (moved here from the removed cloud-backend
+// package): JSON in and out, the ETag of every answer, 304 passed through, and the error envelope
+// {"error": {type, message, code, details}} as ProjectApiError. The key is read from the host on every call and goes
+// only to the API's own origin as a bearer; nothing here stores or logs it.
+export type ProjectApiMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
-export type CloudMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-
-export interface CloudRequest {
+export interface ProjectApiRequest {
     body?: unknown;
     query?: Record<string, string | number | boolean | undefined | null>;
     /** Idempotency-Key, If-Match, If-None-Match. Never replaces the key or the JSON content type. */
@@ -13,29 +12,18 @@ export interface CloudRequest {
     signal?: AbortSignal;
 }
 
-export interface CloudResponse<T> {
+export interface ProjectApiResponse<T> {
     status: number;
     body: T;
     etag: string | null;
 }
 
-export interface CloudStreamResponse {
-    status: number;
-    /** The answer's bytes as they arrive (a server-sent events stream). */
-    body: ReadableStream<Uint8Array>;
-}
-
-export interface CloudApi {
+export interface ProjectApi {
     readonly baseUrl: string;
-    request<T = unknown>(method: CloudMethod, path: string, request?: CloudRequest): Promise<CloudResponse<T>>;
-    /**
-     * The same call answering the body as a stream (phase 9b: the director's turn events). A refusal is thrown as
-     * CloudApiError exactly like request(); hosts without streaming leave it out (callers fall back to JSON).
-     */
-    stream?(method: CloudMethod, path: string, request?: CloudRequest): Promise<CloudStreamResponse>;
+    request<T = unknown>(method: ProjectApiMethod, path: string, request?: ProjectApiRequest): Promise<ProjectApiResponse<T>>;
 }
 
-export interface CloudApiErrorInit {
+export interface ProjectApiErrorInit {
     type?: string;
     details?: Record<string, unknown>;
     retryAfterSeconds?: number;
@@ -44,7 +32,7 @@ export interface CloudApiErrorInit {
 }
 
 /** A refused or failed call. status 0 = the network; code is the server's (never null) or one Studio made up. */
-export class CloudApiError extends Error {
+export class ProjectApiError extends Error {
     readonly status: number;
     readonly code: string;
     readonly type?: string;
@@ -52,9 +40,9 @@ export class CloudApiError extends Error {
     readonly retryAfterSeconds?: number;
     readonly fromServer: boolean;
 
-    constructor(status: number, code: string, message: string, init: CloudApiErrorInit = {}) {
+    constructor(status: number, code: string, message: string, init: ProjectApiErrorInit = {}) {
         super(message, init.cause !== undefined ? { cause: init.cause } : undefined);
-        this.name = "CloudApiError";
+        this.name = "ProjectApiError";
         this.status = status;
         this.code = code;
         if (init.type !== undefined) this.type = init.type;
@@ -72,16 +60,16 @@ export class CloudApiError extends Error {
         };
     }
 
-    static fromJSON(value: { status: number; code: string; message: string; type?: string; details?: Record<string, unknown>; retryAfterSeconds?: number; fromServer?: boolean }): CloudApiError {
-        return new CloudApiError(value.status, value.code, value.message, {
+    static fromJSON(value: { status: number; code: string; message: string; type?: string; details?: Record<string, unknown>; retryAfterSeconds?: number; fromServer?: boolean }): ProjectApiError {
+        return new ProjectApiError(value.status, value.code, value.message, {
             ...(value.type !== undefined ? { type: value.type } : {}), ...(value.details !== undefined ? { details: value.details } : {}),
             ...(value.retryAfterSeconds !== undefined ? { retryAfterSeconds: value.retryAfterSeconds } : {}), fromServer: value.fromServer ?? false,
         });
     }
 }
 
-export function isCloudApiError(error: unknown): error is CloudApiError {
-    return error instanceof CloudApiError || (typeof error === "object" && error !== null && (error as { name?: string }).name === "CloudApiError");
+export function isProjectApiError(error: unknown): error is ProjectApiError {
+    return error instanceof ProjectApiError || (typeof error === "object" && error !== null && (error as { name?: string }).name === "ProjectApiError");
 }
 
 export function isAbortError(error: unknown): boolean {
@@ -91,7 +79,7 @@ export function isAbortError(error: unknown): boolean {
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 /** https, or plain http to this machine's loopback (tests, the fake server); never credentials in the URL. */
-export function isAllowedCloudBase(value: string): boolean {
+export function isAllowedProjectApiBase(value: string): boolean {
     try {
         const url = new URL(value);
         if (url.username || url.password) return false;
@@ -116,7 +104,7 @@ const DEFAULT_CODES: Array<[(status: number) => boolean, string]> = [
     [(s) => s === 413, "request_too_large"], [(s) => s === 429, "rate_limited"], [(s) => s >= 500, "server_error"],
 ];
 
-export interface CloudApiOptions {
+export interface ProjectApiOptions {
     baseUrl: string;
     /** The signed-in key, read on every call; null = signed out (the call fails with 401 signed_out, nothing is sent). */
     apiKey(): string | null;
@@ -124,16 +112,16 @@ export interface CloudApiOptions {
     now?(): number;
 }
 
-export function createCloudApi(options: CloudApiOptions): CloudApi {
+export function createProjectApi(options: ProjectApiOptions): ProjectApi {
     const baseUrl = options.baseUrl.replace(/\/+$/, "");
-    if (!isAllowedCloudBase(baseUrl)) throw new Error(`The OpenNan API address must use https (or http on this machine's loopback): ${baseUrl}`);
+    if (!isAllowedProjectApiBase(baseUrl)) throw new Error(`The OpenNan API address must use https (or http on this machine's loopback): ${baseUrl}`);
     const doFetch = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
     const now = options.now ?? Date.now;
-    /** Sends one call; a refusal or a network failure throws CloudApiError, an abort stays an abort. */
-    async function send(method: CloudMethod, path: string, request: CloudRequest, accept: string): Promise<Response> {
-        if (!path.startsWith("/")) throw new Error("A cloud API path starts with /");
+    /** Sends one call; a refusal or a network failure throws ProjectApiError, an abort stays an abort. */
+    async function send(method: ProjectApiMethod, path: string, request: ProjectApiRequest, accept: string): Promise<Response> {
+        if (!path.startsWith("/")) throw new Error("An API path starts with /");
         const key = options.apiKey();
-        if (!key) throw new CloudApiError(401, "signed_out", "Sign in with OpenNan to sync cloud projects.");
+        if (!key) throw new ProjectApiError(401, "signed_out", "Sign in with OpenNan first.");
         const url = new URL(baseUrl + path);
         for (const [name, value] of Object.entries(request.query ?? {})) if (value !== undefined && value !== null) url.searchParams.set(name, String(value));
         const headers = new Headers();
@@ -154,7 +142,7 @@ export function createCloudApi(options: CloudApiOptions): CloudApi {
             response = await doFetch(url.href, { method, headers, body, signal: request.signal, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
         } catch (error) {
             if (isAbortError(error) || request.signal?.aborted) throw error;
-            throw new CloudApiError(0, "network", "Can't reach OpenNan.", { cause: error });
+            throw new ProjectApiError(0, "network", "Can't reach OpenNan.", { cause: error });
         }
         if (response.ok || response.status === 304) return response;
         const text = await response.text().catch(() => "");
@@ -170,7 +158,7 @@ export function createCloudApi(options: CloudApiOptions): CloudApi {
         const details = envelope?.error?.details;
         const type = typeof envelope?.error?.type === "string" ? envelope.error.type : undefined;
         const retry = retryAfterSeconds(response.headers.get("retry-after"), now());
-        throw new CloudApiError(response.status, code, serverMessage ?? `OpenNan answered ${response.status}.`, {
+        throw new ProjectApiError(response.status, code, serverMessage ?? `OpenNan answered ${response.status}.`, {
             fromServer: serverMessage !== null,
             ...(type ? { type } : {}),
             ...(details && typeof details === "object" && !Array.isArray(details) ? { details: details as Record<string, unknown> } : {}),
@@ -180,7 +168,7 @@ export function createCloudApi(options: CloudApiOptions): CloudApi {
 
     return {
         baseUrl,
-        async request<T>(method: CloudMethod, path: string, request: CloudRequest = {}): Promise<CloudResponse<T>> {
+        async request<T>(method: ProjectApiMethod, path: string, request: ProjectApiRequest = {}): Promise<ProjectApiResponse<T>> {
             const response = await send(method, path, request, "application/json");
             const etag = response.headers.get("etag");
             if (response.status === 304) return { status: 304, body: null as T, etag };
@@ -189,15 +177,8 @@ export function createCloudApi(options: CloudApiOptions): CloudApi {
             try {
                 return { status: response.status, body: JSON.parse(text) as T, etag };
             } catch (error) {
-                throw new CloudApiError(response.status, "invalid_response", "OpenNan sent an answer Studio cannot read.", { cause: error });
+                throw new ProjectApiError(response.status, "invalid_response", "OpenNan sent an answer Studio cannot read.", { cause: error });
             }
-        },
-        async stream(method: CloudMethod, path: string, request: CloudRequest = {}): Promise<CloudStreamResponse> {
-            const response = await send(method, path, request, "text/event-stream");
-            if (!response.body || response.status === 204 || response.status === 304) {
-                throw new CloudApiError(response.status, "invalid_response", "OpenNan sent an answer Studio cannot read.");
-            }
-            return { status: response.status, body: response.body };
         },
     };
 }

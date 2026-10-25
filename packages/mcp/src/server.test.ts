@@ -1,6 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { CAPABILITY_TOOLS, CLOUD_TOOLS, OPENNAN_PIPELINE_TOOLS, STUDIO_TOOLS } from "@opennan/mcp-schema";
-import { CLOUD_UNAVAILABLE } from "./handlers/cloud";
+import { CAPABILITY_TOOLS, OPENNAN_PIPELINE_TOOLS, PIPELINE_TOOLS, STUDIO_TOOLS } from "@opennan/mcp-schema";
+import { NO_PIPELINES } from "./handlers/pipelines";
 import { failure, success } from "./outcome";
 import { SERVER_INSTRUCTIONS, toolsForPreset } from "./server";
 import { connectInMemory } from "./testing/connect";
@@ -73,7 +73,7 @@ describe("createStudioMcpServer", () => {
             expect(result.isError, tool.name).toBe(true);
             expect(result.structuredContent, tool.name).toMatchObject({ ok: false, unavailable: true, capability: tool.capability });
             if ((OPENNAN_PIPELINE_TOOLS as readonly string[]).includes(tool.name)) {
-                expect(text(result), tool.name).toBe(CLOUD_UNAVAILABLE);
+                expect(text(result), tool.name).toBe(NO_PIPELINES);
                 continue;
             }
             const guidance = tool.capability?.startsWith("opennan.")
@@ -153,7 +153,7 @@ describe("createStudioMcpServer", () => {
     it("lists only the offline tools with the offline preset", async () => {
         const { client, call, close } = await connect({ tools: toolsForPreset("offline") });
         const { tools } = await client.listTools();
-        expect(tools.map((tool) => tool.name)).toEqual(STUDIO_TOOLS.filter((tool) => tool.kind !== "capability" && !CLOUD_TOOLS.includes(tool)).map((tool) => tool.name));
+        expect(tools.map((tool) => tool.name)).toEqual(STUDIO_TOOLS.filter((tool) => tool.kind !== "capability" && !PIPELINE_TOOLS.includes(tool)).map((tool) => tool.name));
         expect(tools).toHaveLength(67);
         await expect(call("generate_video", { prompt: "x" })).rejects.toThrow(/Unknown tool: generate_video/);
         await expect(call("plan_scenes", {})).rejects.toThrow(/Unknown tool: plan_scenes/);

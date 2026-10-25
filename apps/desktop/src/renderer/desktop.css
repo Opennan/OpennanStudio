@@ -25,6 +25,3 @@
 .desktop-mcp-config { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; background: var(--on-surface-raised); padding: 8px; border-radius: var(--on-radius-md); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-/* An agent's public share link needs the person's yes (9c.1): three answers, wrapping on a narrow window. */
-.agent-share-actions { flex-wrap: wrap; }
-.desktop-settings-check { display: flex; align-items: center; gap: 8px; }

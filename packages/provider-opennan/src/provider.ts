@@ -30,12 +30,15 @@ export const OPENNAN_PROVIDER_CAPABILITIES: ProviderCapability[] = [
 
 export const INSUFFICIENT_CREDITS_MESSAGE = "Not enough credits. Buy credits on opennan.com to continue.";
 
-/** A capability the provider declares but runs only on OpenNan cloud projects (phase 9). */
-export class OpenNanCloudProjectError extends CapabilityUnavailableError {
+/**
+ * A capability the provider declares but OpenNan runs only on a project stored on its server (the story, storyboard,
+ * copy-video and smart-scene pipelines). Studio projects stay on the device, so these are refused.
+ */
+export class OpenNanProjectPipelineError extends CapabilityUnavailableError {
     constructor(capability: ProviderCapability) {
         super(capability);
-        this.name = "OpenNanCloudProjectError";
-        this.message = `${capability} runs on OpenNan cloud projects, which come to OpenNan Studio in a later version.`;
+        this.name = "OpenNanProjectPipelineError";
+        this.message = `${capability} runs only on projects stored on OpenNan, and OpenNan Studio keeps projects on this device.`;
     }
 }
 
@@ -171,7 +174,7 @@ export function createOpenNanProvider(session: OpenNanSession, options: OpenNanP
                 return { media: [{ kind: "audio", bytes: audio.bytes, mimeType: audio.mimeType, name: "sound-effect.mp3" }] };
             }
             default:
-                throw new OpenNanCloudProjectError(capability);
+                throw new OpenNanProjectPipelineError(capability);
         }
     }
 

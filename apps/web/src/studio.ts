@@ -12,7 +12,4 @@ export {
     type AccountPlatform, type ConsolePage, type ProviderKeyId, type ProviderPlatform, type ProviderRouting,
 } from "./account/account-types";
 export { applyRouting, connectRouting, parseRouting, ROUTING_GROUPS, CAPABILITY_LABELS } from "./settings/routing-groups";
-export { createCloudPlatform, accountKey, accountKeys, STORAGE_MAX_AGE_MS, type CloudPlatform, type CloudPlatformOptions, type CloudMigration } from "./cloud/cloud-platform";
-export { syncLabel, syncDetail, cloudErrorMessage } from "./cloud/cloud-copy";
 export { Dialog } from "./ui/dialog";
-export { shareSiteOf } from "./share/use-share";

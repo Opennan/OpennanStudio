@@ -35,8 +35,6 @@
         "@fontsource/pacifico": "^5.3.0",
         "@fontsource/playfair-display": "^5.3.0",
         "@fontsource/poppins": "^5.3.0",
-        "@opennan/cloud-backend": "workspace:*",
-        "@opennan/director-client": "workspace:*",
         "@opennan/export": "workspace:*",
         "mediabunny": "^1.49.0",
         "@opennan/provider-fal": "workspace:*",

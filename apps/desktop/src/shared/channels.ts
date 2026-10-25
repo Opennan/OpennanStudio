@@ -7,7 +7,6 @@ export const IPC = {
     mediaImportPath: "opennan:media:import-path",
     mediaImportBytes: "opennan:media:import-bytes",
     mediaDelete: "opennan:media:delete",
-    mediaReleaseProject: "opennan:media:release-project",
     exportStart: "opennan:export:start",
     exportCancel: "opennan:export:cancel",
     exportReset: "opennan:export:reset",
@@ -55,23 +54,6 @@ export const IPC = {
     providersTranscribe: "opennan:providers:transcribe",
     providersPrice: "opennan:providers:price",
     providersVoices: "opennan:providers:voices",
-    cloudRequest: "opennan:cloud:request",
-    cloudDescribe: "opennan:cloud:describe",
-    cloudUpload: "opennan:cloud:upload",
-    cloudUploadExport: "opennan:cloud:upload-export",
-    cloudCache: "opennan:cloud:cache",
-    cloudDuplicate: "opennan:cloud:duplicate",
-    cloudStoreGet: "opennan:cloud:store-get",
-    cloudStorePut: "opennan:cloud:store-put",
-    cloudStoreDelete: "opennan:cloud:store-delete",
-    cloudStoreKeys: "opennan:cloud:store-keys",
-    cloudCachePin: "opennan:cloud:cache-pin",
-    cloudCacheUsage: "opennan:cloud:cache-usage",
-    cloudCacheSetLimit: "opennan:cloud:cache-set-limit",
-    cloudCacheClear: "opennan:cloud:cache-clear",
-    /** A director turn streamed by main (phase 9b): start answers the status, the bytes arrive as EVENTS.cloudStream*. */
-    cloudStreamStart: "opennan:cloud:stream-start",
-    cloudStreamAbort: "opennan:cloud:stream-abort",
 } as const;
 
 /** Main → renderer events (webContents.send / postMessage). */
@@ -87,8 +69,4 @@ export const EVENTS = {
     accountChanged: "opennan:account:changed",
     accountNotice: "opennan:account:notice",
     providersJob: "opennan:providers:job",
-    /** {streamId, bytes}: a piece of a streamed answer, sent to the window that started it only. */
-    cloudStreamChunk: "opennan:cloud:stream-chunk",
-    /** {streamId, error?}: the streamed answer ended (error: CloudApiError JSON of a mid-stream failure). */
-    cloudStreamEnd: "opennan:cloud:stream-end",
 } as const;

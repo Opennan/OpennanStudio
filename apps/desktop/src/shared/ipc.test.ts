@@ -98,60 +98,16 @@ describe("GPU export job payloads (agent exports, phase 10d)", () => {
     });
 });
 
-describe("cloud project ids (phase 9a)", () => {
+describe("project ids", () => {
     const ID = "3f2b8c1e-1d2a-4c3b-9e8f-0a1b2c3d4e5f";
-    const CLOUD = "cloud-AbC_12-x";
-    const media = `opennan-local://media/${ID}`;
 
-    it("project-scoped channels take local ids and cloud-<server id>", () => {
-        for (const projectId of [ID, CLOUD, `cloud-${"a".repeat(36)}`]) {
-            expect(PAYLOADS[IPC.mediaImportPath].safeParse({ projectId, path: "/a.mp4", kind: "video" }).success).toBe(true);
-            expect(PAYLOADS[IPC.mediaImportBytes].safeParse({ projectId, name: "a.png", mimeType: "image/png", kind: "image", bytes: new Uint8Array(1) }).success).toBe(true);
-            expect(PAYLOADS[IPC.sessionAttach].safeParse({ projectId }).success).toBe(true);
-            expect(PAYLOADS[IPC.sessionDetach].safeParse({ projectId }).success).toBe(true);
-            expect(PAYLOADS[IPC.terminalStart].safeParse({ projectId, profile: "shell", cols: 80, rows: 24 }).success).toBe(true);
-            expect(PAYLOADS[IPC.aiStabilize].safeParse({ projectId, source: { mediaUrl: media } }).success).toBe(true);
-            expect(PAYLOADS[IPC.providersRun].safeParse({ providerId: "opennan", capability: "image.generate", input: {}, projectId }).success).toBe(true);
-        }
-        for (const projectId of ["cloud-", `cloud-${"a".repeat(37)}`, "cloud-../x", "cloud-a/b", "cloud-a.b", "Cloud-a", "local-a", ID.toUpperCase()]) {
+    it("project-scoped channels take local project ids only (projects stay on this device)", () => {
+        expect(PAYLOADS[IPC.mediaImportPath].safeParse({ projectId: ID, path: "/a.mp4", kind: "video" }).success).toBe(true);
+        expect(PAYLOADS[IPC.sessionAttach].safeParse({ projectId: ID }).success).toBe(true);
+        for (const projectId of ["cloud-abc", "cloud-../x", "local-a", ID.toUpperCase()]) {
             expect(PAYLOADS[IPC.mediaImportPath].safeParse({ projectId, path: "/a.mp4", kind: "video" }).success).toBe(false);
             expect(PAYLOADS[IPC.sessionAttach].safeParse({ projectId }).success).toBe(false);
-        }
-    });
-
-    it("local project documents and releasing media take local ids only", () => {
-        expect(PAYLOADS[IPC.persistenceLoad].safeParse({ projectId: CLOUD }).success).toBe(false);
-        expect(PAYLOADS[IPC.persistenceDelete].safeParse({ projectId: CLOUD }).success).toBe(false);
-        expect(PAYLOADS[IPC.mediaReleaseProject].safeParse({ projectId: ID }).success).toBe(true);
-        expect(PAYLOADS[IPC.mediaReleaseProject].safeParse({ projectId: CLOUD }).success).toBe(false);
-        expect(PAYLOADS[IPC.mediaReleaseProject].safeParse({ projectId: ID, extra: 1 }).success).toBe(false);
-    });
-});
-
-describe("cloud media cache channels (phase 9a.1)", () => {
-    const ID = "3f2b8c1e-1d2a-4c3b-9e8f-0a1b2c3d4e5f";
-    const GB = 1024 ** 3;
-
-    it("pins up to 20,000 media ids, and nothing else", () => {
-        const pin = PAYLOADS[IPC.cloudCachePin];
-        expect(pin.safeParse({ ids: [] }).success).toBe(true);
-        expect(pin.safeParse({ ids: [ID, ID] }).success).toBe(true);
-        expect(pin.safeParse({ ids: Array.from({ length: 20_000 }, () => ID) }).success).toBe(true);
-        for (const payload of [
-            { ids: Array.from({ length: 20_001 }, () => ID) }, { ids: ["opennan-local://media/" + ID] }, { ids: ["../x"] }, { ids: [ID.toUpperCase()] }, { ids: ID }, {}, { ids: [], extra: 1 },
-        ]) expect(pin.safeParse(payload).success).toBe(false);
-    });
-
-    it("takes a limit between 256 MiB and 1024 GB, or null for the default", () => {
-        const limit = PAYLOADS[IPC.cloudCacheSetLimit];
-        for (const bytes of [null, 256 * 1024 ** 2, 10 * GB, 1024 * GB]) expect(limit.safeParse({ bytes }).success).toBe(true);
-        for (const payload of [{ bytes: 1024 }, { bytes: 1025 * GB }, { bytes: 1.5 }, { bytes: "10" }, {}, { bytes: null, extra: 1 }]) expect(limit.safeParse(payload).success).toBe(false);
-    });
-
-    it("usage and clear take an empty payload", () => {
-        for (const channel of [IPC.cloudCacheUsage, IPC.cloudCacheClear] as const) {
-            expect(PAYLOADS[channel].safeParse({}).success).toBe(true);
-            expect(PAYLOADS[channel].safeParse({ all: true }).success).toBe(false);
+            expect(PAYLOADS[IPC.persistenceLoad].safeParse({ projectId }).success).toBe(false);
         }
     });
 });

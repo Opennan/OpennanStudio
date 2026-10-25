@@ -1,13 +1,13 @@
 // The tool registry the MCP server serves, and the coverage of the OpenNan toolset.
 import { CAPABILITY_TOOLS } from "./tools/capability";
-import { CLOUD_TOOLS } from "./tools/cloud";
+import { PIPELINE_TOOLS } from "./tools/pipelines";
 import { EDITOR_TOOLS } from "./tools/editor";
 import { NOT_EXPOSED_TOOLS } from "./tools/not-exposed";
 import { STUDIO_CAPABILITY_TOOLS } from "./tools/studio-capability";
 import type { NotExposedTool, ToolDefinition } from "./types";
 
-/** Every tool the MCP server lists: offline editor tools first, then capability tools (OpenNan names, then Studio additions), then cloud projects. */
-export const STUDIO_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...CAPABILITY_TOOLS, ...STUDIO_CAPABILITY_TOOLS, ...CLOUD_TOOLS];
+/** Every tool the MCP server lists: offline editor tools first, then capability tools (OpenNan names, then Studio additions), then the project pipeline host tools. */
+export const STUDIO_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...CAPABILITY_TOOLS, ...STUDIO_CAPABILITY_TOOLS, ...PIPELINE_TOOLS];
 
 const BY_NAME = new Map(STUDIO_TOOLS.map((tool) => [tool.name, tool]));
 
@@ -26,4 +26,4 @@ export function toolCoverage(): CoverageRow[] {
     return [...exposed, ...hidden];
 }
 
-export { EDITOR_TOOLS, CAPABILITY_TOOLS, STUDIO_CAPABILITY_TOOLS, CLOUD_TOOLS, NOT_EXPOSED_TOOLS };
+export { EDITOR_TOOLS, CAPABILITY_TOOLS, STUDIO_CAPABILITY_TOOLS, PIPELINE_TOOLS, NOT_EXPOSED_TOOLS };

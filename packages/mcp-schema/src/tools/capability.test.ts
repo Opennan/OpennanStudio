@@ -38,13 +38,13 @@ describe("capability tools", () => {
     it("OpenNan project pipelines take a scene by order or id, and accept_max_usd on the priced ones (phase 9b)", () => {
         for (const name of ["generate_storyboard", "generate_video_from_panels", "detect_copy_video_shots", "edit_copy_video_shot_image", "generate_scene_videos_smart"]) {
             expect(byName(name).inputSchema.properties.accept_max_usd, name).toMatchObject({ type: "number", minimum: 0 });
-            expect(byName(name).description, name).toMatch(/OpenNan cloud project/);
+            expect(byName(name).description, name).toMatch(/project stored on OpenNan/);
             expect(valid(name, { scene_order: 2, shot_index: 0, instruction: "x", accept_max_usd: 0.5 }) || valid(name, { scene_id: "s1", accept_max_usd: 0.5 }), name).toBe(true);
             expect(valid(name, { scene_id: "s1", shot_index: 0, instruction: "x", accept_max_usd: -1 }), name).toBe(false);
         }
         for (const name of ["set_copy_video_source", "edit_copy_video_shot_description"]) {
             expect(byName(name).inputSchema.properties.accept_max_usd, name).toBeUndefined();
-            expect(byName(name).description, name).toMatch(/OpenNan cloud project/);
+            expect(byName(name).description, name).toMatch(/project stored on OpenNan/);
         }
         expect(valid("generate_scene_videos_smart", { scene_order: 1, model_id: "kling-o3", dry_run: true })).toBe(true);
         expect(valid("generate_scene_videos_smart", { scene_order: 1, model_id: "veo" })).toBe(false);

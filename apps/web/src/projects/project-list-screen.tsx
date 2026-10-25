@@ -1,8 +1,5 @@
 import { useStudioRuntime } from "../platform/runtime-context";
-import { useCallback, useRef, useState } from "react";
-import { useAccount } from "../account/account-context";
-import { CloudProjects } from "../cloud/cloud-projects";
-import { SaveToCloudDialog } from "../cloud/save-dialog";
+import { useRef, useState } from "react";
 import type { ProjectSummary } from "@opennan/timeline-core";
 import { navigate, routeHref } from "../routing/routes";
 import { AccountChip } from "../account/account-chip";
@@ -13,40 +10,13 @@ import { NewProjectDialog } from "./new-project-dialog";
 import { useProjects } from "./use-projects";
 import "./projects.css";
 
-const TAB_KEY = "opennan-studio:projects-tab";
-
-function readTab(): "local" | "cloud" {
-    try {
-        return globalThis.localStorage?.getItem(TAB_KEY) === "cloud" ? "cloud" : "local";
-    } catch {
-        return "local";
-    }
-}
-
 export function ProjectListScreen() {
     const { projects, storageInfo, error, create, rename, remove } = useProjects();
     const runtime = useStudioRuntime();
     const desktop = runtime.platform === "desktop";
-    const { account, openSignIn } = useAccount();
     const [creating, setCreating] = useState(false);
-    const [creatingCloud, setCreatingCloud] = useState(false);
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
-    const [saving, setSaving] = useState<ProjectSummary | null>(null);
-    const [tab, setTabState] = useState<"local" | "cloud">(() => (runtime.cloud ? readTab() : "local"));
-    const setTab = (next: "local" | "cloud") => {
-        setTabState(next);
-        try {
-            globalThis.localStorage?.setItem(TAB_KEY, next);
-        } catch {
-            // private mode
-        }
-    };
-    const cloudCreated = useCallback(() => setCreatingCloud(false), []);
-    const startSave = async (project: ProjectSummary) => {
-        if (account.status().state !== "signed-in" && !(await openSignIn({ reason: "Save this project to OpenNan" }))) return;
-        setSaving(project);
-    };
 
     return (
         <div className="projects">
@@ -54,19 +24,12 @@ export function ProjectListScreen() {
                 <div className="brand"><BrandMark className="brand-mark" />OpenNan Studio</div>
                 <nav className="projects-nav">
                     <a className="button ghost" href={routeHref({ name: "providers" })}>AI providers</a>
-                    <button type="button" className="button primary" onClick={() => (tab === "cloud" ? setCreatingCloud(true) : setCreating(true))}>New project</button>
+                    <button type="button" className="button primary" onClick={() => setCreating(true)}>New project</button>
                     <AccountChip />
                 </nav>
             </header>
             <main className="projects-main">
                 <h1>Projects</h1>
-                {runtime.cloud && (
-                    <div className="projects-tabs" role="tablist" aria-label="Where projects live">
-                        <button type="button" role="tab" className="projects-tab" aria-selected={tab === "local"} onClick={() => setTab("local")}>On this device</button>
-                        <button type="button" role="tab" className="projects-tab" aria-selected={tab === "cloud"} onClick={() => setTab("cloud")}>OpenNan cloud</button>
-                    </div>
-                )}
-                {tab === "cloud" ? <CloudProjects creating={creatingCloud} onCreated={cloudCreated} /> : <>
                 <p className="muted">
                     {desktop
                         ? "Projects and media stay on this computer and are never uploaded."
@@ -106,14 +69,11 @@ export function ProjectListScreen() {
                                 }}
                                 onCancelRename={() => setRenamingId(null)}
                                 onDelete={() => setDeleting(project)}
-                                {...(runtime.cloud ? { onSave: () => void startSave(project) } : {})}
                             />
                         ))}
                     </ul>
                 )}
-                </>}
             </main>
-            {saving && <SaveToCloudDialog projectId={saving.id} projectName={saving.name} onClose={() => setSaving(null)} />}
             {creating && (
                 <NewProjectDialog
                     onCancel={() => setCreating(false)}
@@ -146,7 +106,6 @@ function ProjectCard(props: {
     onRename(name: string): Promise<void>;
     onCancelRename(): void;
     onDelete(): void;
-    onSave?(): void;
 }) {
     const { project } = props;
     const thumb = (
@@ -169,11 +128,6 @@ function ProjectCard(props: {
                     <span className="project-name">{project.name}</span>
                     <span className="project-details">{details}</span>
                 </a>
-            )}
-            {props.onSave && (
-                <div className="project-save">
-                    <button type="button" className="icon-button" aria-label={`Save ${project.name} to OpenNan`} onClick={props.onSave}>Save to OpenNan…</button>
-                </div>
             )}
             <div className="project-actions">
                 <button type="button" className="icon-button" aria-label={`Rename ${project.name}`} onClick={props.onStartRename}>Rename</button>

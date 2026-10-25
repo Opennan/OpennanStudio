@@ -1,11 +1,11 @@
-// Project pipeline tasks (story plan, storyboard, scene video, copy-video steps) over the cloud projects API client,
+// Project pipeline tasks (story plan, storyboard, scene video, copy-video steps) over the project API client,
 // the same way on web and desktop: one POST with a fresh Idempotency-Key (never retried: the server may already hold
 // the task), then long polls of GET /v1/tasks/{id}?wait=50 at least a second apart until the task finishes, with
 // backoff on network and server errors. Cancel follows phase 11.1's codes: 200 = cancelled (refunded);
 // task_busy_retry is asked again after Retry-After (three times); task_not_cancellable keeps the task running ("it
 // will finish and be charged"); task_already_finished reads the task and ends in its real state. A succeeded task
 // reports the project revision its result landed in (`project_revision`), so the editor pulls until it has it.
-import { isCloudApiError, type CloudApi } from "@opennan/cloud-backend";
+import { isProjectApiError, type ProjectApi } from "./api";
 import type { CheckedRequest } from "./director-pipelines";
 import { isRecord } from "./director-types";
 
@@ -30,7 +30,7 @@ export type CancelAnswer = { accepted: true } | { accepted: false; message: stri
 export interface ProjectTaskHandle {
     /** The task id once the server created it (rejects when the POST was refused). */
     readonly id: Promise<string>;
-    /** The final state; rejects with the CloudApiError when the POST itself was refused (402, 409 busy, …). */
+    /** The final state; rejects with the ProjectApiError when the POST itself was refused (402, 409 busy, …). */
     readonly done: Promise<ProjectTaskOutcome>;
     cancel(): Promise<CancelAnswer>;
     /** Stops following the task (it keeps running on the server). */
@@ -39,7 +39,7 @@ export interface ProjectTaskHandle {
 
 export interface ProjectTasks {
     start(request: CheckedRequest, options?: { onUpdate?(state: ProjectTaskState): void; idempotencyKey?: string }): ProjectTaskHandle;
-    /** Follows a task some other surface started (the director inside a budget). */
+    /** Follows a task some other surface started. */
     follow(taskId: string, options?: { onUpdate?(state: ProjectTaskState): void }): ProjectTaskHandle;
 }
 
@@ -108,7 +108,7 @@ export function parseTaskState(value: unknown): ProjectTaskState | null {
 
 const terminal = (status: ProjectTaskStatus) => status === "succeeded" || status === "failed" || status === "cancelled";
 
-export function createProjectTasks(api: CloudApi, options: ProjectTasksOptions = {}): ProjectTasks {
+export function createProjectTasks(api: ProjectApi, options: ProjectTasksOptions = {}): ProjectTasks {
     const sleep = options.sleep ?? defaultSleep;
     const now = options.now ?? Date.now;
     const wait = options.waitSeconds ?? TASK_WAIT_SECONDS;
@@ -182,13 +182,13 @@ export function createProjectTasks(api: CloudApi, options: ProjectTasksOptions =
                     }
                 } catch (error) {
                     if (controller.signal.aborted) throw stopped();
-                    if (isCloudApiError(error) && error.status === 404) {
+                    if (isProjectApiError(error) && error.status === 404) {
                         const out: ProjectTaskOutcome = { ...state, status: "failed", error: { message: "OpenNan no longer knows this task.", code: "not_found", refunded: false } };
                         publish(out);
                         return out;
                     }
                     failures += 1;
-                    if (isCloudApiError(error) && error.retryAfterSeconds) await sleep(Math.min(MAX_POLL_BACKOFF_MS, error.retryAfterSeconds * 1000), controller.signal);
+                    if (isProjectApiError(error) && error.retryAfterSeconds) await sleep(Math.min(MAX_POLL_BACKOFF_MS, error.retryAfterSeconds * 1000), controller.signal);
                 }
             }
             return state as ProjectTaskOutcome;
@@ -210,7 +210,7 @@ export function createProjectTasks(api: CloudApi, options: ProjectTasksOptions =
                     push(state && terminal(state.status) ? state : { ...(last ?? { id: taskId }), id: taskId, status: "cancelled", error: { message: "", refunded: true } });
                     return { accepted: true };
                 } catch (error) {
-                    if (!isCloudApiError(error)) return { accepted: false, message: CANCEL_UNKNOWN };
+                    if (!isProjectApiError(error)) return { accepted: false, message: CANCEL_UNKNOWN };
                     if (error.code === "task_busy_retry" && attempt < CANCEL_RETRIES) {
                         const ms = Math.max(250, Math.min(5_000, (error.retryAfterSeconds ?? 1) * 1000));
                         await sleep(ms, new AbortController().signal);

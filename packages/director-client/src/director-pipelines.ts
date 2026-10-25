@@ -1,8 +1,8 @@
-// The paid project pipelines Studio may run (story plan, storyboard, scene video, copy-video steps): their REST
-// routes, the request a board or wizard builds, the quote body of a request, and the allowlist a proposal from the
-// director must pass before Studio sends it. A proposal's path and body come from the server's answer; Studio sends
-// only POSTs to these routes of the open project, with a JSON object body of bounded size, and refuses anything
-// else, so a wrong or tampered answer can never make Studio call another route or another project.
+// The paid OpenNan project pipelines (story plan, storyboard, scene video, copy-video steps): their REST routes under
+// /v1/projects/{id}, the request for one step, the quote body of a request, and the allowlist every request must pass
+// before it is sent (POSTs to these routes of one project, with a JSON object body of bounded size, nothing else).
+// No Studio host runs these since cloud projects were removed: they need a project on OpenNan's server. Kept so the
+// routes stay documented until OpenNan offers them as project-free tools (see the package README).
 import { isRecord, type PipelineRequest } from "./director-types";
 
 export type ProjectToolId = "story-scenes" | "storyboard" | "smart-scene-video" | "copy-video-detect" | "copy-video-edit" | "copy-video-recreate";
@@ -32,18 +32,6 @@ export interface CheckedRequest extends PipelineRequest {
     projectId: string;
     sceneId?: string;
     index?: number;
-    /** A director proposal's opaque run (phase 9c): the server runs the stored step at most at its quote. */
-    run?: { turnId: string; proposalId: string };
-}
-
-/** The director's paid tool names (its events and proposals) → the project tools they run. */
-const PROPOSAL_TOOLS: Readonly<Record<string, ProjectToolId>> = Object.freeze({
-    plan_scenes: "story-scenes", generate_storyboard: "storyboard", generate_scene_videos_smart: "smart-scene-video",
-    detect_copy_video_shots: "copy-video-detect", edit_copy_video_shot_image: "copy-video-edit", generate_video_from_panels: "copy-video-recreate",
-});
-
-export function proposalToolId(name: string): ProjectToolId | null {
-    return Object.prototype.hasOwnProperty.call(PROPOSAL_TOOLS, name) ? PROPOSAL_TOOLS[name]! : null;
 }
 
 const ID = "([A-Za-z0-9_-]{1,64})";
@@ -56,26 +44,17 @@ const ROUTES: Array<{ tool: ProjectToolId; pattern: RegExp; fields: readonly str
     { tool: "copy-video-recreate", pattern: new RegExp(`^/v1/projects/${ID}/scenes/${ID}/copy-video/recreate$`), fields: ["model", "quality", "generate_audio"] },
 ];
 
-const RUN_ROUTE = new RegExp(`^/v1/projects/${ID}/director/turns/(turn_[0-9a-f]{24})/proposals/(prop_[0-9a-f]{24})/run$`);
-
-/** A proposal body is small (style and direction texts): anything bigger is refused. */
+/** A request body is small (style and direction texts): anything bigger is refused. */
 export const MAX_PIPELINE_BODY_CHARS = 16 * 1024;
 
 /**
- * The request a proposal asks Studio to send, if it is one of the pipeline routes of `projectId` (the server id) with
- * a body of that route's fields only, or (phase 9c) the proposal's opaque run route of this project with an empty body
- * and `options.tool` (the proposal's own tool); null otherwise (Studio sends nothing).
+ * The request, if it is one of the pipeline routes of `projectId` (the server id) with a body of that route's fields
+ * only; null otherwise (nothing is sent).
  */
-export function checkPipelineRequest(projectId: string, request: unknown, options: { tool?: ProjectToolId } = {}): CheckedRequest | null {
+export function checkPipelineRequest(projectId: string, request: unknown): CheckedRequest | null {
     if (!isRecord(request) || request.method !== "POST" || typeof request.path !== "string") return null;
     const body = request.body === undefined ? {} : request.body;
     if (!isRecord(body)) return null;
-    // A proposal's opaque run (phase 9c): this project's, an empty body, and the proposal's own tool (for the quote).
-    const run = RUN_ROUTE.exec(request.path);
-    if (run) {
-        if (run[1] !== projectId || Object.keys(body).length > 0 || !options.tool || !PROJECT_TOOL_IDS.includes(options.tool)) return null;
-        return { method: "POST", path: request.path, body: {}, tool: options.tool, projectId, run: { turnId: run[2]!, proposalId: run[3]! } };
-    }
     let size: number;
     try {
         size = JSON.stringify(body).length;
@@ -100,7 +79,7 @@ export function checkPipelineRequest(projectId: string, request: unknown, option
     return null;
 }
 
-/** The request a board or wizard sends for one pipeline step. */
+/** The request for one pipeline step. */
 export function pipelineRequest(tool: ProjectToolId, projectId: string, target: { sceneId?: string; index?: number; body?: Record<string, unknown> } = {}): CheckedRequest {
     const scene = target.sceneId !== undefined ? encodeURIComponent(target.sceneId) : "";
     const base = `/v1/projects/${encodeURIComponent(projectId)}`;

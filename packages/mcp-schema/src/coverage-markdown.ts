@@ -1,7 +1,7 @@
 // Renders docs/ai-tool-coverage.md (spec §5.11) from the registry.
 import { isOpenNanCapability } from "./capabilities";
 import { toolCoverage } from "./registry";
-import { PROJECT_PIPELINE_TOOLS } from "./tools/cloud";
+import { PROJECT_PIPELINE_TOOLS } from "./tools/pipelines";
 import type { ToolDefinition } from "./types";
 
 function mapping(tool: ToolDefinition): string {
@@ -19,17 +19,11 @@ const HOST_ANSWERS: Readonly<Record<string, string>> = {
     list_voices: "the routed speech provider's `voices()`, else unavailable",
 };
 
-const ON_CLOUD = "local projects: save to OpenNan first; unavailable headless";
-const PRICED_PIPELINE = `OpenNan cloud projects: quoted by OpenNan first (\`accept_max_usd\` refuses above it), then the task's result lands in the editor as one undo step; ${ON_CLOUD}`;
-/** Phase 9b project pipeline tools that run at once without a charge. */
-const PIPELINE_ANSWERS: Readonly<Record<string, string>> = {
-    set_copy_video_source: `OpenNan cloud projects: a no-charge edit OpenNan makes at once, synced into the editor; ${ON_CLOUD}`,
-    edit_copy_video_shot_description: `OpenNan cloud projects: a no-charge edit OpenNan makes at once, synced into the editor; ${ON_CLOUD}`,
-    set_project_script: `OpenNan cloud projects: stores the script and subtitles on the project (no scene changes); ${ON_CLOUD}`,
-};
+/** Phase 9b project pipeline tools: OpenNan runs them only on projects stored on its server; Studio projects are local. */
+const PIPELINE_ANSWER = "unavailable: OpenNan runs it only on projects stored on OpenNan, and Studio projects stay on the device (host seam `pipelines`, supplied by no current host)";
 
 function phase5(tool: ToolDefinition): string {
-    if ((PROJECT_PIPELINE_TOOLS as readonly string[]).includes(tool.name)) return PIPELINE_ANSWERS[tool.name] ?? PRICED_PIPELINE;
+    if ((PROJECT_PIPELINE_TOOLS as readonly string[]).includes(tool.name)) return PIPELINE_ANSWER;
     if (tool.kind === "capability") {
         if (HOST_ANSWERS[tool.name]) return HOST_ANSWERS[tool.name]!;
         if (tool.commands?.includes("ai.run")) {
@@ -42,7 +36,6 @@ function phase5(tool: ToolDefinition): string {
         }
         return isOpenNanCapability(tool.capability ?? "") ? "unavailable: Connect OpenNan" : "unavailable: needs a provider";
     }
-    if (tool.kind === "host" && tool.name.includes("cloud")) return "the host's OpenNan cloud projects (desktop app, signed in to OpenNan); unavailable headless";
     if (tool.kind === "host") return "desktop/web host; unavailable headless";
     const extra = tool.capabilityFields ? `; \`${tool.capabilityFields.capability}\` fields refused` : "";
     if (tool.commands?.includes("export.start")) {

@@ -62,31 +62,17 @@ describe("project IPC", () => {
         await expect(invoke(IPC.persistenceSave, { projectId: id, state }, { url: "https://evil.test/" })).rejects.toThrow("Untrusted");
         expect(save).not.toHaveBeenCalled();
     });
-    it("imports media for a cloud project's working copy and releases a local project's media before it is detached", async () => {
-        const source = path.join(dir, "clip.webm");
-        fs.writeFileSync(source, "video");
-        const cloud = await invoke(IPC.mediaImportPath, { projectId: "cloud-abc", path: source, kind: "video" }) as { url: string };
-        const local = randomUUID();
-        const owned = await invoke(IPC.mediaImportPath, { projectId: local, path: source, kind: "video" }) as { url: string };
-        const idOf = (url: string) => url.slice("opennan-local://media/".length);
-        expect(media.info(idOf(cloud.url))).toMatchObject({ projectId: "cloud-abc" });
-        await invoke(IPC.mediaReleaseProject, { projectId: local });
-        await invoke(IPC.persistenceDelete, { projectId: local });
-        expect(media.pathOf(idOf(owned.url))).not.toBeNull();
-        await expect(invoke(IPC.mediaReleaseProject, { projectId: "cloud-abc" })).rejects.toThrow("Invalid");
-    });
-
     it("deletes a media file only for the project that owns it", async () => {
         const source = path.join(dir, "clip.webm");
         fs.writeFileSync(source, "video");
         const idOf = (url: string) => url.slice("opennan-local://media/".length);
         const local = randomUUID();
         const owned = idOf((await invoke(IPC.mediaImportPath, { projectId: local, path: source, kind: "video" }) as { url: string }).url);
-        const cloud = idOf((await invoke(IPC.mediaImportPath, { projectId: "cloud-abc", path: source, kind: "video" }) as { url: string }).url);
-        await invoke(IPC.mediaDelete, { projectId: local, id: cloud });
-        expect(media.pathOf(cloud)).not.toBeNull();
+        const other = idOf((await invoke(IPC.mediaImportPath, { projectId: randomUUID(), path: source, kind: "video" }) as { url: string }).url);
+        await invoke(IPC.mediaDelete, { projectId: local, id: other });
+        expect(media.pathOf(other)).not.toBeNull();
         await invoke(IPC.mediaDelete, { projectId: local, id: owned });
         expect(media.pathOf(owned)).toBeNull();
-        await expect(invoke(IPC.mediaDelete, { id: cloud })).rejects.toThrow("Invalid");
+        await expect(invoke(IPC.mediaDelete, { id: other })).rejects.toThrow("Invalid");
     });
 });

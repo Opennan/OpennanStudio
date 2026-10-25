@@ -32,7 +32,8 @@ the same frames render in the export.
 
 **Generate with AI** makes an image, a video, a voice line, music or a sound
 effect and places it at the playhead. Each run shows its price first. Projects
-stay on this device unless you save them to OpenNan cloud.
+always stay on this device: OpenNan only runs the AI tools and models, through
+its API.
 
 ## Run locally
 
@@ -102,9 +103,9 @@ to the open timeline. Full guide: [packages/mcp](packages/mcp/README.md).
 - `packages/export`: local MP4 export (`compileExport` + native ffmpeg or ffmpeg.wasm runners), golden-tested against the preview.
 - `packages/provider-sdk`: the AI provider interface: capabilities, `Job<T>`, `ProviderRegistry`, capability-gated UI helpers, and the `ai.run` runner (Apache-2.0).
 - `packages/provider-local`: the free on-device provider: `audio.transcribe` with whisper.cpp and SHA-256 verified models (Apache-2.0, Node).
-- `packages/provider-opennan`: Sign in with OpenNan (device flow), the account and credits, and AI jobs on the opennan.com public API; OpenNan is the default provider for every AI tool it offers.
+- `packages/provider-opennan`: Sign in with OpenNan (device flow), the account and credits, and AI jobs on OpenNan's tools and models API (api.opennan.com); OpenNan is the default provider for every AI tool it offers.
 - `packages/provider-fal`: fal.ai with your own key, for image and video generation (Apache-2.0, reference community adapter).
-- `packages/cloud-backend`: OpenNan cloud projects: a `TimelineBackend` that edits a local working copy and syncs field-level changesets with opennan.com (polling, rebase, offline queue, per-device undo, deduplicated media uploads), and the `BackendRouter` that keeps local projects local.
+- `packages/director-client`: the client for OpenNan's project pipeline routes (story plan, storyboard, scene video, copy-video). No app uses it: those routes need a project stored on OpenNan, and Studio projects are local (see its README).
 - `packages/mcp-schema`: MCP tool names and JSON schemas generated from the editor commands (Apache-2.0).
 - `packages/mcp`: MCP server for CLI agents (stdio, localhost HTTP, stdio bridge) and the `opennan-studio` CLI (`login`, `logout`, `whoami`, `mcp serve`, …); see `docs/ai-tool-coverage.md`.
 - `apps/playground`: the editor on `LocalBackend` with sample media (`pnpm --filter @opennan/playground dev`).
@@ -113,11 +114,7 @@ to the open timeline. Full guide: [packages/mcp](packages/mcp/README.md).
 
 ## Sign in with OpenNan
 
-The account chip (top right) and Settings → AI providers open **Sign in with OpenNan**: the browser opens opennan.com with the code filled in, you click Approve, and Studio connects by itself (new to OpenNan: **Create account**). The chip shows your credit balance and **Buy credits**; **Switch account** and **Sign out** are in its menu, and signing out revokes the key Studio held. OpenNan runs every AI tool it offers unless you pick another provider per tool in Settings → AI providers (fal.ai with your own key, or the on-device whisper.cpp captions on desktop); story and storyboard tools are OpenNan only. Desktop keeps the key in the system keychain in the main process; the web app keeps it in this browser (IndexedDB with "Keep me signed in", else for the tab only) and signs in only from `studio.opennan.com` or localhost. Agents: `opennan-studio login` for `mcp serve`; the desktop app's MCP server uses the app's account.
-
-## OpenNan cloud projects
-
-Signed in, the Projects screen has two tabs: **On this device** (local projects, never uploaded) and **OpenNan cloud**. A local project's menu (or the editor's **Project** menu) offers **Save to OpenNan…**: its media is hashed and uploaded once (files the account already has are reused), and the project moves to the cloud with its ids. Open it on any device signed in to the same account. Edits land at once on this device and sync in the background; the top bar says **Saved**, **Syncing…**, **Offline (n pending)** (edits wait on this device and go out when OpenNan answers again), **Conflict** (an edit could not apply, for example its clip was deleted on another device; **Keep my version as a copy** makes a local project from the version before), **Sign in to sync**, or **Storage full**. Undo undoes this device's own edits only. **Download a local copy** makes an independent offline project. Cloud projects moved to the trash can be restored for 7 days. The free allowance is 2 GB of media and 250 MB of project data (account menu and Settings show the meter); over it, new media can't upload while edits still sync. Nothing about the cloud runs for a person who never opens the Cloud tab or a cloud project.
+The account chip (top right) and Settings → AI providers open **Sign in with OpenNan**: the browser opens opennan.com with the code filled in, you click Approve, and Studio connects by itself (new to OpenNan: **Create account**). The chip shows your credit balance and **Buy credits**; **Switch account** and **Sign out** are in its menu, and signing out revokes the key Studio held. OpenNan runs every AI tool it offers unless you pick another provider per tool in Settings → AI providers (fal.ai with your own key, or the on-device whisper.cpp captions on desktop). Signing in is only for the AI tools: editing, projects and export need no account, and projects are never uploaded. Desktop keeps the key in the system keychain in the main process; the web app keeps it in this browser (IndexedDB with "Keep me signed in", else for the tab only) and signs in only from `studio.opennan.com` or localhost. Agents: `opennan-studio login` for `mcp serve`; the desktop app's MCP server uses the app's account.
 
 ## `apps/web` limits
 

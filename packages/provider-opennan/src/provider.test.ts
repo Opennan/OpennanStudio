@@ -128,11 +128,11 @@ describe("createOpenNanProvider", () => {
         expect(calls.filter((c) => c.path !== "/v1/account")).toEqual([]);
     });
 
-    it("explains capabilities that need OpenNan cloud projects", async () => {
+    it("explains capabilities that run only on projects stored on OpenNan", async () => {
         const { provider } = await signedIn(() => json(404, {}));
         const error = await provider.run!({ capability: "opennan.story.storyboard", input: {} }).result().catch((e: unknown) => e);
         expect(error).toBeInstanceOf(CapabilityUnavailableError);
-        expect((error as Error).message).toMatch(/OpenNan cloud projects/);
+        expect((error as Error).message).toMatch(/only on projects stored on OpenNan.*keeps projects on this device/);
     });
 
     it("turns a 402 into the credits message and a notice", async () => {

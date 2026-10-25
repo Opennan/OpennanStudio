@@ -10,15 +10,6 @@ export const ProviderRoutingSchema = z.object({
     opennanDefault: z.boolean(),
 }).strict();
 
-/** The downloaded cloud media cache (phase 9a.1): the default limit, and the bounds a chosen one must keep. */
-export const DEFAULT_CACHE_LIMIT_BYTES = 10 * 1024 ** 3;
-/** The same as @opennan/cloud-backend's MIN_CACHE_LIMIT_BYTES (a test checks it; the preload stays free of packages). */
-export const MIN_CACHE_LIMIT_BYTES = 256 * 1024 ** 2;
-export const MAX_CACHE_LIMIT_BYTES = 1024 * 1024 ** 3;
-/** The most media ids one pin of the cloud media cache names (every file of every open cloud project). */
-export const MAX_CACHE_PINS = 20_000;
-export const CacheLimitSchema = z.number().int().min(MIN_CACHE_LIMIT_BYTES).max(MAX_CACHE_LIMIT_BYTES).nullable();
-
 export const SettingsSchema = z.object({
     mcpPort: z.number().int().min(1024).max(65535),
     terminalCustomCommand: z.string().max(1024),
@@ -26,18 +17,13 @@ export const SettingsSchema = z.object({
     providerRouting: ProviderRoutingSchema,
     /** The first-launch Sign in with OpenNan prompt has been shown. */
     signInPrompted: z.boolean(),
-    /** The cloud media cache limit in bytes; null: the default (DEFAULT_CACHE_LIMIT_BYTES). */
-    cloudCacheLimitBytes: CacheLimitSchema,
-    /** Settings → "Let agents create share links without asking" (9c.1): off, Studio asks before an agent's public link. */
-    agentSharesWithoutAsking: z.boolean(),
 });
 export type DesktopSettings = z.infer<typeof SettingsSchema>;
 export const SettingsPatchSchema = SettingsSchema.partial().strict();
 
 export const DEFAULT_SETTINGS: DesktopSettings = {
     mcpPort: 4319, terminalCustomCommand: "", terminalDefaultProfile: "shell",
-    providerRouting: { overrides: {}, opennanDefault: true }, signInPrompted: false, cloudCacheLimitBytes: null,
-    agentSharesWithoutAsking: false,
+    providerRouting: { overrides: {}, opennanDefault: true }, signInPrompted: false,
 };
 
 /** API keys the app can keep. Each terminal profile gets its own key only (main/terminal/profiles.ts). */

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useEditorStore, useTimelineController, useTimelineMessages } from "@opennan/timeline-react";
+import { useEditorStore, useTimelineController } from "@opennan/timeline-react";
 import { CanvasPresetPicker } from "../projects/canvas-preset-picker";
 import { DEFAULT_CANVAS_RATIO } from "../projects/canvas-presets";
 import { AccountChip } from "../account/account-chip";
@@ -8,26 +8,15 @@ import { GENERATE } from "../ai/generate-dialog";
 import { useCapability } from "../ai/use-capability";
 import { useStudioRuntime } from "../platform/runtime-context";
 import { routeHref } from "../routing/routes";
-import { isCloudProjectId } from "@opennan/cloud-backend";
-import { ProjectMenu } from "../cloud/project-menu";
-import { SyncChip } from "../cloud/sync-chip";
 
-export function EditorTopBar({ onExport, onAutoCaptions, onGenerate, aiOpen, onToggleAi, onShare }: {
+export function EditorTopBar({ onExport, onAutoCaptions, onGenerate }: {
     onExport(): void;
-    /** Opens the Share dialog (phase 9c: a cloud project's link; a local project's "Save to OpenNan to share"). */
-    onShare?(): void;
     onAutoCaptions(): void;
     onGenerate(): void;
-    /** The right dock shows the AI tab (phase 9b). */
-    aiOpen?: boolean;
-    onToggleAi?(): void;
 }) {
-    const ta = useTimelineMessages("aiDirector");
-    const ts = useTimelineMessages("share");
     const controller = useTimelineController();
     const captions = useCapability(useStudioRuntime().providers, "audio.transcribe", AUTO_CAPTIONS);
     const name = useEditorStore((s) => s.projectMeta?.name ?? "");
-    const projectId = useEditorStore((s) => s.projectMeta?.id ?? "");
     const aspectRatio = useEditorStore((s) => s.projectMeta?.aspectRatio ?? DEFAULT_CANVAS_RATIO);
     const [draft, setDraft] = useState<string | null>(null);
     const skipCommit = useRef(false);
@@ -59,17 +48,12 @@ export function EditorTopBar({ onExport, onAutoCaptions, onGenerate, aiOpen, onT
                     }
                 }}
             />
-            {projectId && <ProjectMenu projectId={projectId} projectName={name} />}
-            {projectId && isCloudProjectId(projectId) && <SyncChip projectId={projectId} />}
             <CanvasPresetPicker
                 compact
                 value={aspectRatio}
                 onChange={(ratio) => void controller.execute({ type: "project.update", patch: { aspectRatio: ratio } })}
             />
             <div className="topbar-spacer" />
-            {onToggleAi && (
-                <button type="button" className="button ghost small" aria-pressed={aiOpen ?? false} aria-label={ta("tabAiLabel")} title={ta("topbarAiTitle")} onClick={onToggleAi}>{ta("topbarAi")}</button>
-            )}
             <button type="button" className="button ghost small" onClick={onGenerate}>{GENERATE}</button>
             {/* Always shown: without a provider it opens the guidance (capability-gated UI, spec §5.4). */}
             <button
@@ -81,7 +65,6 @@ export function EditorTopBar({ onExport, onAutoCaptions, onGenerate, aiOpen, onT
             >
                 {AUTO_CAPTIONS}
             </button>
-            {onShare && <button type="button" className="button ghost small" title={ts("topbarShareTitle")} onClick={onShare} data-testid="topbar-share">{ts("topbarShare")}</button>}
             <button type="button" className="button primary small" onClick={onExport}>Export</button>
             <AccountChip />
         </header>
