@@ -8,5 +8,7 @@ export default defineConfig({
         globals: true,
         include: ["src/**/*.test.ts", "parity/**/*.test.ts"],
         testTimeout: 60_000,
+        // Native media fixtures compete with the export parity/benchmark workers.
+        hookTimeout: 60_000,
     },
 });
