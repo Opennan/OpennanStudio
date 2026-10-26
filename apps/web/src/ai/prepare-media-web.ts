@@ -41,11 +41,16 @@ export function rangeToSend(duration: number, start: number | undefined, end: nu
     return { start: from, end: to };
 }
 
-/** WAV unless it would pass the cap (or MP4 comes first) and the destination takes audio/mp4. */
-export function audioContainer(purpose: MediaPreparePurpose, seconds: number, sampleRate: number): "wav" | "mp4" {
+/** Respect the preferred format and size cap; use accepted WAV when this browser cannot encode AAC. */
+export function audioContainer(purpose: MediaPreparePurpose, seconds: number, sampleRate: number, aacAvailable = true): "wav" | "mp4" {
     const wavBytes = 44 + Math.ceil(seconds * sampleRate) * 2;
     const takesMp4 = purpose.contentTypes.includes("audio/mp4");
     const takesWav = purpose.contentTypes.includes("audio/wav");
+    if (!aacAvailable) {
+        if (!takesWav) throw new MediaPrepareError("This browser cannot encode AAC audio. Use the desktop app.");
+        checkSize(wavBytes, purpose);
+        return "wav";
+    }
     if (!takesWav) return "mp4";
     if (takesMp4 && (purpose.contentTypes[0] === "audio/mp4" || wavBytes > purpose.maxBytes)) return "mp4";
     return "wav";
@@ -94,7 +99,10 @@ export function createWebMediaPreparer(options: WebPreparerOptions): MediaPrepar
             let size: { width: number; height: number } | null = null;
             if (purpose.output === "audio") {
                 const rate = purpose.sampleRate ?? 44_100;
-                const container = audioContainer(purpose, seconds, rate);
+                let container = audioContainer(purpose, seconds, rate);
+                if (container === "mp4" && !(await mb.canEncodeAudio("aac", { numberOfChannels: 1, sampleRate: rate, bitrate: 128_000 }))) {
+                    container = audioContainer(purpose, seconds, rate, false);
+                }
                 if (!(await source.getPrimaryAudioTrack())) throw new MediaPrepareError("This clip has no audio.");
                 format = container === "wav" ? new mb.WavOutputFormat() : new mb.Mp4OutputFormat();
                 contentType = container === "wav" ? "audio/wav" : "audio/mp4";
