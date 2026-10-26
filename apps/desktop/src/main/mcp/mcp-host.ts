@@ -92,7 +92,8 @@ export function createMcpHost(options: McpHostOptions): McpHost {
             return {
                 transport: "stdio",
                 command: execPath,
-                args: [...(platform === "linux" ? ["--ozone-platform=headless"] : []), ...(isPackaged ? [] : [appPath]), "--mcp-bridge", "--url", url, "--token-file", options.tokenFile],
+                // Windows Electron rejects arguments after a URL (protocol-injection protection).
+                args: [...(platform === "linux" ? ["--ozone-platform=headless"] : []), ...(isPackaged ? [] : [appPath]), "--mcp-bridge", "--token-file", options.tokenFile, "--url", url],
                 ...(platform === "win32" ? { env: { ELECTRON_NO_ATTACH_CONSOLE: "1" } } : {}),
             };
         },

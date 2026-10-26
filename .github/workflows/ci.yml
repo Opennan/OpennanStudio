@@ -62,6 +62,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Fetch native LGPL ffmpeg for browser export checks
+        run: pnpm --filter @opennan/desktop fetch:ffmpeg
       - run: pnpm --filter @opennan/playground exec playwright install --with-deps chromium
       - run: pnpm --filter @opennan/playground e2e
       - run: pnpm --filter @opennan/web exec playwright install --with-deps chromium

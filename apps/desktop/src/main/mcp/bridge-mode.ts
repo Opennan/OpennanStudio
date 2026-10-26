@@ -1,4 +1,4 @@
-// `OpenNan Studio --mcp-bridge --url <loopback url> --token-file <file>`: the stdio MCP server child CLIs
+// `OpenNan Studio --mcp-bridge --token-file <file> --url <loopback url>`: the stdio MCP server child CLIs
 // launch from their config. It forwards to the app's HTTP server (startBridge) and does nothing else: no
 // window, no IPC, loopback URLs only, a small regular token file only. This keeps the RunAsNode fuse off
 // (a general-purpose Node runtime inside the signed app) while CLIs still get a stdio entry.
@@ -21,7 +21,7 @@ function valueOf(argv: readonly string[], name: string): string | null {
 export function parseBridgeArgs(argv: readonly string[]): { url: string; tokenFile: string } {
     const url = valueOf(argv, "--url");
     const tokenFile = valueOf(argv, "--token-file");
-    if (!url || !tokenFile) throw new Error("usage: --mcp-bridge --url <http://127.0.0.1:port/mcp> --token-file <file>");
+    if (!url || !tokenFile) throw new Error("usage: --mcp-bridge --token-file <file> --url <http://127.0.0.1:port/mcp>");
     let parsed: URL;
     try {
         parsed = new URL(url);
