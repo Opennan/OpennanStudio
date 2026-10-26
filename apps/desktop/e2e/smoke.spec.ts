@@ -200,7 +200,10 @@ test("launch, create, import, edit, looks, export 3 s, text and sticker export, 
             if (process.platform !== "win32") expect(fs.statSync(info.tokenFile).mode & 0o777).toBe(0o600);
             const transport = new StdioClientTransport({ ...JSON.parse(info.configs.claude).mcpServers["opennan-studio"], stderr: "inherit" });
             const client = new Client({ name: "desktop-smoke", version: "1.0.0" });
-            await client.connect(transport);
+            const connecting = client.connect(transport);
+            const child = (transport as unknown as { _process?: import("node:child_process").ChildProcess })._process;
+            child?.once("exit", (code, signal) => console.info(`MCP bridge exited: code=${code}, signal=${signal}`));
+            await connecting;
             try {
                 const timeline = text(await client.callTool({ name: "read_timeline", arguments: {} }));
                 expect(timeline).toContain("\"Smoke\"");

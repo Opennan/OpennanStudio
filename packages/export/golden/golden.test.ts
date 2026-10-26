@@ -74,8 +74,8 @@ describe.skipIf(!HAS_FFMPEG)("golden exports", () => {
         const { result } = await exportFixture(goldenFixture("kitchen-sink"));
         // encoder-fallback appears only where no H.264 encoder passes the self-test (some CI VMs).
         expect(result.warnings.map((w) => w.code).filter((code) => code !== "encoder-fallback"))
-            // A legacy ramp is a step curve now: its audio segments are exact, so nothing is approximated.
-            .toEqual(["remotion-unsupported"]);
+            // The built-in lower-third and the legacy ramp's audio segments render exactly.
+            .toEqual([]);
     });
 
     // ── export-only checks (Task 18 table) ──
