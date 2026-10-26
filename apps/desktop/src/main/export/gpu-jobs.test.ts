@@ -124,7 +124,7 @@ describe("GPU export jobs", () => {
         execFileSync(FFMPEG, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=30:duration=2", "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
             "-c:v", "ffv1", "-c:a", "flac", "-shortest", path.join(media, "a.mkv")]);
         const video = path.join(dir, "gpu.mp4");
-        execFileSync(FFMPEG, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", video]);
+        execFileSync(FFMPEG, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30:duration=2", "-c:v", "mpeg4", "-pix_fmt", "yuv420p", video]);
         const runner = createNodeRunner({
             ffmpegPath: FFMPEG, ffprobePath: FFPROBE, mediaRoots: [media],
             resolveSource: (url) => (url === "/m/a.mkv" ? path.join(media, "a.mkv") : null),
@@ -144,7 +144,7 @@ describe("GPU export jobs", () => {
         const { path: out } = await jobs.mux(jobId);
         expect(out).toBe(path.join(exportsDir, "trip.mp4"));
         const probe = JSON.parse(execFileSync(FFPROBE, ["-v", "error", "-show_entries", "stream=codec_name", "-of", "json", out], { encoding: "utf8" }));
-        expect(probe.streams.map((s: { codec_name: string }) => s.codec_name).sort()).toEqual(["aac", "h264"]);
+        expect(probe.streams.map((s: { codec_name: string }) => s.codec_name).sort()).toEqual(["aac", "mpeg4"]);
         expect(jobs.active()).toBe(false);
         expect(fs.readdirSync(tempDir)).toHaveLength(0);
     });

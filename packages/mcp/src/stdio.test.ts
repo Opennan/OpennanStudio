@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { STUDIO_TOOLS } from "@opennan/mcp-schema";
+import { toolsForPreset } from "./server";
 import { NO_PIPELINES } from "./handlers/pipelines";
 import { writeProjectFile } from "./project-file";
 import { fixtureProject } from "./testing/fixture";
@@ -44,7 +44,7 @@ describe("stdio transport", () => {
         const { client, transport } = spawnClient(["mcp", "serve", "--project", file]);
         await client.connect(transport);
         expect(client.getServerVersion()?.name).toBe("opennan-studio");
-        expect((await client.listTools()).tools).toHaveLength(STUDIO_TOOLS.length);
+        expect((await client.listTools()).tools).toHaveLength(toolsForPreset().length);
         const read = (await client.callTool({ name: "read_timeline", arguments: {} })) as CallToolResult;
         expect((read.structuredContent as { scenes: unknown[] }).scenes).toHaveLength(3);
         const split = (await client.callTool({ name: "split_timeline_clip", arguments: { clip_id: "music", at_time: 7.5 } })) as CallToolResult;
@@ -60,10 +60,7 @@ describe("stdio transport", () => {
         const result = (await client.callTool({ name: "qc_check", arguments: {} })) as CallToolResult;
         expect(result.isError).toBe(true);
         expect((result.content[0] as { text: string }).text).toBe("Connect OpenNan to use qc_check.");
-        // Phase 9b: project pipelines run only on projects stored on OpenNan; no host supplies them.
-        const pipeline = (await client.callTool({ name: "generate_storyboard", arguments: { scene_order: 1 } })) as CallToolResult;
-        expect(pipeline.isError).toBe(true);
-        expect((pipeline.content[0] as { text: string }).text).toBe(NO_PIPELINES);
+        await expect(client.callTool({ name: "generate_storyboard", arguments: { scene_order: 1 } })).rejects.toThrow("Unknown tool");
         await client.close();
     });
 });

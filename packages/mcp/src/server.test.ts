@@ -21,10 +21,25 @@ describe("createStudioMcpServer", () => {
         expect(client.getServerVersion()?.name).toBe("opennan-studio");
         expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS);
         const { tools } = await client.listTools();
-        expect(tools.map((tool) => tool.name)).toEqual(STUDIO_TOOLS.map((tool) => tool.name));
+        expect(tools.map((tool) => tool.name)).toEqual(toolsForPreset().map((tool) => tool.name));
         expect(tools.find((tool) => tool.name === "read_timeline")?.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false });
         expect(tools.find((tool) => tool.name === "delete_timeline_clip")?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
         expect(tools.find((tool) => tool.name === "generate_video")?.annotations?.openWorldHint).toBe(true);
+        await close();
+    });
+
+    it("creates a visible lane for an agent's title and undoes the lane and clip together", async () => {
+        const { call, close, studio } = await connect();
+        const before = studio.controller.snapshot();
+        // T1 is occupied by the fixture's title: this overlay needs a new text track.
+        expect((await call("add_text_overlay", { text: "Agent title", start_time: 0, end_time: 3 })).isError).toBeFalsy();
+        const after = studio.controller.snapshot();
+        const title = after.clips.find((clip) => clip.textContent === "Agent title")!;
+        expect(after.tracks).toContainEqual(expect.objectContaining({ type: "text", index: title.trackIndex, visible: true }));
+        expect(after.tracks).toHaveLength(before.tracks.length + 1);
+        expect((await call("undo_last_edit")).isError).toBeFalsy();
+        expect(studio.controller.snapshot().tracks).toEqual(before.tracks);
+        expect(studio.controller.snapshot().clips.map((clip) => clip.id)).toEqual(before.clips.map((clip) => clip.id));
         await close();
     });
 
@@ -63,7 +78,7 @@ describe("createStudioMcpServer", () => {
 
     it("answers every capability tool with capability-unavailable guidance (project pipelines: no cloud runtime)", async () => {
         const { call, close } = await connect();
-        for (const tool of CAPABILITY_TOOLS) {
+        for (const tool of CAPABILITY_TOOLS.filter((t) => !(OPENNAN_PIPELINE_TOOLS as readonly string[]).includes(t.name))) {
             const required = Object.fromEntries((tool.inputSchema.required ?? []).map((key) => {
                 const property = tool.inputSchema.properties[key] as { type?: string; enum?: string[] };
                 const value = property.enum?.[0] ?? (property.type === "integer" || property.type === "number" ? 1 : property.type === "boolean" ? true : property.type === "array" ? [] : "x");
@@ -153,7 +168,7 @@ describe("createStudioMcpServer", () => {
     it("lists only the offline tools with the offline preset", async () => {
         const { client, call, close } = await connect({ tools: toolsForPreset("offline") });
         const { tools } = await client.listTools();
-        expect(tools.map((tool) => tool.name)).toEqual(STUDIO_TOOLS.filter((tool) => tool.kind !== "capability" && !PIPELINE_TOOLS.includes(tool)).map((tool) => tool.name));
+        expect(tools.map((tool) => tool.name)).toEqual(toolsForPreset("offline").map((tool) => tool.name));
         expect(tools).toHaveLength(67);
         await expect(call("generate_video", { prompt: "x" })).rejects.toThrow(/Unknown tool: generate_video/);
         await expect(call("plan_scenes", {})).rejects.toThrow(/Unknown tool: plan_scenes/);

@@ -21,6 +21,8 @@ import { useMediaLibrary, type MediaLibrary } from "../media/use-media-library";
 import { useStudioRuntime } from "../platform/runtime-context";
 import { ScreenMessage } from "../ui/screen-message";
 import { DEFAULT_LAYOUT, LAYOUT_LIMITS, loadLayout, saveLayout, type EditorLayout } from "./editor-layout";
+import { RightDock, loadRightDockTab, saveRightDockTab, type RightDockTab } from "./right-dock";
+import { AgentGuidance } from "../ai/agent-guidance";
 import { EditorTopBar } from "./editor-topbar";
 import { Splitter } from "./splitter";
 import { useEditorShortcuts } from "./shortcuts/use-editor-shortcuts";
@@ -145,7 +147,10 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
     const pastingAttributes = useEditorStore((s) => s.attributePastePicker !== null);
     const dialogOpen = exporting || captioning !== false || generating !== null || pastingAttributes;
     useEditorShortcuts(timeline, { enabled: !dialogOpen });
-    const { debug, providers, backend, media } = useStudioRuntime();
+    const { debug, providers, backend, media, ui } = useStudioRuntime();
+    const [dockTab, setDockTab] = useState<RightDockTab>(loadRightDockTab);
+    const chooseDockTab = (tab: RightDockTab) => { setDockTab(tab); saveRightDockTab(tab); };
+    const projectName = controller.snapshot().project?.name ?? "Project";
     const captureFrame = useMemo(() => createFrameCapture({
         snapshot: () => controller.snapshot(), backend, projectId, resolveMediaUrl: (url) => media.resolveMediaUrl(url),
     }), [controller, backend, projectId, media]);
@@ -169,6 +174,7 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
         <div className="editor" style={style}>
             <EditorTopBar
                 onExport={() => setExporting(true)} onAutoCaptions={() => setCaptioning({})} onGenerate={() => setGenerating({ kind: "image" })}
+                aiOpen={dockTab === "ai"} onToggleAi={() => chooseDockTab(dockTab === "ai" ? "inspector" : "ai")}
             />
             <aside className="editor-library" aria-label={t("libraryLabel")}>
                 <EditorLibrary media={<MediaBin library={library} kind="visual" />} audio={<MediaBin library={library} kind="audio" />} />
@@ -185,7 +191,8 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
                 onResize={resize("inspector")} onCommit={commit} onReset={reset("inspector")}
             />
             <aside className="editor-inspector" aria-label="Properties">
-                <Inspector />
+                <RightDock tab={dockTab} onTab={chooseDockTab} enabled={!dialogOpen} inspector={<Inspector />}
+                    ai={ui.AiPanel ? <ui.AiPanel key={projectId} projectId={projectId} projectName={projectName} /> : <AgentGuidance />} />
             </aside>
             <Splitter
                 className="editor-split-timeline" orientation="horizontal" label={t("resizeTimeline")} direction={-1}

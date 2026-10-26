@@ -36,3 +36,9 @@ Until providers are installed, the 86 generation tools only answer "unavailable"
 Codex CLI releases that predate its built-in streamable-HTTP client need `experimental_use_rmcp_client = true` at the top of `config.toml` for the `--transport http` entry; the `--transport bridge` entry works on every release.
 
 Checked with: Claude Code 2.1.303 and Codex CLI 0.163.0 read the stdio, http, and bridge entries (`claude mcp list`, `codex mcp list`; Codex 0.163 takes the `url` entry without the experimental flag). Gemini CLI was not installed when this was checked.
+
+## More MCP clients
+
+`opennan-studio mcp-config --client opencode --project film.opennan.json --write` writes an OpenCode `opencode.json` entry. Use `--client antigravity` for `.agents/mcp_config.json`. Existing settings are preserved.
+
+The default MCP server excludes unavailable server-project pipelines. Local editing and optional generation tools remain available. The desktop AI tab connects the user's installed Claude Code or Codex CLI using its own subscription login.

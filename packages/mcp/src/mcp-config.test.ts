@@ -5,6 +5,24 @@ const stdio = { transport: "stdio" as const, command: "/usr/bin/node", args: ["/
 const httpLaunch = { transport: "http" as const, url: "http://127.0.0.1:4319/mcp" };
 
 describe("buildMcpConfig", () => {
+    it("writes OpenCode entries using a command array and preserves other provider settings", () => {
+        const snippet = buildMcpConfig("opencode", stdio, where);
+        expect(snippet.path).toBe("/work/film/opencode.json");
+        const entry = JSON.parse(snippet.text).mcp["opennan-studio"];
+        expect(entry).toEqual({ type: "local", command: [stdio.command, ...stdio.args], enabled: true });
+        const merged = JSON.parse(mergeMcpConfig(snippet, JSON.stringify({ model: "openai/default", mcp: { other: { type: "local", command: ["other"] } } })));
+        expect(merged.model).toBe("openai/default");
+        expect(merged.mcp.other.command).toEqual(["other"]);
+        expect(merged.mcp["opennan-studio"]).toEqual(entry);
+        expect(JSON.parse(buildMcpConfig("opencode", httpLaunch, where).text).mcp["opennan-studio"].headers.Authorization).toBe("Bearer {env:OPENNAN_STUDIO_MCP_TOKEN}");
+    });
+
+    it("writes Antigravity workspace configs and uses its HTTP serverUrl field", () => {
+        const snippet = buildMcpConfig("antigravity", stdio, where);
+        expect(snippet.path).toBe("/work/film/.agents/mcp_config.json");
+        expect(JSON.parse(snippet.text).mcpServers["opennan-studio"]).toEqual({ command: stdio.command, args: stdio.args });
+        expect(JSON.parse(buildMcpConfig("antigravity", httpLaunch, where).text).mcpServers["opennan-studio"].serverUrl).toBe(httpLaunch.url);
+    });
     it("writes a Claude Code .mcp.json entry", () => {
         const snippet = buildMcpConfig("claude", stdio, where);
         expect(snippet.path).toBe("/work/film/.mcp.json");

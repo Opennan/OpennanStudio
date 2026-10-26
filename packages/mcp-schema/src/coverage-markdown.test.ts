@@ -12,12 +12,9 @@ describe("renderCoverageMarkdown", () => {
     });
 
     it("states the mapping and phase 5 behavior", () => {
+        expect(md).toContain("Server-project pipeline; excluded from the default MCP server.");
         expect(md).toContain("| `split_timeline_clip` | opennan | command | `clip.split` | offline |");
         expect(md).toContain("| `read_timeline` | opennan | read | `snapshot()`, `describeTimeline()` | offline |");
-        expect(md).toContain("| `generate_storyboard` | opennan | capability | capability `opennan.story.storyboard` | unavailable: OpenNan runs it only on projects stored on OpenNan, and Studio projects stay on the device (host seam `pipelines`, supplied by no current host) |");
-        expect(md).toContain("| `set_copy_video_source` | opennan | capability | capability `opennan.copy-video` | unavailable: OpenNan runs it only on projects stored on OpenNan, and Studio projects stay on the device (host seam `pipelines`, supplied by no current host) |");
-        expect(md).toContain("| `plan_scenes` | studio | host | editor UI (host) | unavailable: OpenNan runs it only on projects stored on OpenNan, and Studio projects stay on the device (host seam `pipelines`, supplied by no current host) |");
-        expect(md).toContain("| `set_project_script` | studio | host | editor UI (host) | unavailable: OpenNan runs it only on projects stored on OpenNan, and Studio projects stay on the device (host seam `pipelines`, supplied by no current host) |");
         expect(md).toContain("| `qc_check` | opennan | capability | capability `opennan.qc` | unavailable: Connect OpenNan |");
         expect(md).toContain("| `generate_tts` | opennan | capability | capability `audio.tts` | runs `ai.run` on the routed provider (OpenNan by default; signed out: the sign-in guidance); the media lands in the project's library |");
         expect(md).toContain("| `clone_voice` | opennan | capability | capability `audio.voice-clone` | unavailable: needs a provider |");

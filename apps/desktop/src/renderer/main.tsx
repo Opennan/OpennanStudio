@@ -8,6 +8,7 @@ import { createDesktopAccount } from "./desktop-account";
 import { createDesktopProviderSettings, createDesktopProviders } from "./desktop-providers";
 import { createDesktopRuntime } from "./desktop-runtime";
 import { serveExportBridgePorts } from "./export-bridge-ports";
+import { AgentChatPanel } from "./agent-chat-panel";
 import { EditorAddons } from "./editor-addons";
 import { createDesktopExportPlatform } from "./export-platform";
 import { SettingsAddons } from "./settings-addons";
@@ -17,7 +18,7 @@ const bridge = window.opennan;
 const providers = createDesktopProviders(bridge);
 const runtime = createDesktopRuntime(bridge, {
     appOrigin: window.location.origin,
-    ui: { EditorAddons, SettingsAddons },
+    ui: { EditorAddons, SettingsAddons, AiPanel: AgentChatPanel },
     exportPlatform: createDesktopExportPlatform(bridge),
     providers: providers.registry,
     account: createDesktopAccount(bridge),

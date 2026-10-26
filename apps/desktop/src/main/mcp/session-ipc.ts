@@ -12,6 +12,7 @@ import type { McpHost } from "./mcp-host";
 import { createRendererRpc, type RendererRpc, type SessionResponse } from "./renderer-rpc";
 
 export interface SessionIpcOptions {
+    onDetach?(): void;
     host: McpHost;
     exporter: StudioExporter;
     mediaStore: Pick<MediaStore, "putBlob">;
@@ -33,6 +34,7 @@ export interface SessionIpc {
 export function registerSessionIpc(ipc: IpcMainLike, options: SessionIpcOptions): SessionIpc {
     let current: { projectId: string; rpc: RendererRpc } | null = null;
     const detachAll = async (reason: string) => {
+        options.onDetach?.();
         const was = current;
         current = null;
         was?.rpc.close(reason);

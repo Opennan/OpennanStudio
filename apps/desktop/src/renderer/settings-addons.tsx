@@ -90,9 +90,9 @@ export function SettingsAddonsView({ bridge }: { bridge: DesktopBridge }) {
                     <p className="muted small">
                         {mcp.running ? `Serving the open project at ${mcp.url}` : "Starts when a project is open in the editor."} The access token is in {mcp.tokenFile}.
                     </p>
-                    {(["claude", "codex", "gemini"] as const).map((client) => (
+                    {(["claude", "codex", "gemini", "opencode", "antigravity"] as const).map((client) => (
                         <details key={client}>
-                            <summary>{PROFILE_LABELS[client]} config</summary>
+                            <summary>{client === "opencode" ? "OpenCode" : client === "antigravity" ? "Antigravity" : PROFILE_LABELS[client]} config</summary>
                             <pre className="desktop-mcp-config">{mcp.configs[client]}</pre>
                         </details>
                     ))}

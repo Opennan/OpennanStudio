@@ -5,6 +5,7 @@ import type { ExportErrorCode } from "@opennan/export";
 import { OPEN_CAPABILITIES, OPENNAN_CAPABILITIES } from "@opennan/provider-sdk";
 import { z } from "zod";
 import { IPC } from "./channels";
+import { CHAT_PROFILES } from "./agent-chat";
 import { UUID } from "./ids";
 import { localMediaId } from "./media-policy";
 import { SECRET_NAMES, SettingsPatchSchema, TERMINAL_PROFILES } from "./settings";
@@ -96,6 +97,11 @@ const Cols = z.number().int().min(2).max(1000);
 const Rows = z.number().int().min(2).max(500);
 
 export const PAYLOADS = {
+    [IPC.chatAvailability]: Empty,
+    [IPC.chatState]: z.object({ projectId: ProjectRef, profile: z.enum(CHAT_PROFILES) }).strict(),
+    [IPC.chatSend]: z.object({ projectId: ProjectRef, profile: z.enum(CHAT_PROFILES), message: z.string().trim().min(1).max(12_000) }).strict(),
+    [IPC.chatStop]: z.object({ projectId: ProjectRef, profile: z.enum(CHAT_PROFILES) }).strict(),
+    [IPC.chatReset]: z.object({ projectId: ProjectRef, profile: z.enum(CHAT_PROFILES) }).strict(),
     [IPC.persistenceLoad]: z.object({ projectId: Uuid }).strict(),
     [IPC.persistenceSave]: z.object({ projectId: Uuid, state: projectStateSchema() }).strict(),
     [IPC.persistenceList]: Empty,

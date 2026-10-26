@@ -1,6 +1,6 @@
 // Core clip tools: create, edit, delete, split, text overlays, and scene audio
 // layers. Every write is one EditorCommand and follows placement.ts.
-import { textStyle, type CreateClipInput, type TimelineClip } from "@opennan/timeline-core";
+import { textStyle, type CreateClipInput, type TimelineClip, type TimelineTrack } from "@opennan/timeline-core";
 import {
     CLIP_CONTENT_FIELDS, CLIP_LOOK_FIELDS, CLIP_PLACEMENT_FIELDS, TEXT_STYLE_ARGUMENTS, toSnakeCase,
 } from "@opennan/mcp-schema";
@@ -29,11 +29,16 @@ export async function createPlacedClip(
     const startTime = Number(input.startTime);
     const endTime = Number(input.endTime);
     if (!(endTime > startTime)) return failure("end_time must be after start_time");
-    const placed = placeClip(await session.snapshot(), String(input.trackType), startTime, endTime, request);
+    const snapshot = await session.snapshot();
+    const placed = placeClip(snapshot, String(input.trackType), startTime, endTime, request);
     if (!placed.ok) return failure(placed.error);
     // Omit<> over CreateClipInput's index signature drops startTime/endTime, so restate them.
     const clipInput: CreateClipInput = { ...input, startTime, endTime, trackIndex: placed.trackIndex };
-    const result = await session.execute({ type: "clip.create", input: clipInput });
+    // The renderer draws registered tracks only. Create a missing lane with the clip, as one undo step.
+    const type = input.trackType as TimelineTrack["type"];
+    const exists = snapshot.tracks.some((track) => track.type === type && track.index === placed.trackIndex);
+    const track: TimelineTrack = { type, index: placed.trackIndex, label: `${type[0].toUpperCase()}${placed.trackIndex}`, muted: false, locked: false, visible: true, volume: 1 };
+    const result = await session.execute({ type: "clip.create", input: clipInput, ...(!exists ? { tracks: [...snapshot.tracks, track] } : {}) });
     const failed = commandFailure("clip.create", result);
     if (failed) return failed;
     const clipId = result.createdClipIds?.[0] ?? null;

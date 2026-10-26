@@ -10,7 +10,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ToolListChangedNotificationSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { STUDIO_TOOLS } from "@opennan/mcp-schema";
+import { toolsForPreset } from "./server";
 import { startBridge, type BridgeOptions } from "./bridge";
 import { createSessionToken } from "./auth";
 import { startHttpServer, type StudioHttpServer } from "./http";
@@ -127,7 +127,7 @@ describe("stdio bridge", () => {
         const { client, dir } = await spawnBridge(http.url, http.token);
         expect(client.getServerVersion()?.name).toBe("opennan-studio");
         expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS);
-        expect((await client.listTools()).tools).toHaveLength(STUDIO_TOOLS.length);
+        expect((await client.listTools()).tools).toHaveLength(toolsForPreset().length);
         const deleted = (await client.callTool({ name: "delete_timeline_clip", arguments: { clip_id: "title" } })) as CallToolResult;
         expect(deleted.isError).toBe(false);
         expect(studio.controller.snapshot().clips.map((clip) => clip.id)).toEqual(["music"]);
@@ -246,7 +246,7 @@ describe("stdio bridge reconnects", () => {
         expect(clipIds((await agent.client.callTool({ name: "find_clip", arguments: {} })) as CallToolResult)).toEqual(["title", "music"]);
         // The failed tools/list is offered again once the server is back.
         await waitFor(() => listChanged === 1);
-        expect((await agent.client.listTools()).tools).toHaveLength(STUDIO_TOOLS.length);
+        expect((await agent.client.listTools()).tools).toHaveLength(toolsForPreset().length);
         await agent.close();
     });
 

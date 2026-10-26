@@ -9,8 +9,10 @@ import { useCapability } from "../ai/use-capability";
 import { useStudioRuntime } from "../platform/runtime-context";
 import { routeHref } from "../routing/routes";
 
-export function EditorTopBar({ onExport, onAutoCaptions, onGenerate }: {
+export function EditorTopBar({ onExport, onAutoCaptions, onGenerate, aiOpen, onToggleAi }: {
     onExport(): void;
+    aiOpen?: boolean;
+    onToggleAi?(): void;
     onAutoCaptions(): void;
     onGenerate(): void;
 }) {
@@ -54,6 +56,7 @@ export function EditorTopBar({ onExport, onAutoCaptions, onGenerate }: {
                 onChange={(ratio) => void controller.execute({ type: "project.update", patch: { aspectRatio: ratio } })}
             />
             <div className="topbar-spacer" />
+            {onToggleAi && <button type="button" className="button ghost small" aria-pressed={aiOpen} aria-label="AI chat" title="AI chat (⌘J)" onClick={onToggleAi}>AI</button>}
             <button type="button" className="button ghost small" onClick={onGenerate}>{GENERATE}</button>
             {/* Always shown: without a provider it opens the guidance (capability-gated UI, spec §5.4). */}
             <button

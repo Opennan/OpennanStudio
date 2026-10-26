@@ -35,7 +35,7 @@ async function download(url) {
 
 function extract(archive, kind, into) {
     if (kind === "zip" && process.platform === "linux") execFileSync("unzip", ["-q", archive, "-d", into]);
-    else execFileSync("tar", [kind === "tar.xz" ? "-xJf" : "-xf", archive, "-C", into]);
+    else execFileSync(process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\Windows", "System32", "tar.exe") : "tar", [kind === "tar.xz" ? "-xJf" : "-xf", archive, "-C", into]);
 }
 
 async function main() {
