@@ -50,7 +50,6 @@ describe("createSqlitePersistence", () => {
         const db = openDatabase(store.file);
         expect((await createSqlitePersistence({ db, media: store.media }).loadProject(id))?.meta.name).toBe("Kept");
         db.close();
-        store.db = openDatabase(store.file);
     });
 
     it("deleteProject removes the row and the project's media files", async () => {

@@ -84,7 +84,7 @@ describe("createDesktopMediaPreparer", () => {
     let media: string;
     let ran: string[][];
     beforeEach(() => {
-        dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "opennan-prep-")));
+        dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "opennan-prep-")));
         fs.mkdirSync(path.join(dir, "media"));
         tempDir = path.join(dir, "tmp");
         fs.mkdirSync(tempDir);
@@ -252,7 +252,7 @@ const FIXTURE = path.resolve(__dirname, "../../../e2e/fixtures/testsrc-6s.webm")
 
 describe.skipIf(!ffmpeg)("createDesktopMediaPreparer on the bundled ffmpeg", () => {
     it("trims a range to 16 kHz mono WAV and to a silent re-encoded MP4 of exactly that length", async () => {
-        const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "opennan-prepn-")));
+        const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "opennan-prepn-")));
         try {
             fs.mkdirSync(path.join(dir, "media"));
             const media = path.join(dir, "media", `${ID}.webm`);

@@ -76,7 +76,7 @@ describe("desktop export jobs (main's exports and the window's GPU jobs as one S
     beforeEach(() => {
         dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "opennan-xjobs-")));
     });
-    afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+    afterEach(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
     function setup() {
         const main = fakeMain();
