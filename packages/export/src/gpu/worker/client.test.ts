@@ -88,6 +88,57 @@ describe("exportTimelineGpuInWorker", () => {
         await expect(exportTimelineGpuInWorker(timeline(), { resolution: "720p" }, { runner: crashed.runner, gpu }, crashed.host)).resolves.toMatchObject({ kind: "unavailable" });
     });
 
+    it("falls back when a GPU worker stops reporting progress", async () => {
+        vi.useFakeTimers();
+        const controller = new AbortController();
+        const completed = vi.fn();
+        const { host, runner, worker } = setup((m, w) => m.type === "start" && w.reply({ type: "progress", progress: { phase: "render", ratio: 0.01 } }));
+        const pending = exportTimelineGpuInWorker(timeline(), { resolution: "720p" }, { runner, gpu, signal: controller.signal }, host);
+        void pending.then(completed, () => undefined);
+        try {
+            await vi.waitFor(() => expect(worker().sent.length).toBe(1));
+            await vi.advanceTimersByTimeAsync(61_000);
+            expect(completed).toHaveBeenCalledWith({ kind: "fallback", reason: expect.stringContaining("stopped responding") });
+            expect(worker().sent.at(-1)).toEqual({ type: "cancel" });
+            await vi.advanceTimersByTimeAsync(1500);
+            expect(worker().terminated).toBe(true);
+        } finally {
+            controller.abort();
+            await pending.catch(() => undefined);
+            vi.useRealTimers();
+        }
+    });
+
+    it("keeps active workers and a slow host mux running", async () => {
+        vi.useFakeTimers();
+        const controller = new AbortController();
+        const completed = vi.fn();
+        const { host, runner, mux, worker } = setup((m, w) => {
+            if (m.type === "start") w.reply({ type: "progress", progress: { phase: "render", ratio: 0.1 } });
+            if (m.type === "mux-done") w.reply({ type: "done", result });
+        });
+        let finishMux!: () => void;
+        mux.mockImplementation(() => new Promise((resolve) => { finishMux = () => resolve({ kind: "bytes", data: new Uint8Array([9]) }); }));
+        const pending = exportTimelineGpuInWorker(timeline(), { resolution: "720p" }, { runner, gpu, signal: controller.signal }, host);
+        void pending.then(completed, () => undefined);
+        try {
+            await vi.waitFor(() => expect(worker().sent.length).toBe(1));
+            await vi.advanceTimersByTimeAsync(45_000);
+            worker().reply({ type: "progress", progress: { phase: "render", ratio: 0.5 } });
+            await vi.advanceTimersByTimeAsync(45_000);
+            expect(completed).not.toHaveBeenCalled();
+            worker().reply({ type: "mux", id: 0, step: "mux", plan: { inputs: [] } as never, video: { kind: "bytes", data: new Uint8Array([1]) }, container: "mp4" });
+            await vi.advanceTimersByTimeAsync(120_000);
+            expect(completed).not.toHaveBeenCalled();
+            finishMux();
+            await expect(pending).resolves.toMatchObject({ kind: "done" });
+        } finally {
+            controller.abort();
+            await pending.catch(() => undefined);
+            vi.useRealTimers();
+        }
+    });
+
     it("runs the GIF step on the page's runner for GIF exports", async () => {
         const { host, runner } = setup((message, w) => {
             if (message.type === "start") w.reply({ type: "mux", id: 1, step: "gif", plan: { format: { width: 640, height: 360, fps: 15 }, durationSeconds: 1 }, video: { kind: "bytes", data: new Uint8Array([1]) }, container: "mp4" });

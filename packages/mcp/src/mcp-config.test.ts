@@ -17,6 +17,15 @@ describe("buildMcpConfig", () => {
         expect(JSON.parse(buildMcpConfig("opencode", httpLaunch, where).text).mcp["opennan-studio"].headers.Authorization).toBe("Bearer {env:OPENNAN_STUDIO_MCP_TOKEN}");
     });
 
+    it("preserves the bridge environment in every client format", () => {
+        const launch = { ...stdio, env: { ELECTRON_NO_ATTACH_CONSOLE: "1" } };
+        for (const client of ["claude", "gemini", "antigravity"] as const) {
+            expect(JSON.parse(buildMcpConfig(client, launch, where).text).mcpServers["opennan-studio"].env).toEqual(launch.env);
+        }
+        expect(JSON.parse(buildMcpConfig("opencode", launch, where).text).mcp["opennan-studio"].environment).toEqual(launch.env);
+        expect(buildMcpConfig("codex", launch, where).text).toContain('[mcp_servers.opennan-studio.env]\n"ELECTRON_NO_ATTACH_CONSOLE" = "1"');
+    });
+
     it("writes Antigravity workspace configs and uses its HTTP serverUrl field", () => {
         const snippet = buildMcpConfig("antigravity", stdio, where);
         expect(snippet.path).toBe("/work/film/.agents/mcp_config.json");

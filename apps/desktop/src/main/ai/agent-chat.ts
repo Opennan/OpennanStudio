@@ -28,7 +28,7 @@ export function subscriptionEnv(env: NodeJS.ProcessEnv): Record<string, string> 
 export function chatArgs(profile: ChatProfile, bridge: Extract<McpLaunch, { transport: "stdio" }>, sessionId?: string): string[] {
     if (profile === "claude") return [
         "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-        "--strict-mcp-config", "--mcp-config", JSON.stringify({ mcpServers: { [DEFAULT_SERVER_NAME]: { command: bridge.command, args: bridge.args } } }),
+        "--strict-mcp-config", "--mcp-config", JSON.stringify({ mcpServers: { [DEFAULT_SERVER_NAME]: { command: bridge.command, args: bridge.args, ...(bridge.env ? { env: bridge.env } : {}) } } }),
         "--tools", "", "--allowedTools", `mcp__${DEFAULT_SERVER_NAME}`,
         "--append-system-prompt", INSTRUCTIONS, ...(sessionId ? ["--resume", sessionId] : []),
     ];
@@ -36,6 +36,7 @@ export function chatArgs(profile: ChatProfile, bridge: Extract<McpLaunch, { tran
     return [
         "-c", "forced_login_method=\"chatgpt\"", "-c", "approval_policy=\"never\"", "-c", "sandbox_mode=\"read-only\"",
         "-c", `${name}.command=${JSON.stringify(bridge.command)}`, "-c", `${name}.args=${JSON.stringify(bridge.args)}`,
+        ...Object.entries(bridge.env ?? {}).flatMap(([key, value]) => ["-c", `${name}.env.${key}=${JSON.stringify(value)}`]),
         "exec", ...(sessionId ? ["resume", sessionId] : ["--color", "never"]), "--json", "--skip-git-repo-check", "-",
     ];
 }

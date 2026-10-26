@@ -48,9 +48,13 @@ describe("MCP host", () => {
         expect(calls.map((c) => c.port)).toEqual([4319, 0, 50001]);
         expect(new Set(calls.map((c) => c.token)).size).toBe(1);
         expect(host.info()).toEqual({ running: true, url: "http://127.0.0.1:50001/mcp", port: 50001, projectId: "b" });
-        expect(host.bridgeLaunch({ execPath: "/Apps/OpenNan Studio", appPath: "/app.asar", isPackaged: true }))
+        expect(host.bridgeLaunch({ execPath: "/Apps/OpenNan Studio", appPath: "/app.asar", isPackaged: true, platform: "darwin" }))
             .toEqual({ transport: "stdio", command: "/Apps/OpenNan Studio", args: ["--mcp-bridge", "--url", "http://127.0.0.1:50001/mcp", "--token-file", path.join(dir, "token")] });
-        expect(host.bridgeLaunch({ execPath: "/electron", appPath: "/repo/apps/desktop", isPackaged: false }).args.slice(0, 2)).toEqual(["/repo/apps/desktop", "--mcp-bridge"]);
+        expect(host.bridgeLaunch({ execPath: "/electron", appPath: "/repo/apps/desktop", isPackaged: false, platform: "darwin" }).args.slice(0, 2)).toEqual(["/repo/apps/desktop", "--mcp-bridge"]);
+        const linux = host.bridgeLaunch({ execPath: "/electron", appPath: "/app", isPackaged: false, platform: "linux" });
+        expect(linux.args.slice(0, 3)).toEqual(["--ozone-platform=headless", "/app", "--mcp-bridge"]);
+        const windows = host.bridgeLaunch({ execPath: "studio.exe", appPath: "/app", isPackaged: true, platform: "win32" });
+        expect(windows.env).toEqual({ ELECTRON_NO_ATTACH_CONSOLE: "1" });
         await host.close();
         expect(host.info().running).toBe(false);
         expect(() => host.bridgeLaunch({ execPath: "/e", appPath: "/a", isPackaged: true })).toThrow("not running");

@@ -7,7 +7,7 @@ import { expect, test } from "@playwright/test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
-    APP_DIR, FIXTURE_SPEECH, FIXTURE_VIDEO, blurFocus, decodeFrame, electronBinary, ensureTinyModel, execute, launchStudio, probe, regionDifference, seedTinyModel, snapshot,
+    FIXTURE_SPEECH, FIXTURE_VIDEO, blurFocus, decodeFrame, ensureTinyModel, execute, launchStudio, probe, regionDifference, seedTinyModel, snapshot,
     waitForSaves, type Rect,
 } from "./helpers";
 
@@ -194,11 +194,11 @@ test("launch, create, import, edit, looks, export 3 s, text and sticker export, 
         });
 
         await test.step("MCP read_timeline round trip through --mcp-bridge", async () => {
-            const info = await page.evaluate(() => (window as unknown as { opennan: { mcp: { info(): Promise<{ running: boolean; url: string; tokenFile: string }> } } }).opennan.mcp.info());
+            const info = await page.evaluate(() => (window as unknown as { opennan: { mcp: { info(): Promise<{ running: boolean; url: string; tokenFile: string; configs: { claude: string } }> } } }).opennan.mcp.info());
             expect(info.running).toBe(true);
             expect(JSON.stringify(info)).not.toMatch(/"token"/);
             if (process.platform !== "win32") expect(fs.statSync(info.tokenFile).mode & 0o777).toBe(0o600);
-            const transport = new StdioClientTransport({ command: electronBinary(), args: [APP_DIR, "--mcp-bridge", "--url", info.url, "--token-file", info.tokenFile], stderr: "inherit" });
+            const transport = new StdioClientTransport({ ...JSON.parse(info.configs.claude).mcpServers["opennan-studio"], stderr: "inherit" });
             const client = new Client({ name: "desktop-smoke", version: "1.0.0" });
             await client.connect(transport);
             try {

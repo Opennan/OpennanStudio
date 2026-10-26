@@ -25,7 +25,7 @@ export interface McpHost {
     close(): Promise<void>;
     info(): McpHostInfo;
     /** The stdio entry CLIs launch: this app's binary in bridge mode. */
-    bridgeLaunch(app: { execPath: string; appPath: string; isPackaged: boolean }): Extract<McpLaunch, { transport: "stdio" }>;
+    bridgeLaunch(app: { execPath: string; appPath: string; isPackaged: boolean; platform?: NodeJS.Platform }): Extract<McpLaunch, { transport: "stdio" }>;
 }
 
 export function writeTokenFile(file: string, token: string): void {
@@ -85,14 +85,15 @@ export function createMcpHost(options: McpHostOptions): McpHost {
             await running?.close();
         },
         info: () => ({ running: server !== null, url: server?.url ?? (port ? `http://127.0.0.1:${port}/mcp` : null), port, projectId }),
-        bridgeLaunch({ execPath, appPath, isPackaged }) {
+        bridgeLaunch({ execPath, appPath, isPackaged, platform = process.platform }) {
             // Only the URL of a server this app is listening on: never a remembered port someone else may hold.
             if (!server) throw new Error("The MCP server is not running: open a project in the editor first");
             const url = server.url;
             return {
                 transport: "stdio",
                 command: execPath,
-                args: [...(isPackaged ? [] : [appPath]), "--mcp-bridge", "--url", url, "--token-file", options.tokenFile],
+                args: [...(platform === "linux" ? ["--ozone-platform=headless"] : []), ...(isPackaged ? [] : [appPath]), "--mcp-bridge", "--url", url, "--token-file", options.tokenFile],
+                ...(platform === "win32" ? { env: { ELECTRON_NO_ATTACH_CONSOLE: "1" } } : {}),
             };
         },
     };
