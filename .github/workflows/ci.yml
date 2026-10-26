@@ -25,6 +25,8 @@ jobs:
       - run: pnpm tools:names:check
       - run: pnpm schema:check
       - run: pnpm typecheck
+      - name: Fetch native LGPL ffmpeg for export parity tests
+        run: pnpm --filter @opennan/desktop fetch:ffmpeg
       - run: pnpm exec turbo run test --concurrency=2
       - run: node --test scripts/*.test.mjs apps/desktop/ffmpeg/*.test.mjs apps/desktop/whisper/*.test.mjs apps/desktop/scripts/*.test.mjs
       - run: pnpm exec turbo run build --concurrency=2
