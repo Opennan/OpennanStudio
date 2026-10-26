@@ -45,6 +45,7 @@ export function readBridgeToken(tokenFile: string): string {
 
 export interface BridgeApp {
     dock?: { hide(): void };
+    commandLine: { appendSwitch(name: string, value: string): void };
     disableHardwareAcceleration(): void;
     setPath(name: "userData", value: string): void;
     quit(): void;
@@ -52,6 +53,8 @@ export interface BridgeApp {
 }
 
 export async function runBridgeMode(argv: readonly string[], app: BridgeApp): Promise<void> {
+    // MCP clients sanitize child environments, so a display server may not be available.
+    if (process.platform === "linux") app.commandLine.appendSwitch("ozone-platform", "headless");
     app.dock?.hide();
     app.disableHardwareAcceleration();
     app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "opennan-bridge-")));
