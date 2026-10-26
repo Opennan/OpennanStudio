@@ -25,3 +25,28 @@
 .desktop-mcp-config { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; background: var(--on-surface-raised); padding: 8px; border-radius: var(--on-radius-md); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
+
+/* Subscription CLI chat uses the existing dock and theme; the conversation owns the remaining height. */
+.agent-chat { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; font-size: 13px; }
+.agent-chat-head { display: flex; align-items: center; gap: 8px; padding: 12px; border-bottom: 1px solid var(--on-border); }
+.agent-chat-head select { flex: 1; min-width: 0; }
+.agent-chat-connection { padding: 8px 12px; border-bottom: 1px solid var(--on-border); }
+.agent-chat-connection p { margin: 0 0 4px; overflow-wrap: anywhere; }
+.agent-chat-connection button { padding-left: 0; }
+.agent-chat-messages { flex: 1; overflow: auto; min-height: 100px; padding: 12px; overscroll-behavior: contain; }
+.agent-chat-empty h2 { font-size: 16px; line-height: 1.4; margin: 4px 0 12px; }
+.agent-chat-empty p { line-height: 1.55; margin: 0 0 12px; overflow-wrap: anywhere; }
+.agent-chat-empty code { font-size: 12px; user-select: all; }
+.agent-chat-message { margin-bottom: 16px; overflow-wrap: anywhere; }
+.agent-chat-message p { white-space: pre-wrap; margin: 4px 0 0; line-height: 1.55; }
+.agent-chat-who { font-weight: 600; font-size: 12px; }
+.agent-chat-user { padding: 10px; background: var(--on-surface-raised); border-radius: var(--on-radius-md); }
+.agent-chat-tool { font-size: 12px; color: var(--on-text-secondary); }
+.agent-chat-error { margin: 0; padding: 10px 12px; color: var(--on-foreground); background: var(--on-surface-raised); overflow-wrap: anywhere; }
+.agent-chat-composer { padding: 12px; border-top: 1px solid var(--on-border); }
+.agent-chat-composer textarea { width: 100%; resize: vertical; min-height: 64px; max-height: 180px; line-height: 1.5; }
+.agent-chat-send-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.agent-chat-mcp { padding: 10px 12px; border-top: 1px solid var(--on-border); max-height: 40%; overflow: auto; }
+.agent-chat-mcp summary { cursor: pointer; font-size: 12px; }
+.agent-chat-mcp select { width: 100%; margin-top: 4px; }
+.agent-chat-mcp p { line-height: 1.5; overflow-wrap: anywhere; }

@@ -4,7 +4,7 @@ import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createStudioExporter, createStudioMcpServer } from "@opennan/mcp";
-import { STUDIO_TOOLS } from "@opennan/mcp-schema";
+import { toolsForPreset } from "@opennan/mcp";
 import { ProviderRegistry, createAiRunner, createJob } from "@opennan/provider-sdk";
 import { LocalBackend, TimelineController, createEditorStore, createMemoryPersistence, type TimelineControllerOptions } from "@opennan/timeline-core";
 import { createSessionResponder } from "../../renderer/session-responder";
@@ -70,7 +70,7 @@ describe("desktop session over the renderer controller", () => {
 
     it("lists tools and edits the renderer's timeline", async () => {
         const { client, controller } = await setup();
-        expect((await client.listTools()).tools.length).toBe(STUDIO_TOOLS.length);
+        expect((await client.listTools()).tools.length).toBe(toolsForPreset().length);
         const created = await client.callTool({ name: "create_timeline_clip", arguments: { track_type: "text", track_index: 1, start_time: 0, end_time: 2, text_content: "from agent" } });
         expect(created.isError, text(created)).toBeFalsy();
         expect(controller.snapshot().clips.map((c) => c.textContent)).toEqual(["from agent"]);

@@ -78,7 +78,7 @@ async function main() {
             verifySha256(bytes, entry.sha256);
             const archive = path.join(downloads, "archive.tar.gz");
             fs.writeFileSync(archive, bytes);
-            execFileSync("tar", ["-xzf", archive, "-C", unpacked]);
+            execFileSync(process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\Windows", "System32", "tar.exe") : "tar", ["-xzf", archive, "-C", unpacked]);
             const from = path.join(unpacked, entry.dir);
             for (const name of linuxFiles(fs.readdirSync(from))) {
                 // copyFileSync follows the archive's symlinks: each soname becomes a real file.

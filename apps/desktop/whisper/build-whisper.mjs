@@ -67,7 +67,7 @@ export async function buildWhisper(key, out) {
         if (actual !== MANIFEST.source.sha256) throw new Error(`SHA-256 mismatch for the whisper.cpp source: expected ${MANIFEST.source.sha256}, got ${actual}`);
         const tarball = path.join(work, "source.tar.gz");
         fs.writeFileSync(tarball, bytes);
-        execFileSync("tar", ["-xzf", tarball, "-C", work]);
+        execFileSync(process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\Windows", "System32", "tar.exe") : "tar", ["-xzf", tarball, "-C", work]);
         const sourceDir = path.join(work, MANIFEST.source.dir);
         const buildDir = path.join(work, "build");
         const configure = cmakeArgs(key, { sourceDir, buildDir, sdkIncludes: key.startsWith("darwin-") ? macSdkIncludes() : null });

@@ -3,7 +3,7 @@ import http from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { STUDIO_TOOLS } from "@opennan/mcp-schema";
+import { toolsForPreset } from "./server";
 import { startHttpServer, type StudioHttpServer } from "./http";
 import { createFixtureStudio, type FixtureStudio } from "./testing/fixture";
 
@@ -47,7 +47,7 @@ describe("streamable HTTP transport", () => {
         expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
         const { c, transport } = client(server.token);
         await c.connect(transport);
-        expect((await c.listTools()).tools).toHaveLength(STUDIO_TOOLS.length);
+        expect((await c.listTools()).tools).toHaveLength(toolsForPreset().length);
         const created = (await c.callTool({ name: "add_text_overlay", arguments: { text: "Hi", start_time: 5, end_time: 7 } })) as CallToolResult;
         expect(created.isError).toBe(false);
         expect(studio.controller.snapshot().clips).toHaveLength(3);
@@ -109,7 +109,7 @@ describe("streamable HTTP transport", () => {
         expect((await rawPost({ ...auth, "mcp-session-id": rawSession }, list, limited)).status).toBe(404);
         // Well past the idle timeout, the streaming client still works.
         await new Promise((resolve) => setTimeout(resolve, 1500));
-        expect((await streaming.c.listTools()).tools).toHaveLength(STUDIO_TOOLS.length);
+        expect((await streaming.c.listTools()).tools).toHaveLength(toolsForPreset().length);
         await streaming.c.close();
         await expect.poll(() => limited.sessionCount(), { timeout: 2000 }).toBe(0);
         await limited.close();

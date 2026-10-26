@@ -6,7 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import { BrowserWindow, Menu, MessageChannelMain, app, dialog, ipcMain, protocol, safeStorage, session, shell, type MenuItemConstructorOptions } from "electron";
 import * as nodePty from "node-pty";
-import { E2E_ARGUMENT } from "../shared/bridge";
+import { E2E_ARGUMENT, type McpInfo } from "../shared/bridge";
+import { createAgentChat } from "./ai/agent-chat";
+import { registerAgentChatIpc } from "./ai/agent-chat-ipc";
 import { EVENTS, IPC } from "../shared/ipc";
 import { MCP_CLIENTS, buildMcpConfig } from "@opennan/mcp";
 import { registerAccountIpc } from "./account/account-ipc";
@@ -113,6 +115,7 @@ function startApp(): void {
         lockPermissions(session.defaultSession);
 
         let sessions: ReturnType<typeof registerSessionIpc> | null = null;
+        let chat: ReturnType<typeof createAgentChat> | null = null;
         const effects = async () => {
             const attached = sessions?.current();
             return attached ? (await attached.rpc.call("listEffects", ["effect"])) as never : [];
@@ -157,8 +160,7 @@ function startApp(): void {
             focusWindow: () => {
                 if (!window || window.isDestroyed()) return;
                 if (window.isMinimized()) window.restore();
-                window.show();
-                window.focus();
+                if (!(process.env.OPENNAN_STUDIO_E2E === "1" && process.env.OPENNAN_STUDIO_E2E_HIDDEN === "1")) { window.show(); window.focus(); }
                 if (process.platform === "darwin") app.focus({ steal: true });
             },
         });
@@ -176,6 +178,7 @@ function startApp(): void {
         cleanups.push(() => mcp.close());
         const bridgeLaunch = () => mcp.bridgeLaunch({ execPath: process.execPath, appPath: app.getAppPath(), isPackaged: app.isPackaged });
         sessions = registerSessionIpc(ipc, {
+            onDetach: () => chat?.stopAll(),
             host: mcp, exporter: exportJobs, mediaStore: media, projectDir: (id) => projectDir(paths, id), send, providers: providerHost.registry,
             captionsRoute: () => settings.get().providerRouting.overrides["audio.transcribe"] ?? null,
             capturePage: async () => {
@@ -194,8 +197,18 @@ function startApp(): void {
                 } catch (error) {
                     return [client, error instanceof Error ? error.message : String(error)];
                 }
-            })) as Record<"claude" | "codex" | "gemini", string>,
+            })) as McpInfo["configs"],
         }));
+        chat = createAgentChat({
+            projectDir: (id) => projectDir(paths, id),
+            currentProject: () => mcp.info().projectId, bridge: bridgeLaunch,
+            ...(!app.isPackaged && process.env.OPENNAN_STUDIO_E2E === "1" && process.env.OPENNAN_STUDIO_E2E_CHAT_BIN ? {
+                commands: { claude: path.join(process.env.OPENNAN_STUDIO_E2E_CHAT_BIN, "claude"), codex: path.join(process.env.OPENNAN_STUDIO_E2E_CHAT_BIN, "codex") },
+            } : {}),
+            changed: (state) => send(EVENTS.chatChanged, state),
+        });
+        registerAgentChatIpc(ipc, chat);
+        cleanups.push(() => chat?.stopAll());
         const terminals = createPtyManager({
             spawn: nodePty.spawn as unknown as PtySpawn,
             send: (kind, payload) => send(kind === "data" ? EVENTS.terminalData : EVENTS.terminalExit, payload),
@@ -224,7 +237,9 @@ function startApp(): void {
                     if (response === 0) void shell.openExternal(url);
                 });
         });
-        window.once("ready-to-show", () => window?.show());
+        window.once("ready-to-show", () => {
+            if (!(process.env.OPENNAN_STUDIO_E2E === "1" && process.env.OPENNAN_STUDIO_E2E_HIDDEN === "1")) window?.show();
+        });
         window.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
             // A reload drops the page's editor: stop serving its project until it attaches again.
             if (isMainFrame && !isInPlace) {

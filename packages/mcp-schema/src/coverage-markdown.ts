@@ -51,7 +51,9 @@ function phase5(tool: ToolDefinition): string {
 }
 
 export function renderCoverageMarkdown(): string {
-    const rows = toolCoverage();
+    const retired = new Set<string>(PROJECT_PIPELINE_TOOLS);
+    const rows = toolCoverage().map((row) => retired.has(row.name)
+        ? { name: row.name, exposed: false as const, reason: "Server-project pipeline; excluded from the default MCP server." } : row);
     const exposed = rows.filter((row) => row.exposed);
     const lines = [
         "# AI tool coverage",

@@ -1,5 +1,10 @@
 // IPC channel names (no dependencies, so the sandboxed preload can import them without zod).
 export const IPC = {
+    chatAvailability: "opennan:chat:availability",
+    chatState: "opennan:chat:state",
+    chatSend: "opennan:chat:send",
+    chatStop: "opennan:chat:stop",
+    chatReset: "opennan:chat:reset",
     persistenceLoad: "opennan:persistence:load",
     persistenceSave: "opennan:persistence:save",
     persistenceList: "opennan:persistence:list",
@@ -58,6 +63,7 @@ export const IPC = {
 
 /** Main → renderer events (webContents.send / postMessage). */
 export const EVENTS = {
+    chatChanged: "opennan:chat:changed",
     sessionRequest: "opennan:session:request",
     exportState: "opennan:export:state-changed",
     terminalData: "opennan:terminal:data",

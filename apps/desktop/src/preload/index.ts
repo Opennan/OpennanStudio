@@ -18,6 +18,14 @@ function listen<A extends unknown[]>(channel: string, map: (payload: never) => A
 export function createBridge(): DesktopBridge {
     return {
         e2e: process.argv.includes(E2E_ARGUMENT),
+        chat: {
+            availability: () => invoke(IPC.chatAvailability),
+            state: (projectId, profile) => invoke(IPC.chatState, { projectId, profile }),
+            send: (projectId, profile, message) => invoke(IPC.chatSend, { projectId, profile, message }),
+            stop: (projectId, profile) => invoke(IPC.chatStop, { projectId, profile }),
+            reset: (projectId, profile) => invoke(IPC.chatReset, { projectId, profile }),
+            onChanged: (listener) => listen(EVENTS.chatChanged, (state: never) => [state] as [never], listener),
+        },
         persistence: {
             load: (projectId) => invoke(IPC.persistenceLoad, { projectId }),
             save: (projectId, state) => invoke(IPC.persistenceSave, { projectId, state }),

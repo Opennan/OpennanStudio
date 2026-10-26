@@ -42,7 +42,7 @@ describe("preload bridge", () => {
 
     it("exposes exactly window.opennan with the bridge sections", () => {
         expect(Object.keys(exposed)).toEqual(["opennan"]);
-        expect(Object.keys(bridge).sort()).toEqual(["account", "ai", "app", "e2e", "exports", "mcp", "media", "persistence", "providers", "secrets", "session", "settings", "terminal"]);
+        expect(Object.keys(bridge).sort()).toEqual(["account", "ai", "app", "chat", "e2e", "exports", "mcp", "media", "persistence", "providers", "secrets", "session", "settings", "terminal"]);
         expect(JSON.stringify(Object.keys(bridge))).not.toMatch(/ipc|invoke|require/i);
     });
 

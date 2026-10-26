@@ -49,3 +49,17 @@
 @media (prefers-reduced-motion: reduce) {
     .toast, .toast[data-leaving] { animation: none; }
 }
+
+.right-dock { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.right-dock-tabs {
+    display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--on-border-subtle); flex: none;
+}
+.right-dock-tab {
+    height: 30px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--on-text-secondary);
+    font: 500 13px var(--on-font-sans); cursor: pointer; transition: color var(--on-duration), border-color var(--on-duration);
+}
+.right-dock-tab:hover { color: var(--on-foreground); }
+.right-dock-tab[aria-selected="true"] { color: var(--on-foreground-strong); border-bottom-color: var(--on-foreground-strong); }
+.right-dock-tab:focus-visible { outline: none; box-shadow: var(--on-focus-ring); border-radius: var(--on-radius-sm); }
+.right-dock-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.right-dock-panel > * { flex: 1; min-height: 0; }

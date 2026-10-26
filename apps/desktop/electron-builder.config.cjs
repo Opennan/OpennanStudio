@@ -34,7 +34,7 @@ module.exports = {
         loadBrowserProcessSpecificV8Snapshot: false,
         grantFileProtocolExtraPrivileges: false,
     },
-    publish: [{ provider: "github", owner: "opennan", repo: "studio", releaseType: "release" }],
+    publish: [{ provider: "github", owner: "Opennan", repo: "OpennanStudio", releaseType: "release" }],
     mac: {
         category: "public.app-category.video",
         target: ["dmg", "zip"],

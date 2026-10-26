@@ -138,3 +138,13 @@ The ffmpeg.wasm core is a separate static asset, never inside `apps/web/dist` or
 ## License
 
 Free for personal use and for organizations under USD 5M annual revenue. See [LICENSE](LICENSE) and `LICENSES/`.
+
+## AI chat with your subscription
+
+In the desktop editor, open **AI**, choose **Claude Code** or **Codex**, and send a message. Studio runs the installed, unmodified CLI using its own subscription login and connects it to the open timeline through MCP. Sign in once using `claude auth login` or `codex login`, then **Refresh connection**. Studio checks that the CLI uses subscription authentication before starting a chat and does not inject stored API keys into chat sessions. Provider usage limits still apply.
+
+Conversations are saved privately on this computer, separately for each project and agent. **Stop** ends the local agent process; edits already made remain undoable in the editor. **New chat** clears Studio's displayed conversation and starts a new CLI session. The CLI retains its own history according to its settings.
+
+**Connect another app with MCP** provides configurations for Claude Desktop, Codex, Gemini CLI, OpenCode, Antigravity and other MCP clients. MCP connects editor tools; each client supplies its own supported model login. A browser cannot launch installed CLIs, so integrated subscription chat requires the desktop app.
+
+Projects stay on this device. OpenNan supplies optional generation and media tools; there is no cloud-project creation, sync or director requirement. Generation tools retain their own provider billing and are separate from Claude/Codex subscription usage. Retired cloud-project, project-pipeline and share-link tools are excluded from the default MCP server.

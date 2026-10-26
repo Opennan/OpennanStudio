@@ -16,7 +16,7 @@ export interface McpInfo {
     /** Where the token file is (agents read it through the bridge; the token itself never reaches the renderer). */
     tokenFile: string;
     /** Per CLI: the config entry the terminal writes (stdio bridge), as text. */
-    configs: Record<"claude" | "codex" | "gemini", string>;
+    configs: Record<"claude" | "codex" | "gemini", string> & Partial<Record<"opencode" | "antigravity", string>>;
 }
 
 export interface AppInfo {
@@ -100,7 +100,10 @@ export type ConsolePageName = "billing" | "usage" | "keys";
 
 export type SessionResponder = (method: string, args: unknown[]) => Promise<unknown>;
 
+import type { AgentChatBridge } from "./agent-chat";
+
 export interface DesktopBridge {
+    chat: AgentChatBridge;
     readonly e2e: boolean;
     persistence: {
         load(projectId: string): Promise<LocalProjectState | null>;

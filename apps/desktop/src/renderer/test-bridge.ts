@@ -7,6 +7,11 @@ export function createTestBridge(overrides: Partial<DesktopBridge> = {}) {
     const projects = new Map<string, LocalProjectState>();
     const bridge: DesktopBridge = {
         e2e: false,
+        chat: {
+            availability: vi.fn(async () => []),
+            state: vi.fn(async (projectId, profile) => ({ projectId, profile, messages: [], running: false, stopping: false, error: null })),
+            send: vi.fn(async () => undefined), stop: vi.fn(async () => undefined), reset: vi.fn(async () => undefined), onChanged: vi.fn(() => () => undefined),
+        },
         persistence: {
             load: vi.fn(async (id: string) => (projects.has(id) ? structuredClone(projects.get(id)!) : null)),
             save: vi.fn(async (id: string, state: LocalProjectState) => void projects.set(id, structuredClone(state))),

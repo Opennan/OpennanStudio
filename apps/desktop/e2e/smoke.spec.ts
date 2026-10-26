@@ -31,7 +31,7 @@ test("launch, create, import, edit, looks, export 3 s, text and sticker export, 
             await expect(page).toHaveTitle("OpenNan Studio");
             expect(await page.evaluate(() => [typeof (window as unknown as { require?: unknown }).require, typeof (window as unknown as { process?: unknown }).process])).toEqual(["undefined", "undefined"]);
             expect((await page.evaluate(() => Object.keys((window as unknown as { opennan: object }).opennan))).sort())
-                .toEqual(["account", "ai", "app", "e2e", "exports", "mcp", "media", "persistence", "providers", "secrets", "session", "settings", "terminal"]);
+                .toEqual(["account", "ai", "app", "chat", "e2e", "exports", "mcp", "media", "persistence", "providers", "secrets", "session", "settings", "terminal"]);
         });
 
         await test.step("create project", async () => {

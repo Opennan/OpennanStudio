@@ -16,6 +16,8 @@ export const MARKER_STORAGE_PREFIX = "opennan-studio:markers:";
 export type StudioBackend = TimelineBackend & ProjectCatalog & MediaLibraryBackend;
 
 export interface StudioUi {
+    /** Subscription chat hosted by the desktop app. */
+    AiPanel?: ComponentType<{ projectId: string; projectName: string }>;
     /** Rendered inside <TimelineProvider> after the editor workspace (desktop: agent session, terminal, media banner). */
     EditorAddons?: ComponentType<{ projectId: string }>;
     /** Rendered at the end of the settings screen (desktop: API keys, terminal, MCP). */

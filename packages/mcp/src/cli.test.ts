@@ -134,7 +134,7 @@ describe("opennan-studio CLI", () => {
     it("lists mcp-config in the usage and rejects a missing client or project", async () => {
         const help = io();
         await runCli(["--help"], help.io);
-        expect(help.out.join("")).toContain("opennan-studio mcp-config --client claude|codex|gemini");
+        expect(help.out.join("")).toContain("opennan-studio mcp-config --client claude|codex|gemini|opencode|antigravity");
         expect(await runCli(["mcp-config", "--client", "cursor"], io().io)).toBe(2);
         expect(await runCli(["mcp-config", "--client", "claude"], io().io)).toBe(2);
     });

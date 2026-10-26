@@ -3,7 +3,7 @@
 // Server is used because those schemas are JSON Schema, not zod.
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, type CallToolResult, type Tool } from "@modelcontextprotocol/sdk/types.js";
-import { PIPELINE_TOOLS, STUDIO_TOOLS, capabilityUnavailableMessage, type ToolDefinition } from "@opennan/mcp-schema";
+import { OPENNAN_PIPELINE_TOOLS, PIPELINE_TOOLS, STUDIO_TOOLS, capabilityUnavailableMessage, type ToolDefinition } from "@opennan/mcp-schema";
 import Ajv from "ajv";
 import { presentFields, type Args } from "./args";
 import { TOOL_HANDLERS, type ToolHandler } from "./handlers";
@@ -21,7 +21,7 @@ export type ToolPreset = "all" | "offline";
 
 /** "offline": only the tools that run without a provider or an OpenNan account (the editor and studio tools, not the OpenNan project pipelines). */
 export function toolsForPreset(preset: ToolPreset = "all"): readonly ToolDefinition[] {
-    return preset === "offline" ? STUDIO_TOOLS.filter((tool) => tool.kind !== "capability" && !PIPELINE_TOOLS.includes(tool)) : STUDIO_TOOLS;
+    return STUDIO_TOOLS.filter((tool) => !PIPELINE_TOOLS.includes(tool) && !(OPENNAN_PIPELINE_TOOLS as readonly string[]).includes(tool.name) && (preset !== "offline" || tool.kind !== "capability"));
 }
 
 export const SERVER_INSTRUCTIONS =
@@ -54,7 +54,7 @@ export function toMcpTool(tool: ToolDefinition): Tool {
 }
 
 export function createStudioMcpServer(session: StudioSession, options: StudioMcpServerOptions = {}): Server {
-    const tools = options.tools ?? STUDIO_TOOLS;
+    const tools = options.tools ?? toolsForPreset();
     const handlers = options.handlers ?? TOOL_HANDLERS;
     const byName = new Map(tools.map((tool) => [tool.name, tool]));
     const ajv = new Ajv({ strict: false, allErrors: true });

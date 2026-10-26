@@ -39,7 +39,7 @@ const COMMANDS = [
     "opennan-studio mcp serve --project <file> [--http] [--port <n>] [--token-file <path>] [--allow-dir <dir>]... [--read-only]",
     "                         [--ffmpeg <path> [--ffprobe <path>]] [--export-dir <dir>] [--tools all|offline]",
     "opennan-studio mcp bridge [--url <loopback url> | --port <n>] [--token-file <path>]",
-    "opennan-studio mcp-config --client claude|codex|gemini [--transport stdio|http|bridge] [--project <file>]",
+    "opennan-studio mcp-config --client claude|codex|gemini|opencode|antigravity [--transport stdio|http|bridge] [--project <file>]",
     "                          [--url <url>] [--port <n>] [--token-env <NAME>] [--token-file <path>] [--write] [--config <path>]",
     "opennan-studio project new <file> [--name <name>] [--aspect <ratio>]",
     "opennan-studio login [--no-browser] [--api <url>]",

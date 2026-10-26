@@ -126,3 +126,15 @@ configured but stays off unless a release build is packaged with `OPENNAN_RELEAS
 - Auto captions: no whisper.cpp build for Windows on Arm yet (the feature then explains it is unavailable). The
   Windows and Linux whisper builds are verified only in CI. Transcription uses the CPU's baseline instruction set
   on Windows (no per-CPU variants) and Metal on macOS.
+
+## Subscription chat
+
+Open a local project, select **AI**, and choose **Claude Code** or **Codex**. Sign in through the CLI's own flow (`claude auth login` or `codex login`) and click **Refresh connection**. The installed binary handles all provider authentication. Studio reads login status only, forces ChatGPT login for Codex, and does not read or copy OAuth tokens. Native Windows CLI `.exe` installs are required; macOS and Linux use the login shell's PATH.
+
+Messages and replies are shown in the dock, and MCP edits the same timeline as the editor. Shift+Enter inserts a new line. **Stop** terminates the CLI and its MCP subprocesses on macOS/Linux; finished edits remain in the timeline. Chats are private files (`chat-claude.json` / `chat-codex.json`, mode 0600) under the project's local folder. **New chat** starts fresh without deleting the CLI's own retained history.
+
+OpenNan is an optional AI tools provider, with separate generation charges. No cloud project or OpenNan sign-in is required for subscription chat. The browser build cannot start local processes and directs users to the desktop app.
+
+**Connect another app with MCP** in the AI tab, or **Settings → MCP server**, provides entries for Claude Desktop, Claude Code, Codex, Gemini CLI, OpenCode and Antigravity. Merge the entry into the client's settings; keep Studio open with the intended local project. MCP access does not transfer a model subscription between providers or apps.
+
+Verification: `pnpm --filter @opennan/desktop exec playwright test e2e/agent-chat.spec.ts` exercises real Electron IPC, MCP tools, timeline edits and local chat persistence using deterministic CLI replacements. `OPENNAN_CHAT_LIVE=1` additionally runs installed, signed-in Claude Code and Codex CLIs against a throwaway local project and consumes normal subscription usage. These tests keep the app window hidden.
