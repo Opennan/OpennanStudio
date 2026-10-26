@@ -24,7 +24,7 @@ else {
     bridge = { command: value("mcp_servers.opennan-studio.command"), args: value("mcp_servers.opennan-studio.args") };
 }
 const client = new Client({ name: "chat-cli-fixture", version: "1.0.0" });
-const transport = new StdioClientTransport({ ...bridge, stderr: "pipe" });
+const transport = new StdioClientTransport({ ...bridge, stderr: "inherit" });
 await client.connect(transport);
 const listed = await client.listTools();
 if (listed.tools.some((tool) => /cloud_project|cloud_sync|plan_scenes|project_script/.test(tool.name))) throw new Error("Retired cloud tools were exposed");

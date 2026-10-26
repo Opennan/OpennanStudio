@@ -198,7 +198,7 @@ test("launch, create, import, edit, looks, export 3 s, text and sticker export, 
             expect(info.running).toBe(true);
             expect(JSON.stringify(info)).not.toMatch(/"token"/);
             if (process.platform !== "win32") expect(fs.statSync(info.tokenFile).mode & 0o777).toBe(0o600);
-            const transport = new StdioClientTransport({ command: electronBinary(), args: [APP_DIR, "--mcp-bridge", "--url", info.url, "--token-file", info.tokenFile], stderr: "pipe" });
+            const transport = new StdioClientTransport({ command: electronBinary(), args: [APP_DIR, "--mcp-bridge", "--url", info.url, "--token-file", info.tokenFile], stderr: "inherit" });
             const client = new Client({ name: "desktop-smoke", version: "1.0.0" });
             await client.connect(transport);
             try {
