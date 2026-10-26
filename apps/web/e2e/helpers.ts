@@ -30,6 +30,7 @@ type StudioWindow = {
 };
 
 export async function snapshot(page: Page): Promise<StudioSnapshot> {
+    await page.waitForFunction(() => Boolean((window as unknown as StudioWindow).__studio?.controller));
     return page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as StudioWindow).__studio!.controller.snapshot())));
 }
 
