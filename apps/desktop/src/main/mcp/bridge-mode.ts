@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isLoopbackHttpUrl, startBridge } from "@opennan/mcp";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 export const BRIDGE_FLAG = "--mcp-bridge";
 
@@ -61,9 +62,20 @@ export async function runBridgeMode(argv: readonly string[], app: BridgeApp): Pr
     try {
         const { url, tokenFile } = parseBridgeArgs(argv);
         readBridgeToken(tokenFile);
+        // Electron's Windows process.stdin wrapper can be unreadable even though fd 0 is a valid pipe.
+        // Keep ownership of the standard descriptor with the process, rather than auto-closing it.
+        const input = process.platform === "win32" ? fs.createReadStream("", { fd: 0, autoClose: false }) : process.stdin;
+        const transport = new StdioServerTransport(input, process.stdout);
         // Read again before every connection attempt: the app writes a new token each time it starts.
-        const bridge = await startBridge({ url, token: () => readBridgeToken(tokenFile) });
+        const bridge = await startBridge({ url, token: () => readBridgeToken(tokenFile), transport });
+        const close = () => { void bridge.close(); };
+        input.once("end", close);
+        input.once("error", close);
+        if (input.readableEnded) close();
         await bridge.closed;
+        input.off("end", close);
+        input.off("error", close);
+        if (input !== process.stdin) input.destroy();
         app.quit();
     } catch (error) {
         process.stderr.write(`opennan-studio bridge: ${error instanceof Error ? error.message : String(error)}\n`);
