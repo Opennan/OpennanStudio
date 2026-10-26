@@ -1,0 +1,5 @@
+# Verified synthetic fixtures in the imported history (alphabet test tokens and a keyframe coalescing label).
+# Exact fingerprints only: new findings in these files must still fail the scan.
+29c534633423dcbfda570987b9666a64e54e5d5a:apps/web/src/share/share-host.test.ts:generic-api-key:9
+29c534633423dcbfda570987b9666a64e54e5d5a:packages/provider-opennan/src/session.test.ts:generic-api-key:5
+29c534633423dcbfda570987b9666a64e54e5d5a:packages/timeline-react/src/editing/inspector/keyframe-graph.test.tsx:generic-api-key:133

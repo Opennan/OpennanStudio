@@ -45,9 +45,12 @@ jobs:
         run: pnpm --filter @opennan/mcp check:server-dist
       - name: No ffmpeg core inside the web bundle
         run: test "$(find apps/web/dist -name '*.wasm' -o -name 'ffmpeg-core*' | wc -l)" -eq 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan Git history for secrets (Gitleaks CLI)
+        run: |
+          curl -fsSL --retry 3 https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --log-opts=--all .
 
   e2e:
     runs-on: ubuntu-latest
