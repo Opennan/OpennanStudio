@@ -14,7 +14,7 @@ Code, Codex CLI or any agent edit the open timeline.
 
 ## Editor
 
-Actual screenshots of the running web app (`apps/web`) with three sample clips.
+Actual screenshots of the running web and desktop editors with sample clips.
 
 ![OpennanStudio editor with a CAMPUS DAYS title over a video clip, the Text panel of templates on the left and the text inspector on the right](docs/images/editor-text.jpg)
 
@@ -28,7 +28,11 @@ Effects, filters, transitions and adjustments apply with one click and show in
 the preview at once. Scale, position, rotation and opacity take keyframes, and
 the same frames render in the export.
 
-![OpennanStudio editor with the Generate with AI panel: image, video, from this frame, voice, music and sound effect](docs/images/editor-ai.jpg)
+![OpennanStudio desktop editor with OpenNan generation tools on the left and Claude Code subscription chat for a local project on the right](docs/images/editor-ai.jpg)
+
+**AI chat** connects to your installed Claude Code or Codex CLI using your own
+subscription login. Ask for edits in the AI tab, or connect another app through
+MCP. Projects stay local.
 
 **Generate with AI** makes an image, a video, a voice line, music or a sound
 effect and places it at the playhead. Each run shows its price first. Projects
