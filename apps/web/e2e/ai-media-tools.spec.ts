@@ -73,7 +73,8 @@ test("split vocals: four stems on four new audio tracks, one undo", async ({ pag
     await expect.poll(async () => (await aiTool(page, "stems", { clipId, stems: "all" })).price.kind).toBe("estimate");
     await aiRun(page, "stems", { clipId, stems: "all" });
     await expect.poll(async () => (await lastJob(page))?.status, { timeout: 60_000 }).not.toMatch(/queued|preparing|running/);
-    expect(await lastJob(page)).toMatchObject({ status: "succeeded" });
+    const finished = await lastJob(page);
+    expect(finished, JSON.stringify(finished)).toMatchObject({ status: "succeeded" });
     expect((await posts("/v1/audio/separations"))[0]!.body).toMatchObject({ model: "demucs", stems: "all" });
     expect((await items(page)).filter((c) => c.trackType === "audio")).toHaveLength(5);
     await execute(page, { type: "history.undo" });

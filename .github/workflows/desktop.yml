@@ -12,7 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, windows-latest, ubuntu-latest]
+        # node-gyp 11 supports VS 2022; windows-latest now uses VS 2026.
+        os: [macos-14, windows-2022, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -25,6 +26,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - uses: actions/setup-python@v5
+        if: runner.os == 'Windows'
+        with:
+          python-version: '3.12'
       - name: Linux packages and user namespaces for Chromium's sandbox
         if: runner.os == 'Linux'
         run: |

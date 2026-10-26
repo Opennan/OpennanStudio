@@ -19,6 +19,13 @@ describe("web media preparer helpers", () => {
         expect(audioContainer(purpose(["audio/mp4"]), 60, 44100)).toBe("mp4");
     });
 
+    it("uses accepted WAV when AAC is unavailable, while enforcing the destination's size and format limits", () => {
+        const stems = purpose(["audio/mp4", "audio/wav"], 50 * 1024 * 1024);
+        expect(audioContainer(stems, 3.2, 44100, false)).toBe("wav");
+        expect(() => audioContainer(stems, 900, 44100, false)).toThrow(/shorter range/i);
+        expect(() => audioContainer(purpose(["audio/mp4"]), 3.2, 44100, false)).toThrow(/AAC/i);
+    });
+
     it("encodes 16-bit mono PCM WAV", () => {
         const wav = encodeWav(new Float32Array([0, 1, -1, 0.5]), 16000);
         const view = new DataView(wav);

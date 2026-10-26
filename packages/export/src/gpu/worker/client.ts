@@ -88,7 +88,9 @@ export async function exportTimelineGpuInWorker(
 
     return new Promise<WorkerOutcome>((resolve, reject) => {
         let settled = false;
+        let watchdog: ReturnType<typeof setTimeout> | undefined;
         const cleanup = (terminateNow: boolean) => {
+            clearTimeout(watchdog);
             signal?.removeEventListener("abort", onAbort);
             stopRaster?.();
             channel.port1.close();
@@ -99,6 +101,16 @@ export async function exportTimelineGpuInWorker(
             settled = true;
             cleanup(terminateNow);
             finish();
+        };
+        // A driver/codec can stop fulfilling frame requests without raising a worker error.
+        // Give a stalled worker time to release its files, then use the compatible exporter.
+        const watch = () => {
+            clearTimeout(watchdog);
+            watchdog = setTimeout(() => {
+                worker.postMessage({ type: "cancel" } satisfies PageToWorker);
+                setTimeout(() => worker.terminate(), host.cancelGraceMs ?? 1500);
+                settle(() => resolve({ kind: "fallback", reason: "the fast export stopped responding" }), false);
+            }, 60_000);
         };
         const onAbort = () => {
             worker.postMessage({ type: "cancel" } satisfies PageToWorker);
@@ -117,9 +129,12 @@ export async function exportTimelineGpuInWorker(
             if (settled) return;
             switch (message.type) {
                 case "progress":
+                    watch();
                     options.onProgress?.({ ...message.progress, engine: "gpu" });
                     break;
                 case "mux": {
+                    // Main's mux has its own progress/cancellation; it may outlive a frame timeout.
+                    clearTimeout(watchdog);
                     const runner = options.runner;
                     const stepOptions = {
                         container: message.container, signal,
@@ -162,6 +177,7 @@ export async function exportTimelineGpuInWorker(
                     break;
             }
         });
+        watch();
         worker.postMessage({
             type: "start", input, settings, media, fonts, opfs: Boolean(host.opfs), rasterPort: channel.port2,
             codecs: options.gpu.codecs as string[] | undefined,

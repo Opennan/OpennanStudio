@@ -32,6 +32,7 @@ export function AgentChatPanel({ projectId, projectName }: { projectId: string; 
     const bridge = window.opennan;
     const [profile, setProfile] = useState<ChatProfile>(() => read(window.localStorage, PROFILE_KEY) === "codex" ? "codex" : "claude");
     const [state, setState] = useState<ChatState | null>(null);
+    const [editorReady, setEditorReady] = useState(false);
     const [available, setAvailable] = useState<ChatAvailability[] | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -48,6 +49,21 @@ export function AgentChatPanel({ projectId, projectName }: { projectId: string; 
         finally { setRefreshing(false); }
     };
     useEffect(() => { void refresh(); }, [bridge]);
+    useEffect(() => {
+        let alive = true;
+        let timer: ReturnType<typeof setTimeout>;
+        setEditorReady(false);
+        const check = async () => {
+            try {
+                const info = await bridge.mcp.info();
+                if (!alive) return;
+                if (info.running && info.projectId === projectId) { setEditorReady(true); return; }
+            } catch { /* The editor may still be attaching its session. */ }
+            if (alive) timer = setTimeout(() => void check(), 250);
+        };
+        void check();
+        return () => { alive = false; clearTimeout(timer); };
+    }, [bridge, projectId]);
     useEffect(() => {
         let alive = true;
         let changed = false;
@@ -70,7 +86,7 @@ export function AgentChatPanel({ projectId, projectName }: { projectId: string; 
         write(window.sessionStorage, draftKey(projectId, profile), value);
     };
     const send = async () => {
-        if (!draft.trim() || draft.length > 12_000 || busy || submittingRef.current || !state) return;
+        if (!draft.trim() || draft.length > 12_000 || busy || submittingRef.current || !state || !editorReady) return;
         submittingRef.current = true;
         setSubmitting(true);
         setError(null);
@@ -129,14 +145,14 @@ export function AgentChatPanel({ projectId, projectName }: { projectId: string; 
             {(error || state?.error) && <p className="agent-chat-error small" role="alert">{error || state?.error}</p>}
             <form className="agent-chat-composer" onSubmit={(e) => { e.preventDefault(); void send(); }}>
                 <label className="sr-only" htmlFor="chat-message">Message your AI agent</label>
-                <textarea id="chat-message" ref={input} className="input" rows={3} value={draft} maxLength={12_000} placeholder="Ask for an edit…" onChange={(e) => updateDraft(e.target.value)} onKeyDown={(e) => {
+                <textarea id="chat-message" ref={input} className="input" rows={3} value={draft} disabled={!state || !editorReady} maxLength={12_000} placeholder={state && editorReady ? "Ask for an edit…" : "Connecting to the editor…"} onChange={(e) => updateDraft(e.target.value)} onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); }
                     e.stopPropagation();
                 }} />
                 <div className="agent-chat-send-row">
                     <span className="muted small">Shift+Enter for a new line</span>
                     {busy ? <button type="button" className="button small" disabled={state?.stopping || submitting} onClick={() => void stop()}>Stop</button>
-                        : <button type="submit" className="button primary small" disabled={!draft.trim() || !state || !connection?.subscription}>Send</button>}
+                        : <button type="submit" className="button primary small" disabled={!draft.trim() || !state || !editorReady || !connection?.subscription}>Send</button>}
                 </div>
             </form>
             <McpConnection projectId={projectId} />

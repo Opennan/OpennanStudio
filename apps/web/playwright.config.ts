@@ -4,7 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
  * AI specs that read or turn the fake OpenNan server's global state (requests, uploads, balance, knobs): one worker,
  * after the parallel suite (package.json e2e).
  */
-const SERIAL_AI_SPECS = /(ai-(jobs|captions-cloud|media-tools|isolate-voice|generate|temp-upload))\.spec\.ts/;
+const SERIAL_AI_SPECS = /(ai-(jobs|captions-cloud|media-tools|isolate-voice|generate|temp-upload|local-cuts))\.spec\.ts/;
 
 export default defineConfig({
     testDir: "e2e",

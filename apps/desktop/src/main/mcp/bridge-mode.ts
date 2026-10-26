@@ -1,4 +1,4 @@
-// `OpenNan Studio --mcp-bridge --url <loopback url> --token-file <file>`: the stdio MCP server child CLIs
+// `OpenNan Studio --mcp-bridge --token-file <file> --url <loopback url>`: the stdio MCP server child CLIs
 // launch from their config. It forwards to the app's HTTP server (startBridge) and does nothing else: no
 // window, no IPC, loopback URLs only, a small regular token file only. This keeps the RunAsNode fuse off
 // (a general-purpose Node runtime inside the signed app) while CLIs still get a stdio entry.
@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isLoopbackHttpUrl, startBridge } from "@opennan/mcp";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 export const BRIDGE_FLAG = "--mcp-bridge";
 
@@ -21,7 +22,7 @@ function valueOf(argv: readonly string[], name: string): string | null {
 export function parseBridgeArgs(argv: readonly string[]): { url: string; tokenFile: string } {
     const url = valueOf(argv, "--url");
     const tokenFile = valueOf(argv, "--token-file");
-    if (!url || !tokenFile) throw new Error("usage: --mcp-bridge --url <http://127.0.0.1:port/mcp> --token-file <file>");
+    if (!url || !tokenFile) throw new Error("usage: --mcp-bridge --token-file <file> --url <http://127.0.0.1:port/mcp>");
     let parsed: URL;
     try {
         parsed = new URL(url);
@@ -45,6 +46,7 @@ export function readBridgeToken(tokenFile: string): string {
 
 export interface BridgeApp {
     dock?: { hide(): void };
+    on(event: "window-all-closed", listener: () => void): unknown;
     disableHardwareAcceleration(): void;
     setPath(name: "userData", value: string): void;
     quit(): void;
@@ -52,15 +54,28 @@ export interface BridgeApp {
 }
 
 export async function runBridgeMode(argv: readonly string[], app: BridgeApp): Promise<void> {
+    // This process lives until the MCP client closes stdin, with no editor windows.
+    app.on("window-all-closed", () => undefined);
     app.dock?.hide();
     app.disableHardwareAcceleration();
     app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "opennan-bridge-")));
     try {
         const { url, tokenFile } = parseBridgeArgs(argv);
         readBridgeToken(tokenFile);
+        // Electron's Windows process.stdin wrapper can be unreadable even though fd 0 is a valid pipe.
+        // Keep ownership of the standard descriptor with the process, rather than auto-closing it.
+        const input = process.platform === "win32" ? fs.createReadStream("", { fd: 0, autoClose: false }) : process.stdin;
+        const transport = new StdioServerTransport(input, process.stdout);
         // Read again before every connection attempt: the app writes a new token each time it starts.
-        const bridge = await startBridge({ url, token: () => readBridgeToken(tokenFile) });
+        const bridge = await startBridge({ url, token: () => readBridgeToken(tokenFile), transport });
+        const close = () => { void bridge.close(); };
+        input.once("end", close);
+        input.once("error", close);
+        if (input.readableEnded) close();
         await bridge.closed;
+        input.off("end", close);
+        input.off("error", close);
+        if (input !== process.stdin) input.destroy();
         app.quit();
     } catch (error) {
         process.stderr.write(`opennan-studio bridge: ${error instanceof Error ? error.message : String(error)}\n`);

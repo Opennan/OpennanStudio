@@ -130,7 +130,8 @@ export function findBundledCore(dir) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-    const output = execFileSync("pnpm", [...SHIPPED_FILTERS.flatMap((f) => ["--filter", f]), "licenses", "list", "--prod", "--json"], {
+    const pnpm = process.env.npm_execpath;
+    const output = execFileSync(pnpm ? process.execPath : "pnpm", [...(pnpm ? [pnpm] : []), ...SHIPPED_FILTERS.flatMap((f) => ["--filter", f]), "licenses", "list", "--prod", "--json"], {
         cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
     });
     let report;

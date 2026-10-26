@@ -55,7 +55,8 @@ export async function launchStudio(options: { prepare?(userData: string): void; 
     options.prepare?.(userData);
     const exportsDir = path.join(userData, "exports");
     const app = await _electron.launch({
-        args: [APP_DIR],
+        // Hosted Linux runners have no GPU; use Chromium's software GLES backend.
+        args: [APP_DIR, ...(process.platform === "linux" ? ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : [])],
         env: { ...process.env, OPENNAN_STUDIO_USER_DATA: userData, OPENNAN_STUDIO_EXPORTS_DIR: exportsDir, OPENNAN_STUDIO_E2E: "1", OPENNAN_DISABLE_UPDATES: "1", ...(options.env ?? {}) },
     });
     const page = await app.firstWindow();

@@ -36,6 +36,7 @@ test("subscription chat on a local project: real MCP editing, multiline input, r
         await page.locator("#right-dock-tab-inspector").click();
         await page.locator("#right-dock-tab-ai").click();
         await expect(input).toHaveValue("Add a title\nKeep it for three seconds.");
+        await expect(input).toBeEditable();
         await input.press("Enter");
         await expect(panel.getByRole("log")).toContainText("Added a title through MCP using claude.");
         await expect.poll(async () => (await snapshot(page)).clips.some((c) => c.textContent === "Made by claude")).toBe(true);

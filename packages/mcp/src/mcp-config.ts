@@ -8,7 +8,7 @@ export const MCP_CLIENTS = ["claude", "codex", "gemini", "opencode", "antigravit
 export type McpClient = (typeof MCP_CLIENTS)[number];
 
 export type McpLaunch =
-    | { transport: "stdio"; command: string; args: string[] }
+    | { transport: "stdio"; command: string; args: string[]; env?: Record<string, string> }
     | { transport: "http"; url: string; tokenEnv?: string };
 
 export interface ConfigSnippet {
@@ -33,10 +33,10 @@ const END = (name: string) => `# <<< ${name}`;
 
 function jsonEntry(client: McpClient, launch: McpLaunch): Record<string, unknown> {
     if (client === "opencode") return launch.transport === "stdio"
-        ? { type: "local", command: [launch.command, ...launch.args], enabled: true }
+        ? { type: "local", command: [launch.command, ...launch.args], enabled: true, ...(launch.env ? { environment: launch.env } : {}) }
         : { type: "remote", url: launch.url, headers: { Authorization: `Bearer {env:${launch.tokenEnv ?? TOKEN_ENV}}` }, enabled: true };
     if (launch.transport === "stdio") {
-        return client === "claude" ? { type: "stdio", command: launch.command, args: launch.args, env: {} } : { command: launch.command, args: launch.args };
+        return client === "claude" ? { type: "stdio", command: launch.command, args: launch.args, env: launch.env ?? {} } : { command: launch.command, args: launch.args, ...(launch.env ? { env: launch.env } : {}) };
     }
     const authorization = `Bearer \${${launch.tokenEnv ?? TOKEN_ENV}}`;
     if (client === "antigravity") return { serverUrl: launch.url, headers: { Authorization: authorization } };
@@ -49,6 +49,10 @@ function tomlEntry(name: string, launch: McpLaunch): string {
     const lines = [BEGIN(name), `[mcp_servers.${name}]`];
     if (launch.transport === "stdio") {
         lines.push(`command = ${JSON.stringify(launch.command)}`, `args = [${launch.args.map((a) => JSON.stringify(a)).join(", ")}]`);
+        if (launch.env) {
+            lines.push(`[mcp_servers.${name}.env]`);
+            for (const [key, value] of Object.entries(launch.env)) lines.push(`${JSON.stringify(key)} = ${JSON.stringify(value)}`);
+        }
     } else {
         lines.push(`url = ${JSON.stringify(launch.url)}`, `bearer_token_env_var = ${JSON.stringify(launch.tokenEnv ?? TOKEN_ENV)}`);
     }

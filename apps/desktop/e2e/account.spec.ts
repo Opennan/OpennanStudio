@@ -53,10 +53,21 @@ test("Sign in with OpenNan: browser opened by main, key only in main, restart, G
             await rendererHasNoKey(page);
         });
 
-        await test.step("restart: still signed in", async () => {
+        const persistent = await studio.app.evaluate(({ safeStorage }) => safeStorage.isEncryptionAvailable()
+            && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"));
+        await test.step("restart respects the system key storage", async () => {
             await studio!.close();
             studio = await launchStudio({ userData, env, keepUserData: true });
             page = studio.page;
+            if (!persistent) {
+                await expect(page.locator(".account-chip")).toHaveText("Sign in");
+                await recordOpenExternal(studio.app);
+                await page.locator(".account-chip").click();
+                const modal = page.locator(".signin");
+                await modal.getByRole("button", { name: "Sign in with OpenNan" }).click();
+                await expect(modal).toHaveAttribute("data-state", "waiting");
+                expect(fake.approve((await modal.locator(".signin-code-text").textContent())!.trim())).toBe(true);
+            }
             await expect(page.locator(".account-chip")).toContainText("$12.40", { timeout: 15_000 });
             await rendererHasNoKey(page);
         });

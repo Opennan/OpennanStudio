@@ -123,7 +123,8 @@ test("AI tools: isolate voice uploads from main to the fake OpenNan; stabilize r
         });
 
         await test.step("stabilize on this device: a stacked video clip, no request to the server", async () => {
-            const requestsBefore = fake.state().requests.length;
+            const processingRequests = () => fake.state().requests.filter((request) => !(request.method === "GET" && request.path === "/v1/account"));
+            const requestsBefore = processingRequests().length;
             const [scene] = (await snapshot(page)).scenes;
             const command = await plan(page, "stabilize", { sceneId: scene.id });
             expect(command).toMatchObject({ capability: "media.stabilize", placeAt: { kind: "stack-video" } });
@@ -136,7 +137,7 @@ test("AI tools: isolate voice uploads from main to the fake OpenNan; stabilize r
             expect(stacked).toMatchObject({ trackType: "video", mediaUrl: expect.stringMatching(/^opennan-local:\/\/media\//) });
             expect(stacked.trackIndex).toBeGreaterThan(1);
             expect(stacked.endTime - stacked.startTime).toBeCloseTo(scene.duration, 1);
-            expect(fake.state().requests.length).toBe(requestsBefore);
+            expect(processingRequests().length).toBe(requestsBefore);
             await waitForSaves(page);
             await rendererHasNoKey(page);
         });

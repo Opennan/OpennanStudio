@@ -78,7 +78,7 @@ function extensionOf(name: string): string | null {
 export function createMediaStore(options: MediaStoreOptions): MediaStore {
     const { db } = options;
     fs.mkdirSync(options.root, { recursive: true, mode: 0o700 });
-    const realRoot = fs.realpathSync(options.root);
+    const realRoot = fs.realpathSync.native(options.root);
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
     const now = options.now ?? Date.now;
     const insert = db.prepare(
@@ -188,7 +188,7 @@ export function createMediaStore(options: MediaStoreOptions): MediaStore {
             const row = store.info(id);
             if (!row || !STORED_NAME.test(row.fileName) || !row.fileName.startsWith(id)) return null;
             try {
-                const real = fs.realpathSync(path.join(realRoot, row.fileName));
+                const real = fs.realpathSync.native(path.join(realRoot, row.fileName));
                 return isInside(real, realRoot) && real !== realRoot ? real : null;
             } catch {
                 return null;
