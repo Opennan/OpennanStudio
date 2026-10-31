@@ -3,11 +3,12 @@ import { CAPABILITY_TOOLS } from "./tools/capability";
 import { PIPELINE_TOOLS } from "./tools/pipelines";
 import { EDITOR_TOOLS } from "./tools/editor";
 import { NOT_EXPOSED_TOOLS } from "./tools/not-exposed";
+import { STORY_FILM_TOOLS } from "./tools/story-film";
 import { STUDIO_CAPABILITY_TOOLS } from "./tools/studio-capability";
 import type { NotExposedTool, ToolDefinition } from "./types";
 
-/** Every tool the MCP server lists: offline editor tools first, then capability tools (OpenNan names, then Studio additions), then the project pipeline host tools. */
-export const STUDIO_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...CAPABILITY_TOOLS, ...STUDIO_CAPABILITY_TOOLS, ...PIPELINE_TOOLS];
+/** Every tool the MCP server lists: offline editor tools first, then capability tools (OpenNan names, then Studio additions), then the project pipeline host tools, then story film. */
+export const STUDIO_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...CAPABILITY_TOOLS, ...STUDIO_CAPABILITY_TOOLS, ...PIPELINE_TOOLS, ...STORY_FILM_TOOLS];
 
 const BY_NAME = new Map(STUDIO_TOOLS.map((tool) => [tool.name, tool]));
 
@@ -26,4 +27,4 @@ export function toolCoverage(): CoverageRow[] {
     return [...exposed, ...hidden];
 }
 
-export { EDITOR_TOOLS, CAPABILITY_TOOLS, STUDIO_CAPABILITY_TOOLS, PIPELINE_TOOLS, NOT_EXPOSED_TOOLS };
+export { EDITOR_TOOLS, CAPABILITY_TOOLS, STUDIO_CAPABILITY_TOOLS, PIPELINE_TOOLS, STORY_FILM_TOOLS, NOT_EXPOSED_TOOLS };

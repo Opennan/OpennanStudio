@@ -7,5 +7,5 @@ export default defineConfig({
     plugins: [react()],
     resolve: { alias: workspaceAliases() },
     // auto-captions.css is processed so its ?raw import has the text (the token check reads it).
-    test: { environment: "jsdom", globals: true, include: ["src/**/*.test.ts"], css: { include: [/auto-captions\.css/, /account\.css/, /generate\.css/, /settings\.css/, /cloud\.css/, /director\.css/, /share\.css/] } },
+    test: { environment: "jsdom", globals: true, include: ["src/**/*.test.ts"], css: { include: [/auto-captions\.css/, /account\.css/, /generate\.css/, /settings\.css/, /cloud\.css/, /director\.css/, /share\.css/, /story-film\.css/] } },
 });

@@ -169,7 +169,7 @@ describe("createStudioMcpServer", () => {
         const { client, call, close } = await connect({ tools: toolsForPreset("offline") });
         const { tools } = await client.listTools();
         expect(tools.map((tool) => tool.name)).toEqual(toolsForPreset("offline").map((tool) => tool.name));
-        expect(tools).toHaveLength(67);
+        expect(tools).toHaveLength(71);
         await expect(call("generate_video", { prompt: "x" })).rejects.toThrow(/Unknown tool: generate_video/);
         await expect(call("plan_scenes", {})).rejects.toThrow(/Unknown tool: plan_scenes/);
         await close();

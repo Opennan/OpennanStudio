@@ -17,7 +17,7 @@ export interface FakeAiHost extends TimelineAiHost {
     change(): void;
 }
 
-export function fakeAiHost(views: FakeToolViews = {}, extra: Partial<Pick<TimelineAiHost, "openGenerate" | "openAutoCaptions">> = {}): FakeAiHost {
+export function fakeAiHost(views: FakeToolViews = {}, extra: Partial<Pick<TimelineAiHost, "openGenerate" | "openAutoCaptions" | "openStoryFilm">> = {}): FakeAiHost {
     const listeners = new Set<() => void>();
     let version = 0;
     const host: FakeAiHost = {

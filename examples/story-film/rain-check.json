@@ -1,0 +1,126 @@
+{
+  "title": "Rain Check",
+  "style": "classic 2D hand-drawn animated feature film still, clean expressive ink linework, flat cel-shaded characters, painterly gouache backgrounds, soft overcast London palette of greys and creams with warm accents, mid-century European illustration feel, cinematic 16:9 composition, no text, no watermark",
+  "characters": [
+    {
+      "id": "theo",
+      "name": "Theo",
+      "look": "tall lanky young man, curly ginger hair, freckles, round tortoiseshell glasses, mustard-yellow cardigan over white shirt, brown trousers, brown shoes, long thin limbs, expressive rubbery cartoon poses"
+    },
+    {
+      "id": "mae",
+      "name": "Mae",
+      "look": "graceful young woman, long wavy chestnut hair in a low ponytail, teal knee-length swing coat, cream scarf, small brown ankle boots, calm amused expression, elegant posture"
+    }
+  ],
+  "shots": [
+    {
+      "id": "s01",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "Wide shot of a quiet Georgian London street with white terraced houses and black iron railings. Mae walks along the pavement. Theo stands frozen mid-step holding a newspaper, staring at her, love-struck.",
+      "motion": "Mae walks left to right past Theo. Theo's head slowly turns to follow her, the newspaper slips from his hands and flutters to the ground, he leans back dramatically with a dreamy smile. Static camera."
+    },
+    {
+      "id": "s02",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "Medium shot on the pavement. Theo hurries beside Mae holding out a big bunch of red tulips with both hands, eager grin. Mae glances sideways at him with one eyebrow raised.",
+      "motion": "Theo walks backwards beside Mae offering the tulips, bobbing eagerly. Mae keeps walking, raises an eyebrow, a tiny smile appears at the corner of her mouth. Camera tracks alongside."
+    },
+    {
+      "id": "s03",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "A London square with a stone fountain and many grey pigeons on the ground. Theo crouches scattering breadcrumbs. Mae stands nearby looking up.",
+      "motion": "The pigeons burst into flight and swirl upward, forming a large heart shape in the sky above Mae. Mae looks up in surprise, her ponytail swinging. Theo spreads his arms proudly. Camera tilts up slightly."
+    },
+    {
+      "id": "s04",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "London Underground with two long parallel escalators, warm wall lamps, tiled walls. Mae rides the up escalator calmly. Theo is on the neighbouring down escalator facing her.",
+      "motion": "Theo turns and runs up the down escalator, legs flailing comically, trying to keep pace with Mae who rides up calmly and glances at him. Camera holds."
+    },
+    {
+      "id": "s05",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "Inside a cosy London cafe, view from inside. Mae sits at a window table with a cup of tea. Outside the rain-free window, Theo presses a blank sheet of paper against the glass with a hopeful grin.",
+      "motion": "Theo flips the paper and taps the glass hopefully, grinning. Mae lifts her teacup to hide a smile and looks away, her cheeks slightly pink. Steam rises from the tea. Static camera."
+    },
+    {
+      "id": "s06",
+      "cast": [
+        "mae"
+      ],
+      "frame": "Medium shot on a London street under a darkening grey sky. Mae holds out her open palm, looking up at heavy clouds. She has no umbrella.",
+      "motion": "First raindrops begin to fall, a drop lands on Mae's palm, she looks up at the clouds with a small frown and pulls her scarf closer. Rain slowly increases. Slow push in."
+    },
+    {
+      "id": "s07",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "Rainy London street. Theo holds a large open black umbrella entirely over Mae while he himself stands outside it in the pouring rain, soaked, smiling proudly.",
+      "motion": "Theo pushes the big black umbrella fully over Mae and steps out from under it into the pouring rain. Rain soaks Theo, his curls flatten and drip, he keeps smiling proudly. Mae looks at him, surprised. Static camera."
+    },
+    {
+      "id": "s08",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "A red London bus stop in heavy rain with a big puddle at the kerb. Mae stands under the shelter. Theo stands at the kerb in front of her holding the black umbrella sideways like a shield. A red double-decker bus approaches.",
+      "motion": "The red double-decker bus drives through the puddle and throws a huge wave of water. Theo jumps in front and takes the whole splash with the umbrella and his body, Mae stays completely dry behind him. Camera holds wide."
+    },
+    {
+      "id": "s09",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "Close-up two-shot in the rain. Mae, with her long wavy chestnut hair in a low ponytail and teal coat, holds the black umbrella and looks at Theo, who stands beside her dripping wet, glasses fogged, ginger curls flattened.",
+      "motion": "Mae looks at soaked Theo, presses her hand to her mouth and bursts out laughing, her cheeks blush. Theo wipes his fogged glasses and grins sheepishly. Rain falls. Gentle push in."
+    },
+    {
+      "id": "s10",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "A charming old umbrella shop on a rainy London street at dusk, warm golden light glowing from its window full of colourful umbrellas. Mae stands at the shop door. Theo waits outside under the rain holding the black umbrella.",
+      "motion": "Mae smiles, opens the shop door and ducks inside, the door bell swinging. Theo is left outside in the rain, confused, tilting his head. Warm light flickers. Static camera."
+    },
+    {
+      "id": "s11",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "Outside the warm-lit umbrella shop in the rain. Mae steps out holding a new bright yellow umbrella. Theo stands in front of her, wet, holding the black umbrella.",
+      "motion": "Mae opens the bright yellow umbrella and lifts it over Theo's head, shielding him. Theo freezes, stunned, then breaks into a huge happy smile. Rain sparkles in the shop light. Slow push in."
+    },
+    {
+      "id": "s12",
+      "cast": [
+        "theo",
+        "mae"
+      ],
+      "frame": "Wide shot from behind of a long rainy cobbled London street with reflections in puddles. Theo and Mae walk away side by side, close together, under one black umbrella and one bright yellow umbrella.",
+      "motion": "Theo and Mae walk slowly away down the rainy street side by side, their umbrellas touching, Mae leans her head toward Theo. Rain falls softly, reflections shimmer. Camera slowly rises."
+    }
+  ],
+  "music": "gentle romantic instrumental for a hand-drawn animated short film, light jazz waltz, brushed drums, upright bass, celesta and pizzicato strings, playful at the start then warm and tender, soft rain-day mood, no vocals"
+}

@@ -12,6 +12,7 @@ import { MOTION_HANDLERS } from "./motion";
 import { PIPELINE_HANDLERS } from "./pipelines";
 import { READ_HANDLERS } from "./read";
 import { SCENE_HANDLERS } from "./scenes";
+import { STORY_FILM_HANDLERS } from "./story-film";
 import { TRACKING_HANDLERS } from "./tracking";
 import { TRANSCRIBE_HANDLERS } from "./transcribe";
 import type { ToolHandler } from "./types";
@@ -34,6 +35,8 @@ export const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
     ...AI_TOOL_HANDLERS,
     // Phase 9b: OpenNan project pipelines (and plan_scenes / set_project_script); no current host supplies them.
     ...PIPELINE_HANDLERS,
+    // Story film: a consistent-character animated short in a reel frame, over the host's providers.
+    ...STORY_FILM_HANDLERS,
 };
 
 export type { ToolContext, ToolHandler } from "./types";

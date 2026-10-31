@@ -10,7 +10,7 @@ import { writeProjectFile } from "./project-file";
 import { connectInMemory } from "./testing/connect";
 import { fixtureProject } from "./testing/fixture";
 import { openHeadlessProject } from "./headless";
-import { MEDIA_TOOLS_NEED_FFMPEG, ONLY_PROJECT_MEDIA, createFfmpegAnalyzer, createHeadlessMediaPreparer, projectMediaPath } from "./headless-media";
+import { MEDIA_TOOLS_NEED_FFMPEG, ONLY_PROJECT_MEDIA, createFfmpegAnalyzer, createHeadlessMediaPreparer, createStorySheetMaker, projectMediaPath } from "./headless-media";
 
 // Same lookup as headless.test.ts: OPENNAN_FFMPEG / OPENNAN_FFPROBE, else Homebrew.
 const FFMPEG = process.env.OPENNAN_FFMPEG ?? "/opt/homebrew/bin/ffmpeg";
@@ -138,4 +138,24 @@ describe("headless media", () => {
             await studio.close();
         }
     }, 60_000);
+});
+
+describe("story film contact sheet", () => {
+    it.skipIf(!HAS_FFMPEG)("tiles 16 evenly spaced frames of a project video, four across, on one JPEG saved to the project", async () => {
+        const file = path.join(mediaDir, "clip");
+        execFileSync(FFMPEG, ["-v", "error", "-f", "lavfi", "-i", "testsrc=duration=8:size=320x180:rate=10", "-c:v", "libvpx-vp9", "-f", "webm", "-y", file]);
+        const saved: Array<{ name: string; type: string; size: number }> = [];
+        const make = createStorySheetMaker({
+            mediaDir, ffmpeg: { ffmpegPath: FFMPEG, ffprobePath: FFPROBE },
+            save: async (blob, name) => {
+                saved.push({ name, type: blob.type, size: blob.size });
+                return "opennan-local://media/sheet";
+            },
+        });
+        const sheet = await make("opennan-local://media/clip", 16);
+        expect(sheet).toEqual({ url: "opennan-local://media/sheet", frames: 16, everySeconds: 0.5, durationSeconds: 8 });
+        expect(saved).toEqual([{ name: "story-frames.jpg", type: "image/jpeg", size: expect.any(Number) }]);
+        expect(saved[0]!.size).toBeGreaterThan(1000);
+        await expect(make("https://example.com/v.mp4", 16)).rejects.toThrow(ONLY_PROJECT_MEDIA);
+    });
 });

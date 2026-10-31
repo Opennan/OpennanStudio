@@ -183,3 +183,37 @@ export function createFfmpegAnalyzer(options: { mediaDir: string; ffmpegPath: st
         },
     };
 }
+
+export interface StorySheetOptions {
+    mediaDir: string;
+    ffmpeg: { ffmpegPath: string; ffprobePath: string };
+    /** Stores the sheet in the project's media and answers its URL. */
+    save(file: Blob, name: string): Promise<string>;
+    run?: typeof runProcess;
+}
+
+/** Story film's copy step on `mcp serve --ffmpeg`: evenly spaced frames of a project video tiled 4 across on one JPEG. */
+export function createStorySheetMaker(options: StorySheetOptions) {
+    const run = options.run ?? runProcess;
+    return async (mediaUrl: string, frames: number, signal?: AbortSignal) => {
+        const file = projectMediaPath(options.mediaDir, mediaUrl);
+        if (!file) throw new Error(ONLY_PROJECT_MEDIA);
+        const info = await probeFile(options.ffmpeg.ffprobePath, file, signal, INPUT_GUARDS).catch(() => null);
+        const duration = info?.durationSeconds;
+        if (!duration || !(duration > 0)) throw new Error("The video's length could not be read.");
+        const count = Math.max(4, Math.min(24, Math.round(frames)));
+        const rows = Math.ceil(count / 4);
+        const dir = await fs.mkdtemp(path.join(tmpdir(), "opennan-sheet-"));
+        try {
+            const out = path.join(dir, "sheet.jpg");
+            const filter = `fps=${count}/${duration.toFixed(3)},scale=480:-2,tile=4x${rows}`;
+            const result = await run(options.ffmpeg.ffmpegPath, [...QUIET, ...inputArgs(file, undefined, undefined), "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", filter, "-frames:v", "1", "-q:v", "3", "-y", out], { signal });
+            if (result.code !== 0) throw new Error(`ffmpeg could not sample the frames: ${result.stderr.trim().split("\n").pop() ?? "unknown error"}`);
+            const bytes = await fs.readFile(out);
+            const url = await options.save(new Blob([bytes], { type: "image/jpeg" }), "story-frames.jpg");
+            return { url, frames: count, everySeconds: duration / count, durationSeconds: duration };
+        } finally {
+            await fs.rm(dir, { recursive: true, force: true });
+        }
+    };
+}

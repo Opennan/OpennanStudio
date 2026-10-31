@@ -199,11 +199,27 @@ export function estimateSoundEffectCost(block: ToolPriceBlock | null | undefined
 export interface ImageModelPrice {
     from_usd?: number;
     per_input_image_usd?: number;
+    /** Every quality / size a call may send, priced without input images (null: the model's default). */
+    tiers?: ReadonlyArray<{ quality?: string | null; size?: string | null; usd?: number }>;
 }
 
-/** A call without quality or size is charged from_usd, plus per_input_image_usd for each input image. */
-export function estimateImageCost(price: ImageModelPrice | null | undefined, inputImages: number): CostEstimate | null {
-    const base = money(price?.from_usd);
+/** The quality and size a call sends (absent: the model's default, its from price). */
+export interface ImageTier {
+    quality?: string;
+    size?: string;
+}
+
+/**
+ * A call is charged its tier's price (from_usd without quality or size; with them, the worst tier that matches what
+ * it sends), plus per_input_image_usd for each input image. A quality or size the model lists no tier for is null.
+ */
+export function estimateImageCost(price: ImageModelPrice | null | undefined, inputImages: number, tier: ImageTier = {}): CostEstimate | null {
+    let base = money(price?.from_usd);
+    if (tier.quality !== undefined || tier.size !== undefined) {
+        const rows = (price?.tiers ?? []).filter((row) => (tier.quality === undefined || row.quality === tier.quality) && (tier.size === undefined || row.size === tier.size));
+        const prices = rows.map((row) => money(row.usd)).filter((usd): usd is number => usd !== null);
+        base = prices.length > 0 ? Math.max(...prices) : null;
+    }
     if (base === null) return null;
     const perImage = money(price?.per_input_image_usd) ?? 0;
     const microUsd = base + perImage * Math.max(0, inputImages) + ROUNDING_MICRO_USD;
@@ -216,12 +232,19 @@ export interface VideoModelPrice {
     matrix?: ReadonlyArray<{ ours_usd?: number; duration?: number; ours_usd_per_second?: number; quality?: string | null; audio?: boolean }>;
 }
 
+/** The quality a call sends and whether it asks for sound (absent: any row counts, the worst one prices it). */
+export interface VideoTier {
+    quality?: string;
+    audio?: boolean;
+}
+
 /**
- * The worst per-second price among the model's rows × the asked duration. Exact for the catalog's per-second and
- * flat-per-length video rows; a row priced above linear in length would need a quote (recorded owner item).
+ * The worst per-second price among the model's rows (those of the call's quality and audio choice, when given) × the
+ * asked duration. Exact for the catalog's per-second and flat-per-length video rows; a row priced above linear in
+ * length would need a quote (recorded owner item). No row of that quality: null.
  */
-export function estimateVideoModelCost(price: VideoModelPrice | null | undefined, seconds: number): CostEstimate | null {
-    const rows = price?.matrix ?? [];
+export function estimateVideoModelCost(price: VideoModelPrice | null | undefined, seconds: number, tier: VideoTier = {}): CostEstimate | null {
+    const rows = (price?.matrix ?? []).filter((row) => (tier.quality === undefined || row.quality === tier.quality) && (tier.audio === undefined || Boolean(row.audio) === tier.audio));
     // Micro-dollars per second, rounded up: from the row's own price and length when both are given (the published
     // per-second figure is rounded to the nearest micro-dollar), else the per-second figure itself.
     let worst = 0;
@@ -234,6 +257,39 @@ export function estimateVideoModelCost(price: VideoModelPrice | null | undefined
     if (worst <= 0 || !Number.isFinite(seconds) || seconds <= 0) return null;
     const microUsd = Math.ceil((worst + ROUNDING_MICRO_USD) * seconds - 1e-6);
     return { microUsd, usd: microUsd / 1_000_000, label: formatUsdEstimate(microUsd), units: seconds, capped: false };
+}
+
+/** Text model price (GET /v1/models category text): dollars per million input and output tokens. */
+export interface TextModelPrice {
+    input_usd?: number;
+    output_usd?: number;
+}
+
+/** Tokens a text call may bill: an upper bound of its prompt, and the output cap it sends (max_tokens). */
+export interface TextTokens {
+    promptTokens: number;
+    maxTokens: number;
+}
+
+/**
+ * A text call settles on the tokens it used, never more than its prompt plus max_tokens of output (reasoning counts
+ * as output): the prompt bound × the input price + max_tokens × the output price, rounded up, plus a micro-dollar.
+ */
+export function estimateTextCost(price: TextModelPrice | null | undefined, tokens: TextTokens): CostEstimate | null {
+    const input = positive(price?.input_usd);
+    const output = positive(price?.output_usd);
+    if (input === null || output === null) return null;
+    if (!Number.isFinite(tokens.promptTokens) || !Number.isFinite(tokens.maxTokens) || tokens.promptTokens < 0 || tokens.maxTokens <= 0) return null;
+    const microUsd = Math.ceil(input * tokens.promptTokens + output * tokens.maxTokens - 1e-6) + ROUNDING_MICRO_USD;
+    return { microUsd, usd: microUsd / 1_000_000, label: formatUsdEstimate(microUsd), units: tokens.promptTokens + tokens.maxTokens, capped: false };
+}
+
+/**
+ * An upper bound of the tokens a prompt bills: every character a token (the server's own count is lower on any text),
+ * a few per message, and each image at `imageTokens` (the most a model counts for one).
+ */
+export function promptTokenBound(texts: readonly string[], images: number, imageTokens = 16_384): number {
+    return texts.reduce((sum, text) => sum + [...text].length, 0) + 8 * texts.length + 32 + Math.max(0, images) * imageTokens;
 }
 
 /** Speech model price (Kokoro): per started block of billing_block_characters at minimum_usd a block. */

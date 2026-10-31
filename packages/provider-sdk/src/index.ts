@@ -14,8 +14,8 @@ export type {
 } from "./types";
 export {
     BILLING_SAFETY, captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateSoundEffectCost, estimateStemsCost, estimateToolCost,
-    estimateVideoModelCost, estimateVoiceCost, formatUsdEstimate, displayedUsd, isOverLimit, startedUnits, toMicroUsd, paddedSeconds, quotedEstimate,
-    type ToolPriceBlock, type PriceUnits, type CostEstimate, type OverLimit, type ImageModelPrice, type VideoModelPrice, type VoiceModelPrice, type StemsModelPrice,
+    estimateVideoModelCost, estimateVoiceCost, estimateTextCost, promptTokenBound, formatUsdEstimate, displayedUsd, isOverLimit, startedUnits, toMicroUsd, paddedSeconds, quotedEstimate,
+    type ToolPriceBlock, type PriceUnits, type CostEstimate, type OverLimit, type ImageModelPrice, type ImageTier, type VideoModelPrice, type VideoTier, type TextModelPrice, type TextTokens, type VoiceModelPrice, type StemsModelPrice,
 } from "./prices";
 export { parseMediaSourceRef, type MediaSourceRef, type MediaPrepareInput, type MediaPreparePurpose, type PreparedMedia, type MediaPreparer } from "./media-source";
 export { isCapabilityOutput, type CapabilityOutput, type GeneratedMedia, type GeneratedMediaKind } from "./capability-output";

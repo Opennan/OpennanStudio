@@ -34,6 +34,7 @@
         "@opennan/mcp-schema": "workspace:*",
         "@opennan/provider-opennan": "workspace:*",
         "@opennan/provider-sdk": "workspace:*",
+        "@opennan/story-film": "workspace:*",
         "@opennan/timeline-core": "workspace:*",
         "ajv": "^8.17.1",
         "zod": "^4.1.0"

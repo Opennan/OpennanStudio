@@ -14,6 +14,7 @@ import { createOpenNanCatalog, priceRun } from "./prices";
 import { createQuoteClient } from "./quotes";
 import type { OpenNanSession } from "./session";
 import { MIN_TASK_POLL_MS, runTask, costOf, type TaskBody } from "./tasks";
+import { runTextGenerate, runVideoDownload } from "./text";
 import { MEDIA_TOOL_CAPABILITIES, imageInput, runMediaTool, runTranscription, type ToolContext } from "./tools";
 import type { UploadCache } from "./uploads";
 
@@ -27,6 +28,20 @@ export const OPENNAN_PROVIDER_CAPABILITIES: ProviderCapability[] = [
     ...OPEN_CAPABILITIES.filter((c) => c !== "render.export" && !isLocalOnlyCapability(c)),
     ...OPENNAN_CAPABILITIES,
 ];
+
+/** Reference images an image call takes besides `image` (the server takes 10 in all), and a video call takes. */
+export const MAX_IMAGE_REFERENCES = 9;
+export const MAX_VIDEO_REFERENCES = 9;
+
+/** A list input of images (project images or https links), uploaded in order; absent is none. */
+async function imageList(ctx: ToolContext, capability: ProviderCapability, input: Input, name: string, max: number): Promise<string[]> {
+    const raw = input[name];
+    if (raw === undefined || raw === null) return [];
+    if (!Array.isArray(raw) || raw.length > max) throw new JobFailedError(`${name} must list at most ${max} images.`);
+    const urls: string[] = [];
+    for (const value of raw) urls.push((await imageInput(ctx, capability, { image: value }, "image", true))!);
+    return urls;
+}
 
 export const INSUFFICIENT_CREDITS_MESSAGE = "Not enough credits. Buy credits on opennan.com to continue.";
 
@@ -97,6 +112,17 @@ export function createOpenNanProvider(session: OpenNanSession, options: OpenNanP
         }
     }
 
+    /** A text call's model: the one asked for, else the first listed (the first that sees images when it sends some). */
+    async function textModelFor(input: Input): Promise<string> {
+        const chosen = text(input, "model", false, 100);
+        if (chosen) return chosen;
+        const list = await models("text.generate");
+        const sendsImages = Array.isArray(input.images) && input.images.length > 0;
+        const first = sendsImages ? list.find((m) => m.vision) : list[0];
+        if (!first) throw new JobFailedError(sendsImages ? "OpenNan lists no text model that reads images right now." : "OpenNan lists no text model right now.");
+        return first.id;
+    }
+
     async function modelFor(capability: ProviderCapability, input: Input): Promise<string> {
         const chosen = text(input, "model", false, 100);
         if (chosen) return chosen;
@@ -135,9 +161,15 @@ export function createOpenNanProvider(session: OpenNanSession, options: OpenNanP
             case "image.edit": {
                 const prompt = text(input, "description", true)!;
                 const aspect = text(input, "aspectRatio", false, 10);
-                const image = await imageInput(toolContext(key, context), capability, input, "image", capability === "image.edit");
+                const tools = toolContext(key, context);
+                const image = await imageInput(tools, capability, input, "image", capability === "image.edit");
+                // Story film: more reference images after the first (cast sheets, the previous keyframe), in order.
+                const images = await imageList(tools, capability, input, "images", MAX_IMAGE_REFERENCES);
                 const model = await modelFor(capability, input);
-                return generation("/v1/images/generations", defined({ model, prompt, image, aspect_ratio: aspect }), key, context, "image");
+                return generation("/v1/images/generations", defined({
+                    model, prompt, image, images: images.length > 0 ? images : undefined, aspect_ratio: aspect,
+                    size: text(input, "size", false, 8), quality: text(input, "quality", false, 16),
+                }), key, context, "image");
             }
             case "video.text-to-video":
             case "video.image-to-video": {
@@ -148,9 +180,17 @@ export function createOpenNanProvider(session: OpenNanSession, options: OpenNanP
                 const tools = toolContext(key, context);
                 const image = await imageInput(tools, capability, input, "image", i2v);
                 const endImage = await imageInput(tools, capability, input, "endImage", false);
+                const references = await imageList(tools, capability, input, "referenceImages", MAX_VIDEO_REFERENCES);
                 const model = await modelFor(capability, input);
-                return generation("/v1/videos/generations", defined({ model, prompt, image, end_image: endImage, duration, aspect_ratio: aspect }), key, context, "video");
+                return generation("/v1/videos/generations", defined({
+                    model, prompt, image, end_image: endImage, reference_images: references.length > 0 ? references : undefined, duration, aspect_ratio: aspect,
+                    quality: text(input, "quality", false, 16), generate_audio: flag(input, "generateAudio"),
+                }), key, context, "video");
             }
+            case "text.generate":
+                return runTextGenerate(toolContext(key, context), input, await textModelFor(input));
+            case "web.fetch":
+                return runVideoDownload(toolContext(key, context), input);
             case "audio.music": {
                 const body = defined({
                     model: text(input, "model", false, 100), prompt: text(input, "description", true, 1000), lyrics: text(input, "lyrics", false),

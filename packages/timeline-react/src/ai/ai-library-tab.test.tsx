@@ -26,6 +26,17 @@ describe("AI library tab", () => {
         expect(openGenerate).toHaveBeenLastCalledWith("sfx", undefined);
     });
 
+    it("shows Story film only when the host has the wizard, and opens it", () => {
+        const openStoryFilm = vi.fn();
+        const { unmount } = renderWithTimeline(<AiLibraryTab />, { translate: DEFAULT_TRANSLATE, ai: fakeAiHost({}, { openGenerate: vi.fn(), openStoryFilm }) });
+        fireEvent.click(screen.getByTestId("ai-tile-story-film"));
+        expect(screen.getByTestId("ai-tile-story-film").textContent).toBe("Story filmAn animated short with the same characters in every shot");
+        expect(openStoryFilm).toHaveBeenCalledTimes(1);
+        unmount();
+        renderWithTimeline(<AiLibraryTab />, { translate: DEFAULT_TRANSLATE, ai: fakeAiHost({}, { openGenerate: vi.fn() }) });
+        expect(screen.queryByTestId("ai-tile-story-film")).toBeNull();
+    });
+
     it("without a host that generates, disables the tiles with the reason", () => {
         renderWithTimeline(<AiLibraryTab />, { translate: DEFAULT_TRANSLATE, ai: fakeAiHost() });
         expect(screen.getByTestId("library-ai-reason").textContent).toBe("AI tools need the OpenNan Studio app");

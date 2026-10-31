@@ -79,6 +79,11 @@ export interface ProjectMeta {
     musicUrl: string | null;
     musicVolume: number;
     aspectRatio: string;
+    /**
+     * The project's story film (packages/story-film StoryFilm as JSON): its story, cast sheets, keyframes, clips and
+     * costs, so a re-run never pays twice. Absent: none. Not timeline history (project.update records no undo step).
+     */
+    storyFilmJson?: string | null;
 }
 
 export interface AddClipEffectOptions {

@@ -53,6 +53,10 @@ export interface ProviderModel {
     price?: unknown;
     /** Lengths (seconds) a video model takes. */
     durations?: number[];
+    /** Qualities a video model renders ("720p", "1080p") or sizes an image model draws ("1K", "2K"), cheapest first. */
+    qualities?: string[];
+    /** A text model that can look at images. */
+    vision?: boolean;
     sizeBytes?: number;
     installed?: boolean;
     default?: boolean;

@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-local", "provider-opennan", "provider-fal", "director-client", "mcp-schema", "mcp"];
+const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-local", "provider-opennan", "provider-fal", "director-client", "story-film", "mcp-schema", "mcp"];
 
 /** Add an id here only after reviewing it; anything else fails the check. */
 export const ALLOWED_LICENSES = new Set([

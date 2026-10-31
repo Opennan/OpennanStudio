@@ -62,7 +62,7 @@ describe("account and provider IPC", () => {
         await invoke(IPC.accountOpenConsole, { page: "usage" });
         expect(opened.at(-1)).toBe(`${fake.url}/console/usage`);
         expect(await invoke(IPC.providersList)).toEqual([expect.objectContaining({ id: "opennan", name: "OpenNan" })]);
-        expect(await invoke(IPC.providersModels, { providerId: "opennan", capability: "video.text-to-video" })).toEqual([expect.objectContaining({ id: "kling-3", label: "Kling 3", default: true }), expect.objectContaining({ id: "seedance-2" })]);
+        expect(await invoke(IPC.providersModels, { providerId: "opennan", capability: "video.text-to-video" })).toEqual([expect.objectContaining({ id: "kling-3", label: "Kling 3", default: true }), expect.objectContaining({ id: "seedance-2" }), expect.objectContaining({ id: "seedance-2-mini", qualities: ["720p", "1080p"] }), expect.objectContaining({ id: "kling-o3" })]);
         expect(await invoke(IPC.providersVoices, { providerId: "opennan" })).toEqual(expect.arrayContaining([expect.objectContaining({ id: expect.any(String), name: expect.any(String) })]));
         expect(await invoke(IPC.providersPrice, { providerId: "opennan", request: { capability: "audio.isolate-voice", input: {}, units: { seconds: 10 } } })).toMatchObject({ kind: "estimate" });
         const { jobId } = (await invoke(IPC.providersRun, { providerId: "opennan", capability: "image.generate", input: { description: "a cat" }, projectId: PROJECT })) as { jobId: string };
