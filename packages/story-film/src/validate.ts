@@ -118,6 +118,7 @@ export function shotSourceOf(value: unknown): StoryShotSource | undefined {
     if (value.start < 0 || value.end <= value.start || value.end > 86_400) return undefined;
     const source: StoryShotSource = { start: Math.round(value.start * 1000) / 1000, end: Math.round(value.end * 1000) / 1000 };
     if (typeof value.clip === "string" && MEDIA_URL.test(value.clip) && value.clip.length <= 4096) source.clip = value.clip;
+    if (typeof value.frame === "string" && MEDIA_URL.test(value.frame) && value.frame.length <= 4096) source.frame = value.frame;
     return source;
 }
 

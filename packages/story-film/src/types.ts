@@ -63,6 +63,8 @@ export interface StoryShotSource {
     end: number;
     /** The range as its own project video (absent: the range of the story's source video is sent). */
     clip?: string;
+    /** The shot's first frame as a project image: its keyframe is redrawn from it (same framing). */
+    frame?: string;
 }
 
 export interface StoryShot {
@@ -96,7 +98,8 @@ export interface StorySettings {
 }
 
 /**
- * Where the draft came from. A copy makes an original cast and title by default; "keep" is for the user's own videos.
+ * Where the draft came from. A copy is close by default: the same characters ("keep", drawn in the chosen style), title
+ * and shots; "original" makes new characters and a new title. The person confirms they have the rights to the video.
  * `keepMotion`: each shot is remade from its real shot (the source clip as a reference video) when the video model
  * takes reference videos; else, and when it is off, shots animate from their keyframes.
  */

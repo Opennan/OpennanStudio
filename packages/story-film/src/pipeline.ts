@@ -9,8 +9,8 @@
 // the keyframe redrawn with the look restated (once by default), and a shot still off after that is kept and flagged.
 import { formatUsdEstimate, type PriceAnswer, type PriceUnits, type ProviderModel, type ReferenceVideoLimits } from "@opennan/provider-sdk";
 import { CAST_CHECK_MAX_REDRAWS, CAST_CHECK_REDRAWS, castCheckRequest, parseCastCheck } from "./check";
-import { castOf, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, remakePrompt, sheetPrompt } from "./recipe";
-import { remakeSeconds } from "./shots";
+import { castOf, copyKeyframePrompt, editPrompt, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, remakePrompt, sheetPrompt } from "./recipe";
+import { firstFrameTime, remakeSeconds } from "./shots";
 import type { StoryAsset, StoryCastCheck, StoryFilm, StoryShot, StoryStep } from "./types";
 import { filmSeconds, shotSeconds } from "./validate";
 
@@ -56,7 +56,7 @@ export interface StoryItem {
     /** Character id (cast), shot id (frames, animate), or "music". */
     id: string;
     label: string;
-    capability: "image.generate" | "video.image-to-video" | "audio.music";
+    capability: "image.generate" | "image.edit" | "video.image-to-video" | "audio.music";
     input: Record<string, unknown>;
     units: PriceUnits;
     /** The request's key: an asset made from it has this key. */
@@ -67,6 +67,10 @@ export interface StoryItem {
     blocked?: string;
     /** Animate: remade from its real shot (a reference video), not animated from its keyframe. */
     remake?: boolean;
+    /** Animate: how the real shot is used ("editing": restyled as it is; "reference": its motion copied). */
+    referenceMode?: "editing" | "reference";
+    /** Frames: redrawn from the copied shot's own first frame. */
+    copied?: boolean;
 }
 
 export interface StepOptions {
@@ -116,6 +120,17 @@ function sheetItem(story: StoryFilm, id: string): StoryItem | null {
     return { step: "cast", id, label: character.name, capability: "image.generate", input, units: { images: 0 }, key: requestKey(input), asset: character.sheet ?? null };
 }
 
+/**
+ * A copied shot's first frame from the source video (its keyframe is redrawn from it): the frame the host saved, else
+ * that moment of the story's source video (a host that prepares stills from videos takes it). Null: not a copied shot.
+ */
+export function copyFrameOf(story: StoryFilm, shot: StoryShot): Record<string, unknown> | null {
+    const source = shot.source;
+    if (story.source?.kind !== "copy" || !source) return null;
+    if (source.frame) return ref(source.frame);
+    return story.source.mediaUrl ? { mediaUrl: story.source.mediaUrl, startSeconds: firstFrameTime(source) } : null;
+}
+
 function frameItem(story: StoryFilm, id: string): StoryItem | null {
     const index = story.shots.findIndex((s) => s.id === id);
     if (index < 0) return null;
@@ -124,17 +139,25 @@ function frameItem(story: StoryFilm, id: string): StoryItem | null {
     const cast = castOf(story, shot);
     const missing = cast.filter((c) => !c.sheet);
     const previous = index > 0 ? story.shots[index - 1]! : null;
+    // A copied shot is redrawn from its own first frame (the same framing): an image edit with that frame first.
+    const original = copyFrameOf(story, shot);
     // A keyframe drawn before this one in the same run anchors it; the estimate counts that reference already.
     const refs = [...cast.map((c) => c.sheet?.url ?? `pending:${c.id}`), ...(previous ? [previous.keyframe?.url ?? `pending:${previous.id}`] : [])];
     const sent = refs.filter((url) => !url.startsWith("pending:")).map(ref);
-    const input: Record<string, unknown> = {
-        description: keyframePrompt(story, shot, previous !== null), aspectRatio: STORY_DEFAULTS.aspectRatio, model: imageModel, size: imageSize,
-        ...(refs.length > 0 ? { image: refs[0]!.startsWith("pending:") ? `pending` : ref(refs[0]!) } : {}),
-        ...(refs.length > 1 ? { images: refs.slice(1).map((url) => (url.startsWith("pending:") ? "pending" : ref(url))) } : {}),
-    };
+    const pend = (url: string) => (url.startsWith("pending:") ? "pending" : ref(url));
+    const input: Record<string, unknown> = original
+        ? {
+            description: copyKeyframePrompt(story, shot, previous !== null), aspectRatio: STORY_DEFAULTS.aspectRatio, model: imageModel, size: imageSize,
+            image: original, ...(refs.length > 0 ? { images: refs.map(pend) } : {}),
+        }
+        : {
+            description: keyframePrompt(story, shot, previous !== null), aspectRatio: STORY_DEFAULTS.aspectRatio, model: imageModel, size: imageSize,
+            ...(refs.length > 0 ? { image: pend(refs[0]!) } : {}),
+            ...(refs.length > 1 ? { images: refs.slice(1).map(pend) } : {}),
+        };
     const item: StoryItem = {
-        step: "frames", id, label: `Shot ${index + 1}`, capability: "image.generate", input, units: { images: refs.length },
-        key: requestKey({ ...input, refs }), asset: shot.keyframe ?? null,
+        step: "frames", id, label: `Shot ${index + 1}`, capability: original ? "image.edit" : "image.generate", input, units: { images: refs.length + (original ? 1 : 0) },
+        key: requestKey({ ...input, refs }), asset: shot.keyframe ?? null, ...(original ? { copied: true } : {}),
     };
     if (missing.length > 0) item.blocked = `Draw ${missing.map((c) => c.name).join(" and ")} first.`;
     else if (sent.length !== refs.length) item.blocked = `Draw shot ${index} first.`;
@@ -152,13 +175,25 @@ export const REMAKE_MAX_IMAGES = 9;
 export function remakeOf(story: StoryFilm, shot: StoryShot): { reference: Record<string, unknown>; seconds: number; limits: ReferenceVideoLimits } | null {
     const limits = story.settings?.videoReference;
     const source = shot.source;
-    if (story.source?.kind !== "copy" || story.source.keepMotion !== true || !source || !limits || !limits.modes.includes("reference")) return null;
+    if (story.source?.kind !== "copy" || story.source.keepMotion !== true || !source || !limits || !(limits.modes.includes("reference") || limits.modes.includes("editing"))) return null;
     const seconds = Math.round((source.end - source.start) * 1000) / 1000;
     const reference = source.clip
         // The clip is the range cut out: its length (a frame of slack: a re-encode may end a frame later).
         ? { mediaUrl: source.clip, seconds: Math.round((seconds + 0.05) * 1000) / 1000 }
         : story.source.mediaUrl ? { mediaUrl: story.source.mediaUrl, startSeconds: source.start, endSeconds: source.end } : null;
     return reference ? { reference, seconds, limits } : null;
+}
+
+/** Margin over the model's edit minimum (a re-encoded clip can come out a frame shorter than its range). */
+export const EDIT_MARGIN_SECONDS = 0.1;
+
+/**
+ * How a real shot is remade: "editing" (the shot itself restyled: every movement, the timing, the framing and the
+ * camera kept exactly) when the model edits videos and the shot is long enough to edit; else "reference" (its motion
+ * copied, starting from the keyframe drawn from its first frame).
+ */
+export function remakeMode(seconds: number, limits: ReferenceVideoLimits): "editing" | "reference" {
+    return limits.modes.includes("editing") && seconds >= (limits.editMinSeconds ?? 0) + EDIT_MARGIN_SECONDS ? "editing" : "reference";
 }
 
 /** Why a real shot cannot be a reference video (the model's limits), or null. */
@@ -175,13 +210,16 @@ function remakeItem(story: StoryFilm, index: number, remake: NonNullable<ReturnT
     const cast = castOf(story, shot);
     const seconds = remakeSeconds(remake.seconds, story.settings?.videoDurations);
     const images = [...cast.map((c) => (c.sheet ? ref(c.sheet.url) : null)), shot.keyframe ? ref(shot.keyframe.url) : null].filter((i): i is { mediaUrl: string } => i !== null).slice(0, REMAKE_MAX_IMAGES);
+    const mode = remakeMode(remake.seconds, remake.limits);
+    const editing = mode === "editing";
     const input: Record<string, unknown> = {
-        description: remakePrompt(story, shot, Boolean(shot.keyframe)), referenceVideos: [remake.reference], referenceMode: "reference",
+        description: editing ? editPrompt(story, shot, Boolean(shot.keyframe)) : remakePrompt(story, shot, Boolean(shot.keyframe)), referenceVideos: [remake.reference], referenceMode: mode,
         ...(images.length > 0 ? { referenceImages: images } : {}), durationSeconds: seconds, aspectRatio: STORY_DEFAULTS.aspectRatio, model: videoModel, quality, generateAudio: false,
     };
     const item: StoryItem = {
-        step: "animate", id: shot.id, label: `Shot ${index + 1}`, capability: "video.image-to-video", input, units: { seconds, referenceSeconds: remake.seconds },
-        key: requestKey(input), asset: shot.clip ?? null, remake: true,
+        // An edit is as long as its video (and billed so).
+        step: "animate", id: shot.id, label: `Shot ${index + 1}`, capability: "video.image-to-video", input, units: { seconds: editing ? remake.seconds : seconds, referenceSeconds: remake.seconds },
+        key: requestKey(input), asset: shot.clip ?? null, remake: true, referenceMode: mode,
     };
     const missing = cast.filter((c) => !c.sheet);
     const problem = remakeProblem(remake.seconds, remake.limits);
@@ -525,7 +563,7 @@ export async function runStep(host: StoryFilmHost, story: StoryFilm, step: Story
             progress(redrawing);
             record(verdict.misses, false);
             const index = current.shots.findIndex((s) => s.id === id);
-            const description = redrawPrompt(current, shot, index > 0, verdict.misses);
+            const description = redrawPrompt(current, shot, index > 0, verdict.misses, item.copied === true);
             const redrawn = await host.run(item.capability, { ...item.input, description }, {
                 signal: options.signal,
                 onProgress: (p) => options.onItem?.({ step, id, status: "running", ...(p.progress !== undefined ? { progress: p.progress } : {}), message: redrawing }),
@@ -565,7 +603,9 @@ function assetOf(item: StoryItem, media: StoryRunMedia, costUsd: number | undefi
         asset.width = media.width;
         asset.height = media.height;
     }
-    const seconds = media.durationSeconds ?? (typeof item.input.durationSeconds === "number" ? item.input.durationSeconds : undefined);
+    // An edit is as long as its video.
+    const asked = item.referenceMode === "editing" ? item.units.seconds : typeof item.input.durationSeconds === "number" ? item.input.durationSeconds : undefined;
+    const seconds = media.durationSeconds ?? asked;
     if (seconds && item.capability !== "image.generate") asset.durationSeconds = seconds;
     return asset;
 }

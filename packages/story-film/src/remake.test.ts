@@ -9,8 +9,8 @@ import type { PriceAnswer, ProviderModel } from "@opennan/provider-sdk";
 import { reelInputOf } from "./assemble";
 import { copyDraftRequest, parseDraftReply } from "./draft";
 import { mergeStory } from "./edit";
-import { estimateStep, isStale, keepsMotion, remakeOf, runStep, storyItem, storyItems, withVideoModel, type StoryFilmHost, type StoryRunResult } from "./pipeline";
-import { remakePrompt } from "./recipe";
+import { estimateStep, isStale, keepsMotion, remakeMode, remakeOf, runStep, storyItem, storyItems, withVideoModel, type StoryFilmHost, type StoryRunResult } from "./pipeline";
+import { copyKeyframePrompt, editPrompt, redrawPrompt, remakePrompt } from "./recipe";
 import { CUT_DETECTION, SCENE_SCORE_CUTS, findCuts, remakeSeconds, shotSheetTimes, splitShots, storySecondsOf, withShotSources } from "./shots";
 import { rainCheck } from "./test-story";
 import type { StoryFilm } from "./types";
@@ -24,7 +24,7 @@ const umbrella = () => JSON.parse(fs.readFileSync(path.join(path.dirname(fileURL
 
 const SEEDANCE_25: ProviderModel = {
     id: "seedance-2-5", label: "Seedance 2.5", durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    referenceVideos: { max: 3, minSeconds: 2, maxSeconds: 30, totalSeconds: 30, modes: ["reference", "editing", "extension"], formats: ["mp4", "mov"], minPixels: 409_600, minFps: 24, maxFps: 60 },
+    referenceVideos: { max: 3, minSeconds: 2, maxSeconds: 30, totalSeconds: 30, modes: ["reference", "editing", "extension"], formats: ["mp4", "mov"], minPixels: 409_600, minFps: 24, maxFps: 60, editMinSeconds: 4 },
 };
 const MINI: ProviderModel = { id: "seedance-2-mini", label: "Seedance 2 Mini", durations: [4, 5, 6, 8, 10, 12, 15] };
 
@@ -162,8 +162,38 @@ describe("cutting a video into shots", () => {
     });
 });
 
+describe("keyframes copy the original framing", () => {
+    it("redraws a copied shot's keyframe from its own first frame: an image edit, the frame first, then the cast sheets and the previous keyframe", async () => {
+        const base = copied();
+        const story = withShotSources({ ...base, shots: base.shots.map((s) => ({ ...s, keyframe: null })) }, base.shots.map((s, i) => ({ ...s.source!, frame: `opennan-local://media/frame-${i + 1}.jpg` })));
+        const first = storyItem(story, "frames", "s01")!;
+        expect(first.capability).toBe("image.edit");
+        expect(first.copied).toBe(true);
+        expect(first.input).toEqual({
+            description: copyKeyframePrompt(story, story.shots[0]!, false), aspectRatio: "16:9", model: "nano-banana-pro", size: "2K",
+            image: { mediaUrl: "opennan-local://media/frame-1.jpg" }, images: [{ mediaUrl: "opennan-local://media/theo-sheet" }, { mediaUrl: "opennan-local://media/mae-sheet" }],
+        });
+        expect(String(first.input.description)).toMatch(/^Redraw reference image 1 exactly: the same composition, camera angle, framing, poses and places of everyone and everything in it, as a single frame from a hand-drawn animated short film\. The people in it are: Theo \(exactly as drawn in reference image 2: .*\); Mae \(exactly as drawn in reference image 3: /);
+        const { host, sent } = fakeHost();
+        const out = await runStep(host, story, "frames", { castCheck: 0 });
+        expect(out.made).toEqual(story.shots.map((s) => s.id));
+        // Shot 2: its own frame, its cast's sheets, then shot 1's keyframe (the style anchor).
+        expect(sent[1]!.capability).toBe("image.edit");
+        expect(sent[1]!.input.image).toEqual({ mediaUrl: "opennan-local://media/frame-2.jpg" });
+        expect(sent[1]!.input.images).toEqual([...story.shots[1]!.cast.map((id) => ({ mediaUrl: `opennan-local://media/${id}-sheet` })), { mediaUrl: out.story.shots[0]!.keyframe!.url }]);
+        expect(String(sent[1]!.input.description)).toMatch(/Match the art style, line weight and colour palette of the last reference image/);
+        // Without a saved frame, the moment of the source video (two frames into the shot) is sent.
+        const unsaved = copied();
+        expect(storyItem(unsaved, "frames", "s02")!.input.image).toEqual({ mediaUrl: "opennan-local://media/source", startSeconds: 4.68 });
+        // A written story's keyframes are drawn as before.
+        expect(storyItem(rainCheck(), "frames", "s01")!.capability).toBe("image.generate");
+        // A redraw after the cast check restates the look with the sheets' numbers after the frame.
+        expect(redrawPrompt(story, story.shots[0]!, false, [{ id: "mae", reason: "no ponytail" }], true)).toMatch(/Most important: Mae must look exactly like reference image 3: .*no ponytail$/);
+    });
+});
+
 describe("remake animate", () => {
-    it("remakes each shot from its real shot: the clip as @Video1, the cast sheets then the keyframe as images, the model's length", async () => {
+    it("edits a shot long enough to edit: @Video1 restyled with the cast sheets and the keyframe, every movement and framing kept", async () => {
         const story = copied();
         const { host, sent } = fakeHost();
         const out = await runStep(host, story, "animate", { only: ["s01"] });
@@ -171,26 +201,45 @@ describe("remake animate", () => {
         expect(sent).toEqual([{
             capability: "video.image-to-video",
             input: {
-                description: remakePrompt(story, story.shots[0]!, true),
-                referenceVideos: [{ mediaUrl: "opennan-local://media/shot-1", seconds: 4.65 }], referenceMode: "reference",
+                description: editPrompt(story, story.shots[0]!, true),
+                referenceVideos: [{ mediaUrl: "opennan-local://media/shot-1", seconds: 4.65 }], referenceMode: "editing",
                 referenceImages: [{ mediaUrl: "opennan-local://media/theo-sheet" }, { mediaUrl: "opennan-local://media/mae-sheet" }, { mediaUrl: "opennan-local://media/s01-key" }],
                 durationSeconds: 5, aspectRatio: "16:9", model: "seedance-2-5", quality: "720p", generateAudio: false,
             },
         }]);
         expect(sent[0]!.input).not.toHaveProperty("image");
         const prompt = String(sent[0]!.input.description);
+        expect(prompt).toMatch(/^Turn @Video1 into a hand-drawn animated short film: classic 2D/);
+        expect(prompt).toMatch(/The people become Theo \(@Image1: tall lanky young man.*\) and Mae \(@Image2: graceful young woman.*\), exactly as drawn in their reference sheets\./);
+        expect(prompt).toMatch(/Match the look of @Image3 \(this shot's first frame, redrawn\)\./);
+        expect(prompt).toMatch(/Keep every movement, the timing, the framing and the camera of @Video1 exactly\./);
+        // An edit is as long as its video: priced and recorded on the real shot's seconds.
+        expect(storyItem(story, "animate", "s01")!.units).toEqual({ seconds: 4.6, referenceSeconds: 4.6 });
+        expect(out.story.shots[0]!.clip).toMatchObject({ url: "opennan-local://media/clip-1.mp4", model: "seedance-2-5", durationSeconds: 4.6 });
+    });
+
+    it("copies the motion of a shot too short to edit (reference mode), starting exactly like its keyframe", () => {
+        const story = copied();
+        story.shots = story.shots.map((s, i) => (i === 0 ? { ...s, source: { start: 0, end: 3.4, clip: "opennan-local://media/shot-1" } } : s));
+        const item = storyItem(story, "animate", "s01")!;
+        expect(item.referenceMode).toBe("reference");
+        expect(item.input).toMatchObject({ referenceMode: "reference", durationSeconds: 4, description: remakePrompt(story, story.shots[0]!, true) });
+        expect(item.units).toEqual({ seconds: 4, referenceSeconds: 3.4 });
+        const prompt = String(item.input.description);
         expect(prompt).toMatch(/^Recreate @Video1 exactly: same motion, timing, blocking and camera move/);
-        expect(prompt).toMatch(/Replace the people with @Image1 \(Theo: tall lanky young man.*\) and @Image2 \(Mae: graceful young woman.*\)\. Keep their looks exactly as drawn in their reference sheets\./);
-        expect(prompt).toMatch(/Match the art style, line weight and colours of @Image3 \(this shot's first frame\)\./);
-        expect(prompt).toMatch(/Render as a hand-drawn animated short film: classic 2D/);
-        expect(out.story.shots[0]!.clip).toMatchObject({ url: "opennan-local://media/clip-1.mp4", model: "seedance-2-5", durationSeconds: 5 });
+        expect(prompt).toMatch(/Replace the people with @Image1 \(Theo: .*\) and @Image2 \(Mae: .*\)\./);
+        expect(prompt).toMatch(/Start exactly like @Image3 \(this shot's first frame, same framing\)/);
+        // The edit minimum with a frame of margin; a model that does not edit always copies the motion.
+        expect(remakeMode(4.05, SEEDANCE_25.referenceVideos!)).toBe("reference");
+        expect(remakeMode(4.1, SEEDANCE_25.referenceVideos!)).toBe("editing");
+        expect(remakeMode(12, { ...SEEDANCE_25.referenceVideos!, modes: ["reference"] })).toBe("reference");
     });
 
     it("cuts the range from the source video when there is no clip, and prices the reference seconds", async () => {
         const story = copied({ clips: false });
         const item = storyItem(story, "animate", "s02")!;
         expect(item.input.referenceVideos).toEqual([{ mediaUrl: "opennan-local://media/source", startSeconds: 4.6, endSeconds: 9.2 }]);
-        expect(item.units).toEqual({ seconds: 5, referenceSeconds: 4.6 });
+        expect(item.units).toEqual({ seconds: 4.6, referenceSeconds: 4.6 });
         const { host, priced } = fakeHost();
         const estimate = await estimateStep(host, story, "animate");
         expect(estimate.ready).toBe(true);

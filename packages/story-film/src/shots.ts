@@ -111,6 +111,11 @@ export function shotSheetTimes(shots: readonly ShotRange[], maxFrames = 24): Arr
     return shots.flatMap((shot, index) => Array.from({ length: each }, (_, k) => ({ time: ms(shot.start + ((k + 0.5) * (shot.end - shot.start)) / each), shot: index })));
 }
 
+/** When a shot's first frame is taken: two frames in (a cut's first frame can still hold the shot before), inside the shot. */
+export function firstFrameTime(shot: ShotRange): number {
+    return ms(shot.start + Math.min(0.08, (shot.end - shot.start) / 2));
+}
+
 /** A story shot's seconds for a real shot's length: the whole number nearest it, within a story shot's 4 to 15. */
 export function storySecondsOf(length: number): number {
     return Math.min(STORY_LIMITS.maxSeconds, Math.max(STORY_LIMITS.minSeconds, Math.round(length)));
@@ -125,10 +130,10 @@ export function remakeSeconds(length: number, durations: readonly number[] | und
 
 /**
  * The story with each shot placed on its real shot, in order (story shot i ↔ real shot i), its seconds the real
- * shot's rounded, and its clip when the host cut one. Story shots past the real ones keep no source (they animate
+ * shot's rounded, and its clip and first frame when the host cut them. Story shots past the real ones keep no source (they animate
  * from their keyframes).
  */
-export function withShotSources(story: StoryFilm, shots: ReadonlyArray<ShotRange & { clip?: string }>): StoryFilm {
+export function withShotSources(story: StoryFilm, shots: ReadonlyArray<ShotRange & { clip?: string; frame?: string }>): StoryFilm {
     return {
         ...story,
         shots: story.shots.map((shot, i): StoryShot => {
@@ -136,7 +141,10 @@ export function withShotSources(story: StoryFilm, shots: ReadonlyArray<ShotRange
             const next: StoryShot = { ...shot };
             delete next.source;
             if (!real) return next;
-            return { ...next, seconds: storySecondsOf(real.end - real.start), source: { start: real.start, end: real.end, ...(real.clip ? { clip: real.clip } : {}) } };
+            return {
+                ...next, seconds: storySecondsOf(real.end - real.start),
+                source: { start: real.start, end: real.end, ...(real.clip ? { clip: real.clip } : {}), ...(real.frame ? { frame: real.frame } : {}) },
+            };
         }),
     };
 }
