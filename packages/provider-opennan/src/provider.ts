@@ -5,17 +5,18 @@
 // (tools.ts: media prepared by the host, uploaded with uploads.ts), prices (prices.ts), and refusable cancel.
 import {
     CapabilityUnavailableError, JobFailedError, OPEN_CAPABILITIES, OPENNAN_CAPABILITIES, createJob, isLocalOnlyCapability, isOpenNanCapability,
-    type CapabilityOutput, type GeneratedMedia, type GeneratedMediaKind, type JobContext, type MediaPreparer, type Provider, type ProviderCapability, type ProviderModel,
+    type CapabilityOutput, type GeneratedMedia, type GeneratedMediaKind, type JobContext, type MediaPreparer, type PreparedMedia, type Provider, type ProviderCapability, type ProviderModel,
     type TranscribeRequest, type Transcript,
 } from "@opennan/provider-sdk";
 import { InsufficientCreditsError, OpenNanApiError, OpenNanSignInRequiredError, notChargedError, openNanErrorMessage } from "./errors";
-import { allowedLink, defined, flag, number, text, type Input } from "./inputs";
+import { allowedLink, defined, flag, number, oneOf, text, type Input } from "./inputs";
 import { createOpenNanCatalog, priceRun } from "./prices";
 import { createQuoteClient } from "./quotes";
 import type { OpenNanSession } from "./session";
 import { MIN_TASK_POLL_MS, runTask, costOf, type TaskBody } from "./tasks";
 import { runTextGenerate, runVideoDownload } from "./text";
-import { MEDIA_TOOL_CAPABILITIES, imageInput, runMediaTool, runTranscription, type ToolContext } from "./tools";
+import { longerThanPriced, parseReferenceVideos, preparedReferenceProblem, referenceLengthProblem, referencePurpose, type ReferenceVideoInput } from "./references";
+import { MEDIA_TOOL_CAPABILITIES, imageInput, prepare, runMediaTool, runTranscription, upload, type ToolContext } from "./tools";
 import type { UploadCache } from "./uploads";
 
 export { TASK_WAIT_SECONDS, MIN_TASK_POLL_MS, TASK_DEADLINE_MS } from "./tasks";
@@ -41,6 +42,45 @@ async function imageList(ctx: ToolContext, capability: ProviderCapability, input
     const urls: string[] = [];
     for (const value of raw) urls.push((await imageInput(ctx, capability, { image: value }, "image", true))!);
     return urls;
+}
+
+/**
+ * The reference videos of a call, checked against the model's limits, prepared (a project range becomes an MP4 of the
+ * model's size and frame rate) and uploaded as temporary inputs; nothing is uploaded when a limit is broken.
+ */
+async function referenceVideoUrls(ctx: ToolContext, capability: ProviderCapability, model: string, input: Input, videos: ReferenceVideoInput[]): Promise<{ urls: string[]; mode: string }> {
+    let listed: ProviderModel[];
+    try {
+        listed = await ctx.catalog.models(capability);
+    } catch {
+        throw new JobFailedError(`The limits of ${model}'s reference videos could not be read: nothing was sent. Try again.`, { code: "price_unknown" });
+    }
+    const limits = listed.find((m) => m.id === model)?.referenceVideos;
+    if (!limits) throw new JobFailedError(`${model} does not take reference videos. Pick a model that does (seedance-2-5), or animate from the keyframe.`, { code: "invalid_request" });
+    const mode = oneOf(input, "referenceMode", limits.modes, (limits.modes.includes("reference") ? "reference" : limits.modes[0]) as string);
+    const declared = referenceLengthProblem(limits, videos.map((v) => v.seconds), mode);
+    if (declared) throw new JobFailedError(`${declared} Nothing was sent.`, { code: "invalid_request" });
+    const purpose = referencePurpose(limits);
+    const prepared: Array<{ url?: string; media?: PreparedMedia }> = [];
+    for (const video of videos) {
+        if (video.url) prepared.push({ url: video.url });
+        else prepared.push({ media: await prepare(ctx, capability, { kind: "media", source: video.source! }, purpose) });
+    }
+    // The files as made: their lengths, size and picture, before any upload.
+    const measured = prepared.map((p, i) => p.media?.durationSeconds ?? videos[i]!.seconds);
+    const lengths = referenceLengthProblem(limits, measured, mode);
+    if (lengths) throw new JobFailedError(`${lengths} Nothing was sent.`, { code: "invalid_request" });
+    for (const p of prepared) {
+        const problem = p.media ? preparedReferenceProblem(limits, p.media) : null;
+        if (problem) throw new JobFailedError(`${problem} Nothing was sent.`, { code: "invalid_request" });
+    }
+    const sum = (list: Array<number | undefined>) => (list.every((n) => n !== undefined) ? list.reduce<number>((a, n) => a + n!, 0) : undefined);
+    if (longerThanPriced(limits, sum(videos.map((v) => v.seconds)), sum(measured))) {
+        throw new JobFailedError("The reference clip came out longer than the length it was priced at: nothing was sent. Price it again and run.", { code: "price_changed" });
+    }
+    const urls: string[] = [];
+    for (const p of prepared) urls.push(p.url ?? (await upload(ctx, p.media!)));
+    return { urls, mode };
 }
 
 export const INSUFFICIENT_CREDITS_MESSAGE = "Not enough credits. Buy credits on opennan.com to continue.";
@@ -173,17 +213,23 @@ export function createOpenNanProvider(session: OpenNanSession, options: OpenNanP
             }
             case "video.text-to-video":
             case "video.image-to-video": {
-                const i2v = capability === "video.image-to-video";
+                const tools = toolContext(key, context);
+                // Reference videos (a remake): their motion comes from the clips, so there is no first frame to send.
+                const videos = parseReferenceVideos(input, loopbackApi);
+                const remake = videos.length > 0;
+                if (remake && (input.image !== undefined || input.endImage !== undefined)) throw new JobFailedError("Reference videos are sent without image or endImage: send the pictures as referenceImages.");
+                const i2v = capability === "video.image-to-video" && !remake;
                 const prompt = text(input, "description", !i2v) ?? "";
                 const duration = number(input, "durationSeconds", 1, 60);
                 const aspect = text(input, "aspectRatio", false, 10);
-                const tools = toolContext(key, context);
                 const image = await imageInput(tools, capability, input, "image", i2v);
                 const endImage = await imageInput(tools, capability, input, "endImage", false);
-                const references = await imageList(tools, capability, input, "referenceImages", MAX_VIDEO_REFERENCES);
                 const model = await modelFor(capability, input);
+                const reference = remake ? await referenceVideoUrls(tools, capability, model, input, videos) : null;
+                const references = await imageList(tools, capability, input, "referenceImages", MAX_VIDEO_REFERENCES);
                 return generation("/v1/videos/generations", defined({
-                    model, prompt, image, end_image: endImage, reference_images: references.length > 0 ? references : undefined, duration, aspect_ratio: aspect,
+                    model, prompt, image, end_image: endImage, reference_images: references.length > 0 ? references : undefined,
+                    reference_videos: reference?.urls, reference_mode: reference?.mode, duration, aspect_ratio: aspect,
                     quality: text(input, "quality", false, 16), generate_audio: flag(input, "generateAudio"),
                 }), key, context, "video");
             }

@@ -1,6 +1,6 @@
 import {
     BILLING_SAFETY, captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateSoundEffectCost, estimateStemsCost, estimateToolCost,
-    estimateVideoModelCost, estimateVoiceCost, estimateTextCost, promptTokenBound, formatUsdEstimate, isOverLimit, startedUnits, toMicroUsd, type ToolPriceBlock,
+    estimateVideoModelCost, estimateReferenceVideoCost, referenceBilledSeconds, estimateVoiceCost, estimateTextCost, promptTokenBound, formatUsdEstimate, isOverLimit, startedUnits, toMicroUsd, type ToolPriceBlock,
 } from "./prices";
 
 const TRANSCRIBE: ToolPriceBlock = { unit: "source_minute", per: "minute", usd: 0.004768, max_minutes: 30 };
@@ -223,5 +223,42 @@ describe("paddedSeconds (the decode margin a per-unit quote is asked with)", () 
         expect(paddedSeconds(0)).toBe(0.25);
         // Never below what it pads.
         for (let s = 0; s < 700; s += 0.0137) expect(paddedSeconds(s)).toBeGreaterThanOrEqual(s + BILLING_SAFETY.seconds + s * BILLING_SAFETY.ratio - 1e-9);
+    });
+});
+
+describe("reference video prices", () => {
+    // Seedance 2.5 as GET /v1/models publishes it (2026-10-31): one row per quality and reference length, 4 s output.
+    const ROWS = [
+        { quality: "480p", duration: 4, reference_video_seconds: 2, usd: 1.03194 },
+        { quality: "480p", duration: 4, reference_video_seconds: 30, usd: 5.84766 },
+        { quality: "720p", duration: 4, reference_video_seconds: 2, usd: 2.21364 },
+        { quality: "720p", duration: 4, reference_video_seconds: 5, usd: 3.32046 },
+        { quality: "720p", duration: 4, reference_video_seconds: 30, usd: 12.54396 },
+        { quality: "1080p", duration: 4, reference_video_seconds: 2, usd: 5.44752 },
+    ];
+
+    it("bills output and reference seconds at the quality's per-second price, never under the live quote", () => {
+        // The live quote of a 5 s shot with a 5 s reference at 720p: $3.6894 (10 s × $0.36894).
+        const shot = estimateReferenceVideoCost(ROWS, 5, 5, "720p")!;
+        expect(shot.microUsd).toBe(3_689_410);
+        expect(shot.microUsd).toBeGreaterThanOrEqual(3_689_400);
+        expect(shot.label).toBe("≈ $3.69");
+        // A quote with 3 billed reference seconds answers $2.95152.
+        expect(estimateReferenceVideoCost(ROWS, 5, 3, "720p")!.microUsd).toBeGreaterThanOrEqual(2_951_520);
+        expect(estimateReferenceVideoCost(ROWS, 4, 30, "480p")!.microUsd).toBeGreaterThanOrEqual(5_847_660);
+        expect(estimateReferenceVideoCost(ROWS, 5, 5, "4k")).toBeNull();
+        expect(estimateReferenceVideoCost([], 5, 5, "720p")).toBeNull();
+    });
+
+    it("rounds the reference length up with the decode margin, inside the model's limits; unknown is the most it takes", () => {
+        const limits = { minSeconds: 2, totalSeconds: 30 };
+        expect(referenceBilledSeconds(2.4, limits)).toBe(3);
+        expect(referenceBilledSeconds(4.6, limits)).toBe(5);
+        expect(referenceBilledSeconds(5, limits)).toBe(6);
+        expect(referenceBilledSeconds(1, limits)).toBe(2);
+        expect(referenceBilledSeconds(29.9, limits)).toBe(30);
+        expect(referenceBilledSeconds(undefined, limits)).toBe(30);
+        // Never under the server's ceil of the length it decodes (a few ms past the container's).
+        for (let ms = 2000; ms <= 29_000; ms += 37) expect(referenceBilledSeconds(ms / 1000, limits)).toBeGreaterThanOrEqual(Math.ceil((ms + 5) / 1000));
     });
 });

@@ -32,6 +32,8 @@ export interface PriceUnits {
     segments?: number;
     resolution?: string;
     images?: number;
+    /** Video generation with reference videos: their total length in seconds (billed with the output's seconds). */
+    referenceSeconds?: number;
 }
 
 export interface CostEstimate {
@@ -257,6 +259,50 @@ export function estimateVideoModelCost(price: VideoModelPrice | null | undefined
     if (worst <= 0 || !Number.isFinite(seconds) || seconds <= 0) return null;
     const microUsd = Math.ceil((worst + ROUNDING_MICRO_USD) * seconds - 1e-6);
     return { microUsd, usd: microUsd / 1_000_000, label: formatUsdEstimate(microUsd), units: seconds, capped: false };
+}
+
+/**
+ * A video model's price with reference videos (GET /v1/models `price.reference_videos`): one row per quality and
+ * length of reference, each the price of `duration` output seconds plus `reference_video_seconds` of reference.
+ */
+export interface ReferenceVideoPriceRow {
+    quality?: string | null;
+    duration?: number;
+    reference_video_seconds?: number;
+    usd?: number;
+}
+
+/**
+ * The reference seconds a run is billed for: the references' total length with the decoded-length margin, rounded up
+ * to whole seconds (the server bills started seconds), within the model's limits (`minSeconds`..`maxTotalSeconds`).
+ * Unknown length: the most the model takes (what an unmeasured run holds).
+ */
+export function referenceBilledSeconds(seconds: number | undefined, limits: { minSeconds?: number; totalSeconds: number }): number {
+    if (seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) return limits.totalSeconds;
+    const started = Math.ceil(paddedSeconds(seconds) - 1e-9);
+    return Math.min(limits.totalSeconds, Math.max(Math.ceil(limits.minSeconds ?? 0), started));
+}
+
+/**
+ * A run with reference videos: output and reference seconds are billed at one per-second price per quality (the rows
+ * publish it as usd ÷ (duration + reference_video_seconds)). The worst such price among the quality's rows ×
+ * (asked seconds + billed reference seconds), plus a micro-dollar a second. No row of that quality: null.
+ */
+export function estimateReferenceVideoCost(
+    rows: ReadonlyArray<ReferenceVideoPriceRow> | null | undefined, seconds: number, referenceSeconds: number, quality?: string,
+): CostEstimate | null {
+    let worst = 0;
+    for (const row of rows ?? []) {
+        if (quality !== undefined && row.quality !== quality) continue;
+        const usd = positive(row.usd);
+        const billed = (positive(row.duration) ?? 0) + (positive(row.reference_video_seconds) ?? 0);
+        if (usd === null || billed <= 0) continue;
+        worst = Math.max(worst, Math.ceil((usd * 1_000_000) / billed - 1e-6));
+    }
+    const total = seconds + referenceSeconds;
+    if (worst <= 0 || !Number.isFinite(seconds) || seconds <= 0 || !Number.isFinite(referenceSeconds) || referenceSeconds < 0) return null;
+    const microUsd = Math.ceil((worst + ROUNDING_MICRO_USD) * total - 1e-6);
+    return { microUsd, usd: microUsd / 1_000_000, label: formatUsdEstimate(microUsd), units: total, capped: false };
 }
 
 /** Text model price (GET /v1/models category text): dollars per million input and output tokens. */

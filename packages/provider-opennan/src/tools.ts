@@ -79,7 +79,7 @@ function mediaSource(value: unknown, name: string): MediaPrepareInput {
     return { kind: "media", source: ref };
 }
 
-async function prepare(ctx: ToolContext, capability: ProviderCapability, input: MediaPrepareInput, purpose: MediaPreparePurpose): Promise<PreparedMedia> {
+export async function prepare(ctx: ToolContext, capability: ProviderCapability, input: MediaPrepareInput, purpose: MediaPreparePurpose): Promise<PreparedMedia> {
     if (!ctx.prepareMedia) {
         const error = new CapabilityUnavailableError(capability);
         error.message = PREPARE_MEDIA_UNAVAILABLE;
@@ -89,7 +89,7 @@ async function prepare(ctx: ToolContext, capability: ProviderCapability, input: 
     return ctx.prepareMedia(input, purpose, ctx.job.signal);
 }
 
-async function upload(ctx: ToolContext, prepared: PreparedMedia): Promise<string> {
+export async function upload(ctx: ToolContext, prepared: PreparedMedia): Promise<string> {
     ctx.job.report(null, "Uploading");
     try {
         return (await uploadMedia(ctx.api, ctx.key, prepared, { signal: ctx.job.signal, cache: ctx.cache, ...(ctx.uploadHosts ? { allowedHosts: ctx.uploadHosts } : {}) })).mediaUrl;

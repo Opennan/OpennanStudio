@@ -25,6 +25,13 @@ export interface MediaPreparePurpose {
     maxSeconds?: number;
     /** Content types the destination accepts, preferred first. */
     contentTypes: readonly string[];
+    /**
+     * Video: the smallest picture the destination takes, in pixels per frame. A smaller source is scaled up (its shape
+     * kept, sides even) until it has at least this many; a source that has them is never resized.
+     */
+    minPixels?: number;
+    /** Video: the frame rates the destination takes; a source outside them is re-timed to the nearest one (when the preparer can). */
+    frameRate?: { min: number; max: number };
 }
 
 export interface PreparedMedia {
@@ -36,6 +43,8 @@ export interface PreparedMedia {
     durationSeconds?: number;
     width?: number;
     height?: number;
+    /** Video: frames per second of the prepared file, when the preparer knows it. */
+    frameRate?: number;
 }
 
 export type MediaPreparer = (input: MediaPrepareInput, purpose: MediaPreparePurpose, signal: AbortSignal) => Promise<PreparedMedia>;
