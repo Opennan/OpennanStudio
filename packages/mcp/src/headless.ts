@@ -12,7 +12,7 @@ import {
 } from "@opennan/timeline-core";
 import { createStudioExporter, type StudioExporter } from "./export";
 import { createHeadlessMediaImporter } from "./generated-media";
-import { createFfmpegAnalyzer, createStorySheetMaker } from "./headless-media";
+import { createFfmpegAnalyzer, createHeadlessMediaPreparer, createStoryShotsMaker, createStorySheetMaker } from "./headless-media";
 import { createLocalFileReader } from "./local-files";
 import { blobPathFor, mediaDirFor, openFilePersistence, readProjectFile } from "./project-file";
 import { createControllerSession, type StudioHost, type StudioSession } from "./session";
@@ -116,17 +116,16 @@ export async function openHeadlessProject(options: HeadlessOptions): Promise<Hea
         await persistence.close();
         throw error;
     }
-    const storySheet = options.ffmpeg
-        ? createStorySheetMaker({
-            mediaDir, ffmpeg: options.ffmpeg,
-            save: async (file, name) => {
-                const media = await backend.uploadFile(project.meta.id, new File([file], name, { type: file.type }), "image");
-                await backend.saveToLibrary(project.meta.id, media);
-                return media.url;
-            },
-        })
+    const saveMedia = (kind: "image" | "video") => async (file: Blob, name: string) => {
+        const media = await backend.uploadFile(project.meta.id, new File([file], name, { type: file.type }), kind);
+        await backend.saveToLibrary(project.meta.id, media);
+        return media.url;
+    };
+    const storySheet = options.ffmpeg ? createStorySheetMaker({ mediaDir, ffmpeg: options.ffmpeg, save: saveMedia("image") }) : undefined;
+    const storyShots = options.ffmpeg
+        ? createStoryShotsMaker({ mediaDir, ffmpeg: options.ffmpeg, save: saveMedia("video"), prepare: createHeadlessMediaPreparer({ mediaDir, ffmpeg: options.ffmpeg }) })
         : undefined;
-    const host: StudioHost = { readFile, ...(storySheet ? { storySheet } : {}), ...options.host };
+    const host: StudioHost = { readFile, ...(storySheet ? { storySheet } : {}), ...(storyShots ? { storyShots } : {}), ...options.host };
     const session = createControllerSession({ controller, store, backend, host, exporter, aiJobs, ...(options.providers ? { providers: options.providers } : {}) });
     return {
         projectId: project.meta.id,

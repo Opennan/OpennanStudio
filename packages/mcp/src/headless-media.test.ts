@@ -10,7 +10,9 @@ import { writeProjectFile } from "./project-file";
 import { connectInMemory } from "./testing/connect";
 import { fixtureProject } from "./testing/fixture";
 import { openHeadlessProject } from "./headless";
-import { MEDIA_TOOLS_NEED_FFMPEG, ONLY_PROJECT_MEDIA, createFfmpegAnalyzer, createHeadlessMediaPreparer, createStorySheetMaker, projectMediaPath } from "./headless-media";
+import {
+    MEDIA_TOOLS_NEED_FFMPEG, ONLY_PROJECT_MEDIA, createFfmpegAnalyzer, createHeadlessMediaPreparer, createStoryShotsMaker, createStorySheetMaker, framesAtTimes, minPixelsScale, projectMediaPath,
+} from "./headless-media";
 
 // Same lookup as headless.test.ts: OPENNAN_FFMPEG / OPENNAN_FFPROBE, else Homebrew.
 const FFMPEG = process.env.OPENNAN_FFMPEG ?? "/opt/homebrew/bin/ffmpeg";
@@ -158,4 +160,43 @@ describe("story film contact sheet", () => {
         expect(saved[0]!.size).toBeGreaterThan(1000);
         await expect(make("https://example.com/v.mp4", 16)).rejects.toThrow(ONLY_PROJECT_MEDIA);
     });
+});
+
+describe("story film shots (remake from your video)", () => {
+    it("builds the filters: frames at chosen times, a picture scaled up to the minimum pixels", () => {
+        expect(framesAtTimes([1, 7.5])).toBe("select='gte(t,1.000)*(isnan(prev_t)+lt(prev_t,1.000))+gte(t,7.500)*(isnan(prev_t)+lt(prev_t,7.500))'");
+        expect(minPixelsScale(409_600)).toBe("scale='if(lt(iw*ih,409600),ceil(iw*sqrt(409600/(iw*ih))/2)*2,trunc(iw/2)*2)':'if(lt(iw*ih,409600),ceil(ih*sqrt(409600/(iw*ih))/2)*2,trunc(ih/2)*2)'");
+    });
+
+    it.skipIf(!HAS_FFMPEG)("finds the cut of a two-shot video, cuts each shot out as a project video, and samples a sheet per shot", async () => {
+        const file = path.join(mediaDir, "two-shots");
+        // 4 s of a test card, then 4 s of another pattern: one cut at 4 s.
+        execFileSync(FFMPEG, [
+            "-v", "error", "-f", "lavfi", "-i", "testsrc=duration=4:size=320x180:rate=25", "-f", "lavfi", "-i", "mandelbrot=size=320x180:rate=25",
+            "-filter_complex", "[1:v]trim=0:4,setpts=PTS-STARTPTS[b];[0:v][b]concat=n=2:v=1:a=0[v]", "-map", "[v]", "-c:v", "libvpx-vp9", "-f", "webm", "-y", file,
+        ]);
+        const ffmpeg = { ffmpegPath: FFMPEG, ffprobePath: FFPROBE };
+        const saved: Array<{ name: string; type: string }> = [];
+        const save = async (blob: Blob, name: string) => {
+            saved.push({ name, type: blob.type });
+            return `opennan-local://media/${name}`;
+        };
+        const prepare = createHeadlessMediaPreparer({ mediaDir, ffmpeg });
+        const shots = createStoryShotsMaker({ mediaDir, ffmpeg, save, prepare });
+        const found = await shots("opennan-local://media/two-shots", true);
+        expect(found.truncated).toBe(false);
+        expect(found.durationSeconds).toBeCloseTo(8, 1);
+        expect(found.shots).toHaveLength(2);
+        expect(found.shots[0]!.start).toBe(0);
+        expect(found.shots[0]!.end).toBeCloseTo(4, 1);
+        expect(found.shots.map((s) => s.clip)).toEqual(["opennan-local://media/story-shot-01.mp4", "opennan-local://media/story-shot-02.mp4"]);
+        expect(saved.map((s) => s.type)).toEqual(["video/mp4", "video/mp4"]);
+        const uncut = await shots("opennan-local://media/two-shots", false);
+        expect(uncut.shots.every((s) => s.clip === undefined)).toBe(true);
+        const sheet = await createStorySheetMaker({ mediaDir, ffmpeg, save })("opennan-local://media/two-shots", 16, undefined, [1, 2, 3, 5, 6, 7]);
+        expect(sheet.frames).toBe(6);
+        // A small picture is scaled up to a reference video's minimum pixels.
+        const up = await prepare({ kind: "media", source: { mediaUrl: "opennan-local://media/two-shots", startSeconds: 0, endSeconds: 3 } }, { ...VIDEO, minPixels: 409_600 }, new AbortController().signal);
+        expect(up.width! * up.height!).toBeGreaterThanOrEqual(409_600);
+    }, 60_000);
 });

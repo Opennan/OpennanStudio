@@ -40,13 +40,15 @@ export const STORY_FILM_TOOLS: readonly ToolDefinition[] = [
         }),
     },
     storyTool("story_film_copy", "Copy a video's story", "text.generate",
-        `Drafts a story film from a reference video: its frames on one contact sheet go to the provider's story writer, which keeps the beats, order and feel. By default the cast and title are original (new character designs and names, safe to publish); cast "keep" only for the person's own video. The draft replaces the project's story film and is always shown for editing before anything is drawn. ${STORY_STEPS_TEXT}`, {
+        `Drafts a story film from a reference video: the host finds its shots (cut to cut, 2-15 s each), a few frames of each go on one contact sheet to the provider's story writer, which writes one story shot per real shot with the same beats, order and feel. By default the cast and title are original (new character designs and names, safe to publish); cast "keep" only for the person's own video. Only copy a video the person has the rights to. With keep_motion (on by default when the video model takes reference videos) each shot is cut out as a project video and story_film_animate remakes it: the same motion, blocking and camera with the new cast and style. The draft replaces the project's story film and is always shown for editing before anything is drawn. ${STORY_STEPS_TEXT}`, {
             media_url: str("A video in the project (opennan-local://media/…): the host samples its frames (needs the editor or mcp serve --ffmpeg)."),
             video_url: str("A video-site https link (Instagram, TikTok, YouTube…): downloaded into the project first (free), then sampled."),
             sheet_image_url: str("A contact sheet you made of the video's frames (a project image or https link), instead of sampling."),
             frames: int("Frames on the sheet (with sheet_image_url; default 16)."),
             every_seconds: num("Seconds between the sheet's frames (with sheet_image_url)."),
             duration_seconds: num("The video's length in seconds (with sheet_image_url)."),
+            shots: arrayOf(objectOf({ start: num("Seconds into the video."), end: num("Seconds into the video.") }, ["start", "end"]), "The video's real shots in order (with sheet_image_url, when this host cannot find them): each story shot is placed on one, so it can be remade from it."),
+            keep_motion: bool("Remake each shot from the real shot (its clip as a reference video: the same motion, blocking and camera). Default: on when the video model takes reference videos. Each shot's seconds of reference video are billed with its clip."),
             cast: enumOf(["original", "keep"], "original (default): a new cast and title that keep the beats. keep: the people as they are, for your own video only."),
             notes: str("What the video is about, or what to change."),
             estimate_only: estimateOnly,
@@ -60,8 +62,9 @@ export const STORY_FILM_TOOLS: readonly ToolDefinition[] = [
             cast_check: { ...int("Redraws a keyframe gets when the cast check finds a character off their sheet (default 1, at most 3); 0 turns the check off. The estimate counts every check and every possible redraw."), minimum: 0, maximum: 3 },
         }),
     storyTool("story_film_animate", "Animate the shots", "video.image-to-video",
-        "Animates each shot from its keyframe (the first frame) for the shot's seconds, 16:9, without sound, two at a time, and stores each clip on the story. The motion text must match what the keyframe shows. Default model seedance-2-5 at 720p (seedance-2-mini when seedance-2-5 is not listed).", {
+        "Animates each shot from its keyframe (the first frame) for the shot's seconds, 16:9, without sound, two at a time, and stores each clip on the story. The motion text must match what the keyframe shows. A story copied from a video with keep_motion is remade instead when the model takes reference videos: each shot's original clip is the reference video (@Video1), its cast sheets then its keyframe are the images, and the clip keeps the real shot's motion, blocking and camera; the reference seconds are billed too (the estimate counts them). Default model seedance-2-5 at 720p (seedance-2-mini when seedance-2-5 is not listed; it takes no reference videos, so shots animate from their keyframes).", {
             ...paid,
+            keep_motion: bool("A copied story: remake each shot from its real shot (true) or animate from its keyframe (false). Kept on the story."),
             model: str("Image-to-video model the provider lists (default seedance-2-5, else seedance-2-mini): kept on the story for later shots."),
             quality: str("Quality the model offers, such as 720p or 1080p (default 720p)."),
         }),

@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chooseWorkingEncoder, createSourcePolicy, probeFile, runProcess } from "@opennan/export/node";
 import { CapabilityUnavailableError, JobFailedError, type MediaPreparer, type MediaPreparePurpose, type PreparedMedia } from "@opennan/provider-sdk";
+import { splitShots, type ShotRange } from "@opennan/story-film";
 import {
     LOCAL_MEDIA_URL_PREFIX, detectBeats, detectSilences, type AnalysisJob, type AnalysisJobOutcome, type BeatOptions, type MediaAnalyzerHost, type SilenceOptions,
 } from "@opennan/timeline-core";
@@ -109,6 +110,14 @@ export function createHeadlessMediaPreparer(options: HeadlessMediaOptions): Medi
     };
 }
 
+/** An ffmpeg scale filter: the source's size (even sides), or scaled up until it has `minPixels` pixels. */
+export function minPixelsScale(minPixels: number): string {
+    const min = Math.ceil(minPixels);
+    // Quoted, so the commas stay inside the expression.
+    const side = (dim: "iw" | "ih") => `'if(lt(iw*ih,${min}),ceil(${dim}*sqrt(${min}/(iw*ih))/2)*2,trunc(${dim}/2)*2)'`;
+    return `scale=${side("iw")}:${side("ih")}`;
+}
+
 async function outputFor(
     purpose: MediaPreparePurpose,
     videoEncoder: () => ReturnType<typeof chooseWorkingEncoder>,
@@ -127,8 +136,9 @@ async function outputFor(
     if (purpose.output === "video") {
         const choice = await videoEncoder();
         const audio = purpose.keepAudio ? ["-c:a", "aac", "-b:a", "192k"] : ["-an"];
-        // Even dimensions: H.264 encoders refuse odd ones.
-        const filters = ["scale=trunc(iw/2)*2:trunc(ih/2)*2", ...choice.videoFilters];
+        // Even dimensions: H.264 encoders refuse odd ones. A picture under the destination's smallest (a reference
+        // video's minimum pixels) is scaled up to it, its shape kept.
+        const filters = [purpose.minPixels ? minPixelsScale(purpose.minPixels) : "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...choice.videoFilters];
         return {
             pre: choice.globalArgs,
             args: ["-map", "0:v:0", ...(purpose.keepAudio ? ["-map", "0:a:0?"] : []), "-vf", filters.join(","), ...choice.videoArgs, ...audio, ...strip, "-movflags", "+faststart", "-f", "mp4"],
@@ -192,22 +202,34 @@ export interface StorySheetOptions {
     run?: typeof runProcess;
 }
 
-/** Story film's copy step on `mcp serve --ffmpeg`: evenly spaced frames of a project video tiled 4 across on one JPEG. */
+/** The select filter that keeps the first frame at or after each time (seconds). */
+export function framesAtTimes(times: readonly number[]): string {
+    // The first frame has no previous time (NaN): it counts as "before" every time.
+    return `select='${times.map((t) => `gte(t,${t.toFixed(3)})*(isnan(prev_t)+lt(prev_t,${t.toFixed(3)}))`).join("+")}'`;
+}
+
+/**
+ * Story film's copy step on `mcp serve --ffmpeg`: evenly spaced frames of a project video (or the frames at `times`,
+ * a copy's shots) tiled 4 across on one JPEG.
+ */
 export function createStorySheetMaker(options: StorySheetOptions) {
     const run = options.run ?? runProcess;
-    return async (mediaUrl: string, frames: number, signal?: AbortSignal) => {
+    return async (mediaUrl: string, frames: number, signal?: AbortSignal, times?: readonly number[]) => {
         const file = projectMediaPath(options.mediaDir, mediaUrl);
         if (!file) throw new Error(ONLY_PROJECT_MEDIA);
         const info = await probeFile(options.ffmpeg.ffprobePath, file, signal, INPUT_GUARDS).catch(() => null);
         const duration = info?.durationSeconds;
         if (!duration || !(duration > 0)) throw new Error("The video's length could not be read.");
-        const count = Math.max(4, Math.min(24, Math.round(frames)));
+        const picked = times && times.length > 0 ? [...times].map((t) => Math.min(duration - 0.05, Math.max(0, t))).sort((a, b) => a - b) : null;
+        const count = picked ? picked.length : Math.max(4, Math.min(24, Math.round(frames)));
         const rows = Math.ceil(count / 4);
         const dir = await fs.mkdtemp(path.join(tmpdir(), "opennan-sheet-"));
         try {
             const out = path.join(dir, "sheet.jpg");
-            const filter = `fps=${count}/${duration.toFixed(3)},scale=480:-2,tile=4x${rows}`;
-            const result = await run(options.ffmpeg.ffmpegPath, [...QUIET, ...inputArgs(file, undefined, undefined), "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", filter, "-frames:v", "1", "-q:v", "3", "-y", out], { signal });
+            const cell = "scale=480:270:force_original_aspect_ratio=decrease,pad=480:270:(ow-iw)/2:(oh-ih)/2";
+            const filter = picked ? `${framesAtTimes(picked)},${cell},tile=4x${rows}` : `fps=${count}/${duration.toFixed(3)},scale=480:-2,tile=4x${rows}`;
+            const sync = picked ? ["-fps_mode", "passthrough"] : [];
+            const result = await run(options.ffmpeg.ffmpegPath, [...QUIET, ...inputArgs(file, undefined, undefined), "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", filter, ...sync, "-frames:v", "1", "-q:v", "3", "-y", out], { signal });
             if (result.code !== 0) throw new Error(`ffmpeg could not sample the frames: ${result.stderr.trim().split("\n").pop() ?? "unknown error"}`);
             const bytes = await fs.readFile(out);
             const url = await options.save(new Blob([bytes], { type: "image/jpeg" }), "story-frames.jpg");
@@ -215,5 +237,42 @@ export function createStorySheetMaker(options: StorySheetOptions) {
         } finally {
             await fs.rm(dir, { recursive: true, force: true });
         }
+    };
+}
+
+export interface StoryShotsOptions extends StorySheetOptions {
+    /** Cuts a shot out (the headless MediaPreparer: an H.264 MP4 of the range). */
+    prepare: MediaPreparer;
+}
+
+/** ffmpeg's scene score from which a frame starts a new shot. */
+export const SCENE_THRESHOLD = 0.3;
+
+/**
+ * Story film's "Remake from your video" on `mcp serve --ffmpeg`: the video's cuts (ffmpeg's scene score), made into
+ * shots of 2-15 s by @opennan/story-film, and (with `cut`) each shot cut out as its own project video.
+ */
+export function createStoryShotsMaker(options: StoryShotsOptions) {
+    const run = options.run ?? runProcess;
+    return async (mediaUrl: string, cut: boolean, signal?: AbortSignal): Promise<{ durationSeconds: number; shots: Array<ShotRange & { clip?: string }>; truncated: boolean }> => {
+        const file = projectMediaPath(options.mediaDir, mediaUrl);
+        if (!file) throw new Error(ONLY_PROJECT_MEDIA);
+        const info = await probeFile(options.ffmpeg.ffprobePath, file, signal, INPUT_GUARDS).catch(() => null);
+        const duration = info?.durationSeconds;
+        if (!duration || !(duration > 0) || !info?.hasVideo) throw new Error("The video's length could not be read.");
+        const filter = `scale=160:-2,select='gt(scene,${SCENE_THRESHOLD})',showinfo`;
+        const result = await run(options.ffmpeg.ffmpegPath, ["-hide_banner", "-nostdin", "-loglevel", "info", ...inputArgs(file, undefined, undefined), "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", filter, "-f", "null", "-"], { signal });
+        if (result.code !== 0) throw new Error(`ffmpeg could not find the shots: ${result.stderr.trim().split("\n").pop() ?? "unknown error"}`);
+        const cuts = [...result.stderr.matchAll(/Parsed_showinfo.*?pts_time:\s*([0-9.]+)/g)].map((m) => Number(m[1])).filter((t) => Number.isFinite(t));
+        const split = splitShots(cuts, duration);
+        const shots: Array<ShotRange & { clip?: string }> = split.shots.map((shot) => ({ ...shot }));
+        if (cut) {
+            for (const [index, shot] of shots.entries()) {
+                const prepared = await options.prepare({ kind: "media", source: { mediaUrl, startSeconds: shot.start, endSeconds: shot.end } }, { output: "video", maxBytes: 1024 * 1024 * 1024, contentTypes: ["video/mp4"] }, signal ?? new AbortController().signal);
+                const data = prepared.data instanceof Blob ? prepared.data : new Blob([prepared.data as Uint8Array<ArrayBuffer>], { type: prepared.contentType });
+                shot.clip = await options.save(data, `story-shot-${String(index + 1).padStart(2, "0")}.mp4`);
+            }
+        }
+        return { durationSeconds: duration, shots, truncated: split.truncated };
     };
 }

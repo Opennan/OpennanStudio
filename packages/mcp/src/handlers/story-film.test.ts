@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { OpenNanSession, createOpenNanApi, createOpenNanProvider, memoryCredentialStore } from "@opennan/provider-opennan";
-import { startFakeOpenNan, type FakeOpenNan } from "@opennan/provider-opennan/testing";
+import { fakeMp4, startFakeOpenNan, type FakeOpenNan } from "@opennan/provider-opennan/testing";
 import { ProviderRegistry, createAiRunner, type MediaPreparer } from "@opennan/provider-sdk";
 import { LocalBackend, TimelineController, createEditorStore, createMemoryPersistence } from "@opennan/timeline-core";
 import { createHeadlessMediaImporter } from "../generated-media";
@@ -29,11 +29,20 @@ type Result = { content: Array<{ type: string; text?: string }>; structuredConte
 const textOf = (result: Result) => result.content.map((c) => c.text ?? "").join("\n");
 const PNG: MediaPreparer = async () => ({ data: new Uint8Array([137, 80, 78, 71]), contentType: "image/png", filename: "image.png", sizeBytes: 4 });
 
+/** Images as PNG; a video range as an MP4 of that length at 1280x720 (a remake's reference). */
+const MEDIA: MediaPreparer = async (input, purpose) => {
+    if (purpose.output !== "video" || input.kind !== "media") return PNG(input, purpose, new AbortController().signal);
+    // A cut-out clip is its shot's 4.6 s.
+    const seconds = input.source.endSeconds !== undefined ? input.source.endSeconds - (input.source.startSeconds ?? 0) : 4.6;
+    const data = fakeMp4(seconds, 1280, 720);
+    return { data, contentType: "video/mp4", filename: "shot.mp4", sizeBytes: data.byteLength, durationSeconds: seconds, width: 1280, height: 720 };
+};
+
 async function studio(host: StudioHost = {}) {
     const session = new OpenNanSession({ api: createOpenNanApi({ baseUrl: fake.url }), store: memoryCredentialStore({ apiKey: fake.mintKey(), keyId: "k" }), deviceName: "t", client: "cli" });
     await session.restore();
     const registry = new ProviderRegistry();
-    registry.register(createOpenNanProvider(session, { prepareMedia: PNG, pollIntervalMs: 1 }));
+    registry.register(createOpenNanProvider(session, { prepareMedia: MEDIA, pollIntervalMs: 1 }));
     const backend = new LocalBackend({ persistence: createMemoryPersistence(), createObjectUrl: () => "" });
     const project = await backend.createProject({ name: "P", aspectRatio: "16:9" });
     const store = createEditorStore();
@@ -194,6 +203,57 @@ describe("story film tools", () => {
             expect(textOf(result)).toMatch(/sheet_image_url/);
         } finally {
             await bare.close();
+        }
+    });
+
+    it("remakes a copied video shot by shot: keep_motion places each story shot on a real shot, animate sends it as the reference", async () => {
+        const asked: Array<{ cut: boolean; times?: readonly number[] }> = [];
+        const host: StudioHost = {
+            storyShots: async (_mediaUrl, cut) => ({
+                durationSeconds: 9.6, truncated: false,
+                shots: [{ start: 0, end: 4.6, ...(cut ? { clip: "opennan-local://media/shot-1" } : {}) }, { start: 4.6, end: 9.6 }],
+            }),
+            storySheet: async (_mediaUrl, frames, _signal, times) => {
+                asked.push({ cut: false, ...(times ? { times } : {}) });
+                return { url: "https://cdn.example.com/sheet.jpg", frames: times?.length ?? frames, everySeconds: 1, durationSeconds: 9.6 };
+            },
+        };
+        const { call, close } = await studio(host);
+        try {
+            fake.queueChatReply(JSON.stringify(STORY));
+            const copied = await call("story_film_copy", { media_url: "opennan-local://media/source" });
+            expect(copied.isError).toBe(false);
+            expect(textOf(copied)).toMatch(/placed on one of the video's 2 real shots and is remade from it at story_film_animate/);
+            // The sheet shows frames of each shot, and the story writer is told the real shots.
+            expect(asked[0]!.times).toHaveLength(6);
+            expect(JSON.stringify(posts("/v1/chat/completions")[0]!.messages)).toMatch(/exactly 2 shots \(cut to cut\)/);
+            const story = (await call("story_film_get")).structuredContent!.story as { source: unknown; shots: Array<{ seconds: number; source?: unknown }>; settings: Record<string, unknown> };
+            expect(story.source).toMatchObject({ kind: "copy", cast: "original", keepMotion: true, mediaUrl: "opennan-local://media/source" });
+            expect(story.shots.map((s) => [s.seconds, s.source])).toEqual([[5, { start: 0, end: 4.6, clip: "opennan-local://media/shot-1" }], [5, { start: 4.6, end: 9.6 }]]);
+            expect(story.settings).toMatchObject({ videoModel: "seedance-2-5", videoReference: { minSeconds: 2, maxSeconds: 30 } });
+
+            await call("story_film_cast");
+            await call("story_film_frames", { cast_check: 0 });
+            const priced = await call("story_film_animate", { estimate_only: true });
+            expect(textOf(priced)).toMatch(/2 shots \(s01, s02\) are remade from the original shot/);
+            const animated = await call("story_film_animate");
+            expect(animated.isError).toBe(false);
+            const videos = posts("/v1/videos/generations");
+            expect(videos).toHaveLength(2);
+            for (const body of videos) {
+                expect(body).toMatchObject({ model: "seedance-2-5", reference_mode: "reference", duration: 5, quality: "720p", generate_audio: false });
+                expect(body.reference_videos).toEqual([expect.stringMatching(/\/files\/uploads\/temp\/.*\.mp4$/)]);
+                expect(body).not.toHaveProperty("image");
+                expect(body.reference_images).toHaveLength(3);
+                expect(String(body.prompt)).toMatch(/^Recreate @Video1 exactly/);
+            }
+            // Billed with the reference seconds: (5 + 5) × $0.36894, twice.
+            expect((animated.structuredContent as { costUsd: number }).costUsd).toBeCloseTo(2 * 3.6894, 6);
+            // keep_motion false animates from the keyframes instead (a new request: the clips are changed since made).
+            const keyframed = await call("story_film_animate", { keep_motion: false, estimate_only: true });
+            expect(textOf(keyframed)).toMatch(/every clip is made already|would make/);
+        } finally {
+            await close();
         }
     });
 
