@@ -2,14 +2,15 @@
 // Music → Timeline (the reel layout), in one window. The story is stored on the project and always editable; every paid
 // button shows its price first ("≈ $x · Draw 2", never under what it settles at) and makes only what is missing; each
 // item can be made again on its own, and a running step can be cancelled. Closing the window cancels what runs (what
-// was made stays on the story).
+// was made stays on the story). On Shots, the cast check (on by default) looks at each new keyframe beside its cast's
+// sheets and redraws it once when a character is off; a shot still off says "Check this shot".
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
 import { formatUsdEstimate, type PriceAnswer, type ProviderModel } from "@opennan/provider-sdk";
 import {
     LAYOUT_PRESETS,
 } from "@opennan/timeline-core";
 import {
-    STORY_DEFAULTS, STORY_LIMITS, STORY_MEDIUMS, blankStory, copyDraftRequest, draftTextModel, isStale, mergeStory, parseStoryFilm, readStoryJson, storyItems,
+    STORY_DEFAULTS, STORY_LIMITS, STORY_MEDIUMS, blankStory, copyDraftRequest, draftTextModel, isFlagged, isStale, mergeStory, parseStoryFilm, readStoryJson, storyItems,
     videoModelChoices, writeDraftRequest, type DraftRequest, type ItemUpdate, type StepEstimate, type StepOptions, type StoryFilm, type StoryItem, type StoryMedium,
     type StoryStep,
 } from "@opennan/story-film";
@@ -85,6 +86,7 @@ export function StoryFilmDialog({ projectId, onClose }: { projectId: string; onC
     const story = useStory();
     const state = useSessionState(session);
     const [step, setStep] = useState<WizardStep>("story");
+    const [castCheck, setCastCheck] = useState(true);
     const index = STEPS.indexOf(step);
     const close = () => {
         session.cancel();
@@ -117,7 +119,9 @@ export function StoryFilmDialog({ projectId, onClose }: { projectId: string; onC
                 )}
                 {step === "story" && <StoryStepView session={session} story={story} sheet={sheet} state={state} onNext={() => setStep("cast")} />}
                 {story && step === "cast" && <ItemsStep session={session} story={story} state={state} step="cast" intro={t("castIntro")} />}
-                {story && step === "shots" && <ItemsStep session={session} story={story} state={state} step="frames" intro={t("shotsIntro")} />}
+                {story && step === "shots" && (
+                    <ItemsStep session={session} story={story} state={state} step="frames" intro={t("shotsIntro")} castCheck={castCheck} onCastCheck={setCastCheck} />
+                )}
                 {story && step === "animate" && <AnimateStep session={session} story={story} state={state} />}
                 {story && step === "music" && <MusicStep session={session} story={story} state={state} />}
                 {story && step === "timeline" && <TimelineStep session={session} story={story} state={state} />}
@@ -497,9 +501,12 @@ function MediaView({ url, kind }: { url: string; kind: "image" | "video" | "audi
 }
 
 /** A redo's price for one item. */
-function RedoButton({ session, story, step, item, state, label }: { session: StoryFilmSession; story: StoryFilm; step: StoryStep; item: StoryItem; state: StoryFilmState; label: string }) {
+function RedoButton({ session, story, step, item, state, label, extra }: {
+    session: StoryFilmSession; story: StoryFilm; step: StoryStep; item: StoryItem; state: StoryFilmState; label: string; extra?: StepOptions;
+}) {
     const t = useTimelineMessages("storyFilm") as T;
-    const options = useMemo(() => ({ only: [item.id], redo: Boolean(item.asset) }), [item.id, item.asset]);
+    const castCheck = extra?.castCheck;
+    const options = useMemo(() => ({ only: [item.id], redo: Boolean(item.asset), ...(castCheck !== undefined ? { castCheck } : {}) }), [item.id, item.asset, castCheck]);
     const estimate = useEstimate(session, story, step, options);
     const price = estimate?.ready ? estimate.label : null;
     return (
@@ -512,16 +519,16 @@ function RedoButton({ session, story, step, item, state, label }: { session: Sto
     );
 }
 
-function RunAll({ session, story, step, state, verb }: { session: StoryFilmSession; story: StoryFilm; step: StoryStep; state: StoryFilmState; verb: string }) {
+function RunAll({ session, story, step, state, verb, options = {} }: { session: StoryFilmSession; story: StoryFilm; step: StoryStep; state: StoryFilmState; verb: string; options?: StepOptions }) {
     const t = useTimelineMessages("storyFilm") as T;
-    const estimate = useEstimate(session, story, step);
+    const estimate = useEstimate(session, story, step, options);
     const count = estimate?.items.length ?? 0;
     const nothing = estimate !== null && estimate.reason?.startsWith("Nothing to make");
     return (
         <div className="story-film-actions">
             <button
                 type="button" className="button primary small" data-testid={`story-film-run-${step}`} disabled={Boolean(state.running) || !estimate?.ready}
-                onClick={() => void session.run(step, verb)}
+                onClick={() => void session.run(step, verb, options)}
             >
                 {estimate?.ready ? t("runAll", { price: estimate.label, verb, count }) : nothing ? t("nothingToMake") : estimate ? (estimate.reason ?? t("notPriced")) : t("pricing")}
             </button>
@@ -530,34 +537,85 @@ function RunAll({ session, story, step, state, verb }: { session: StoryFilmSessi
     );
 }
 
-function ItemsStep({ session, story, state, step, intro }: { session: StoryFilmSession; story: StoryFilm; state: StoryFilmState; step: "cast" | "frames"; intro: string }) {
+function ItemsStep({ session, story, state, step, intro, castCheck, onCastCheck }: {
+    session: StoryFilmSession; story: StoryFilm; state: StoryFilmState; step: "cast" | "frames"; intro: string; castCheck?: boolean; onCastCheck?(on: boolean): void;
+}) {
     const t = useTimelineMessages("storyFilm") as T;
     const items = storyItems(story, step);
     const verb = t(step === "cast" ? "verbDraw" : "verbDrawKeyframes");
+    // Frames: the cast check's redraws (1, or 0 when it is off), the same for "Draw all" and each redo.
+    const options = useMemo<StepOptions>(() => (step === "frames" ? { castCheck: castCheck === false ? 0 : 1 } : {}), [step, castCheck]);
     return (
         <section className="story-film-body">
             <p className="muted story-film-intro">{intro}</p>
-            <RunAll session={session} story={story} step={step} state={state} verb={verb} />
+            {step === "frames" && onCastCheck && <CastCheckField session={session} story={story} on={castCheck !== false} onChange={onCastCheck} disabled={Boolean(state.running)} />}
+            <RunAll session={session} story={story} step={step} state={state} verb={verb} options={options} />
             <ul className="story-film-grid">
                 {items.map((item, i) => {
                     const update = state.items[item.id];
                     const shot = step === "frames" ? story.shots[i] : null;
+                    const flagged = shot ? isFlagged(shot) : false;
                     return (
-                        <li key={item.id} className="story-film-card story-film-item" data-testid={`story-film-item-${item.id}`} data-state={update?.status ?? (item.asset ? "done" : "missing")}>
+                        <li
+                            key={item.id} className="story-film-card story-film-item" data-testid={`story-film-item-${item.id}`} data-state={update?.status ?? (item.asset ? "done" : "missing")}
+                            data-flagged={flagged || undefined}
+                        >
                             <div className="story-film-frame">{item.asset ? <MediaView url={item.asset.url} kind="image" /> : <span className="muted small">{statusText(t, item, update)}</span>}</div>
                             <div className="story-film-card-head">
                                 <span className="story-film-card-label">{item.label}</span>
-                                <span className="story-film-card-state">{statusText(t, item, update)}</span>
+                                <span className="story-film-card-state">{shot && update?.status !== "running" && update?.status !== "queued" ? checkedText(t, shot, item, update) : statusText(t, item, update)}</span>
                             </div>
                             {update?.status === "failed" && update.error && <p className="story-film-error"><AlertIcon /> {update.error}</p>}
+                            {shot && flagged && <CheckFlag story={story} shot={shot} />}
                             {shot && <ShotText session={session} story={story} shotId={shot.id} />}
-                            <div className="story-film-actions"><RedoButton session={session} story={story} step={step} item={item} state={state} label={verb} /></div>
+                            <div className="story-film-actions"><RedoButton session={session} story={story} step={step} item={item} state={state} label={verb} extra={options} /></div>
                         </li>
                     );
                 })}
             </ul>
         </section>
     );
+}
+
+/** "Check characters match (+~$0.004 per shot)": the dearest single look, on by default. */
+function CastCheckField({ session, story, on, onChange, disabled }: { session: StoryFilmSession; story: StoryFilm; on: boolean; onChange(on: boolean): void; disabled: boolean }) {
+    const t = useTimelineMessages("storyFilm") as T;
+    const [price, setPrice] = useState<PriceAnswer | null>(null);
+    const key = JSON.stringify([story.characters, story.shots.map((s) => s.cast)]);
+    useEffect(() => {
+        let live = true;
+        const timer = window.setTimeout(() => void session.castCheckPrice(story).then((answer) => live && setPrice(answer)), PRICE_SETTLE_MS);
+        return () => {
+            live = false;
+            window.clearTimeout(timer);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [key, session]);
+    const label = priceText(t, price);
+    return (
+        <div className="story-film-castcheck">
+            <label className="story-film-check">
+                <input type="checkbox" checked={on} disabled={disabled} onChange={(e) => onChange(e.target.checked)} data-testid="story-film-cast-check" />
+                {label ? t("castCheck", { price: price?.kind === "estimate" ? `+${label.replace("≈ ", "~")}` : label }) : t("castCheckPlain")}
+            </label>
+            <p className="muted small">{t("castCheckHint")}</p>
+        </div>
+    );
+}
+
+/** A made keyframe's state with its cast check: "Characters match", "Check this shot", else the usual words. */
+function checkedText(t: T, shot: StoryFilm["shots"][number], item: StoryItem, update: ItemUpdate | undefined): string {
+    if (!item.asset || isStale(item) || !shot.check || shot.check.keyframeUrl !== item.asset.url) return statusText(t, item, update);
+    return shot.check.ok ? t("castMatches") : t("checkThisShot");
+}
+
+/** Why a shot is flagged: each character off their sheet and what differs, or that nobody could tell. */
+function CheckFlag({ story, shot }: { story: StoryFilm; shot: StoryFilm["shots"][number] }) {
+    const t = useTimelineMessages("storyFilm") as T;
+    const check = shot.check!;
+    const name = (id: string) => story.characters.find((c) => c.id === id)?.name ?? id;
+    const why = check.unread ? t("checkUnread") : check.misses.map((m) => (m.reason ? t("checkMiss", { name: name(m.id), reason: m.reason }) : name(m.id))).join("; ");
+    return <p className="story-film-flag" role="note" data-testid={`story-film-flag-${shot.id}`}><AlertIcon /> <span><strong>{t("checkThisShot")}.</strong> {why}</span></p>;
 }
 
 /** A shot's still and motion text, edited in place (saved when it loses focus). */

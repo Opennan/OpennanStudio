@@ -53,7 +53,7 @@ function provider(price: (capability: string) => PriceAnswer): Provider {
 
 const estimate = (usd: number): PriceAnswer => ({ kind: "estimate", estimate: { microUsd: Math.round(usd * 1e6), usd, label: `≈ $${usd.toFixed(3)}`, units: 1, capped: false } });
 
-async function setup(options: { signedIn?: boolean; balance?: number | null; reply?: string; slow?: boolean } = {}) {
+async function setup(options: { signedIn?: boolean; balance?: number | null; reply?: string; slow?: boolean; look?: Record<string, string> } = {}) {
     const persistence = createMemoryPersistence();
     await persistence.saveProject("p1", { meta: { id: "p1", name: "Film", musicUrl: null, musicVolume: 1, aspectRatio: "16:9" }, tracks: [], clips: [], scenes: [] });
     let n = 0;
@@ -64,6 +64,13 @@ async function setup(options: { signedIn?: boolean; balance?: number | null; rep
         runs.push(request);
         if (options.slow) await new Promise<void>((resolve) => waiting.push(resolve));
         if (context.signal?.aborted) return { jobId: "j", cancelled: true };
+        const input = request.input as { instruction?: string; prompt?: string };
+        if (request.capability === "text.generate" && input.instruction?.startsWith("Check one keyframe")) {
+            // The cast check: every listed character matches unless `look` says why it does not.
+            const ids = [...String(input.prompt).matchAll(/^- ([a-z0-9_-]+) \(image/gm)].map((m) => m[1]!);
+            const text = JSON.stringify({ characters: ids.map((id) => ({ id, match: !options.look?.[id], reason: options.look?.[id] ?? "" })) });
+            return { jobId: "j", output: { media: [], result: { text }, costUsd: 0.004 } };
+        }
         if (request.capability === "text.generate") return { jobId: "j", output: { media: [], result: { text: options.reply ?? storyJson(STORY) }, costUsd: 0.01 } };
         const ext = request.capability === "image.generate" ? "png" : request.capability === "audio.music" ? "mp3" : "mp4";
         return { jobId: "j", output: { media: [{ kind: ext === "png" ? "image" : ext === "mp3" ? "audio" : "video", url: `opennan-local://media/${runs.length}.${ext}` }], costUsd: ext === "mp4" ? 0.26 : 0.05 } };
@@ -144,6 +151,28 @@ describe("StoryFilmSession", () => {
         // Again: the earlier placement is replaced, never doubled.
         expect(await session.assemble()).toBe(true);
         expect(controller.snapshot().scenes).toHaveLength(2);
+    });
+
+    it("checks each keyframe's cast: priced per shot, a miss redrawn once and the shot flagged, off with the box", async () => {
+        const { session, runs } = await setup({ look: { mae: "no ponytail" } });
+        await session.save(STORY);
+        await session.run("cast", "Draw");
+        const sheeted = session.story()!;
+        expect(await session.castCheckPrice(sheeted)).toMatchObject({ kind: "estimate", estimate: { label: "≈ $0.020" } });
+        const off = await session.estimate(sheeted, "frames", { castCheck: 0 });
+        const on = await session.estimate(sheeted, "frames", { castCheck: 1 });
+        // Each shot: its keyframe and one possible redraw at $0.05, two looks at $0.02.
+        expect(on.microUsd).toBe(off.microUsd * 2 + 2 * 2 * 20_000);
+        await session.run("frames", "Draw", { castCheck: 1 });
+        const story = session.story()!;
+        // Both shots have Mae: each drawn twice, looked at twice, then kept and flagged.
+        expect(runs.slice(2).map((r) => r.capability)).toEqual(Array.from({ length: 8 }, (_, i) => (i % 2 === 0 ? "image.generate" : "text.generate")));
+        expect(story.shots.map((s) => [s.id, s.check?.ok, s.check?.tries])).toEqual([["s01", false, 2], ["s02", false, 2]]);
+        expect(session.state().error).toBeNull();
+        const before = runs.length;
+        await session.run("frames", "Draw", { only: ["s02"], redo: true, castCheck: 0 });
+        expect(runs.slice(before).map((r) => r.capability)).toEqual(["image.generate"]);
+        expect(session.story()!.shots[1]!.check).toBeUndefined();
     });
 
     it("shows a draft that does not read as a story, and keeps the old story", async () => {

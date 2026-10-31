@@ -1,6 +1,6 @@
 // Edits of a story that already has files: a new version of the story keeps every file made for the characters and
 // shots that keep their ids (a changed text shows them as changed, never deletes them), and its costs and placement.
-import { isStale, storyItems } from "./pipeline";
+import { isFlagged, isStale, storyItems } from "./pipeline";
 import { STORY_STEPS, type StoryFilm, type StoryStep } from "./types";
 
 /** `next` with the files `previous` made for the same ids (next's own files win), its costs, settings and placement. */
@@ -13,7 +13,8 @@ export function mergeStory(previous: StoryFilm | null, next: StoryFilm): StoryFi
     const shots = next.shots.map((s) => {
         const old = previous.shots.find((p) => p.id === s.id);
         if (!old) return s;
-        return { ...s, ...(!s.keyframe && old.keyframe ? { keyframe: old.keyframe } : {}), ...(!s.clip && old.clip ? { clip: old.clip } : {}) };
+        const keyframe = !s.keyframe && old.keyframe ? { keyframe: old.keyframe, ...(old.check ? { check: old.check } : {}) } : {};
+        return { ...s, ...keyframe, ...(!s.clip && old.clip ? { clip: old.clip } : {}) };
     });
     const merged: StoryFilm = { ...next, characters, shots };
     if (!merged.musicAsset && previous.musicAsset) merged.musicAsset = previous.musicAsset;
@@ -43,7 +44,12 @@ export function withNewerAssets(base: StoryFilm, from: StoryFilm): StoryFilm {
         const other = from.shots.find((f) => f.id === s.id);
         const keyframe = newer(s.keyframe ?? null, other?.keyframe ?? null);
         const clip = newer(s.clip ?? null, other?.clip ?? null);
-        return { ...s, ...(keyframe ? { keyframe } : {}), ...(clip ? { clip } : {}) };
+        // The cast check that looked at the keyframe kept (none when neither did).
+        const check = [s.check, other?.check].find((c) => c && keyframe && c.keyframeUrl === keyframe.url) ?? null;
+        const next = { ...s, ...(keyframe ? { keyframe } : {}), ...(clip ? { clip } : {}) };
+        if (check) next.check = check;
+        else delete next.check;
+        return next;
     });
     const musicAsset = newer(base.musicAsset ?? null, from.musicAsset ?? null);
     const spentUsd = Math.max(base.spentUsd ?? 0, from.spentUsd ?? 0);
@@ -58,6 +64,8 @@ export interface StepProgress {
     missing: string[];
     /** Ids whose file came from an older text or reference. */
     changed: string[];
+    /** Frames: shots whose cast check found a character off their sheet (or could not tell): check these. */
+    flagged: string[];
 }
 
 /** How far each step is: what is made, missing, and changed since it was made. */
@@ -67,6 +75,7 @@ export function storyProgress(story: StoryFilm): StepProgress[] {
         return {
             step, made: items.filter((i) => i.asset).length, total: items.length,
             missing: items.filter((i) => !i.asset).map((i) => i.id), changed: items.filter((i) => isStale(i)).map((i) => i.id),
+            flagged: step === "frames" ? story.shots.filter(isFlagged).map((s) => s.id) : [],
         };
     });
 }

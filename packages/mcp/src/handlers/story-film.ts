@@ -92,7 +92,8 @@ function stepTool(tool: string, step: StoryStep): ToolHandler {
         const ids = Array.isArray(args.ids) ? (args.ids as unknown[]).filter((id): id is string => typeof id === "string") : undefined;
         const redo = args.redo === true;
         if (redo && !ids && step !== "music") return failure(`${tool}: redo needs ids (the ${step === "cast" ? "character" : "shot"} ids to make again).`);
-        const options = { ...(ids ? { only: ids } : step === "music" && redo ? { only: ["music"] } : {}), redo };
+        const castCheck = step === "frames" ? num(args.cast_check) : undefined;
+        const options = { ...(ids ? { only: ids } : step === "music" && redo ? { only: ["music"] } : {}), redo, ...(castCheck !== undefined ? { castCheck } : {}) };
         const host = sessionStoryHost(context.session, context.signal);
         const estimate = context.session.estimate ? await estimateStep(host, story, step, options) : null;
         if (estimate && !estimate.ready && estimate.reason?.startsWith("Nothing to make")) return success(`${tool}: every ${STEP_WORDS[step]} is made already (redo with ids to make one again).`, storyData(story));
@@ -105,13 +106,19 @@ function stepTool(tool: string, step: StoryStep): ToolHandler {
         const outcome = await runStep(host, story, step, { ...options, signal: context.signal, onStory: (s) => saveStory(context.session, s) });
         const made = outcome.made.length;
         const failed = outcome.failed.map((f) => `${f.id}: ${f.error}`).join("; ");
+        const flagged = outcome.flagged.map((f) => `${f.id} (${f.unread ? "the check could not tell" : f.misses.map((m) => `${m.id}${m.reason ? `: ${m.reason}` : ""}`).join("; ")})`).join(", ");
         const text = [
             `${tool} made ${plural(made, STEP_WORDS[step])}${made ? ` (${outcome.made.join(", ")})` : ""}, charged ${formatUsd(outcome.spentUsd)}${estimate ? `; estimated ${estimate.label}` : ""}.`,
+            outcome.redrawn.length ? ` Redrawn after the cast check: ${outcome.redrawn.join(", ")}.` : "",
+            flagged ? ` Check these shots (a character still looks off their sheet): ${flagged}. Look at them, fix the text if needed, and redo with ids + redo.` : "",
             failed ? ` Not made: ${failed}. Nothing was retried; call the tool again to retry.` : "",
             outcome.cancelled ? " The run was stopped; what was made is kept and the next call skips it." : "",
             " " + summaryText(outcome.story),
         ].join("");
-        const data = { ...storyData(outcome.story), made: outcome.made, failed: outcome.failed, cancelled: outcome.cancelled, costUsd: outcome.spentUsd, estimate: estimate?.label ?? null };
+        const data = {
+            ...storyData(outcome.story), made: outcome.made, failed: outcome.failed, cancelled: outcome.cancelled, costUsd: outcome.spentUsd, estimate: estimate?.label ?? null,
+            ...(step === "frames" ? { redrawn: outcome.redrawn, flagged: outcome.flagged } : {}),
+        };
         return made > 0 || outcome.failed.length === 0 ? success(text, data) : failure(text, data);
     };
 }

@@ -55,7 +55,10 @@ export const STORY_FILM_TOOLS: readonly ToolDefinition[] = [
     storyTool("story_film_cast", "Draw the cast", "image.generate",
         "Draws one character design sheet per character (16:9, 2K, no references) and stores each on the story. Review them before drawing keyframes; redo one with ids + redo.", paid),
     storyTool("story_film_frames", "Draw the keyframes", "image.generate",
-        "Draws one 16:9 keyframe per shot, in order, each from the shot's cast sheets (in cast order) and the previous shot's keyframe (the style anchor), and stores each on the story. Needs every cast sheet. A failure stops at that shot (later shots anchor on it). Review every keyframe before animating; redo one with ids + redo.", paid),
+        "Draws one 16:9 keyframe per shot, in order, each from the shot's cast sheets (in cast order) and the previous shot's keyframe (the style anchor), and stores each on the story. Needs every cast sheet. A failure stops at that shot (later shots anchor on it). The cast check looks at each new keyframe beside its cast's sheets (hair, outfit, colours) and redraws it once with the look restated when a character is off; a shot still off is kept and listed as flagged. Review every keyframe before animating, flagged ones first; redo one with ids + redo.", {
+            ...paid,
+            cast_check: { ...int("Redraws a keyframe gets when the cast check finds a character off their sheet (default 1, at most 3); 0 turns the check off. The estimate counts every check and every possible redraw."), minimum: 0, maximum: 3 },
+        }),
     storyTool("story_film_animate", "Animate the shots", "video.image-to-video",
         "Animates each shot from its keyframe (the first frame) for the shot's seconds, 16:9, without sound, two at a time, and stores each clip on the story. The motion text must match what the keyframe shows. Default model seedance-2-mini at 720p.", {
             ...paid,

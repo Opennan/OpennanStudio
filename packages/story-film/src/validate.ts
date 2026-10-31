@@ -2,7 +2,7 @@
 // checked and normalized here before anything uses it. Texts are trimmed and capped, ids are short slugs, a shot's
 // cast names known characters, seconds are whole numbers from 4 to 15 (default 5). Assets are kept only when they are
 // well formed, so a hand-edited file can never point a run at something it did not make.
-import { STORY_FILM_VERSION, STORY_MEDIUMS, type StoryAsset, type StoryCharacter, type StoryFilm, type StoryShot, type StorySettings, type StorySource } from "./types";
+import { STORY_FILM_VERSION, STORY_MEDIUMS, type StoryAsset, type StoryCastCheck, type StoryCharacter, type StoryFilm, type StoryShot, type StorySettings, type StorySource } from "./types";
 
 export const STORY_LIMITS = Object.freeze({
     title: 80,
@@ -61,6 +61,20 @@ export function assetOf(value: unknown): StoryAsset | null {
     for (const key of ["width", "height", "durationSeconds"] as const) if (finite(value[key]) && (value[key] as number) > 0) asset[key] = value[key] as number;
     if (typeof value.at === "string" && value.at.length <= 40) asset.at = value.at;
     return asset;
+}
+
+/** A stored cast check of `keyframe`, or null (one about another keyframe, or half-formed, is dropped). */
+export function castCheckOf(value: unknown, keyframe: StoryAsset | null): StoryCastCheck | null {
+    if (!keyframe || !isRecord(value) || value.keyframeUrl !== keyframe.url || typeof value.ok !== "boolean") return null;
+    if (!Number.isInteger(value.tries) || (value.tries as number) < 1 || (value.tries as number) > 8) return null;
+    const misses = (Array.isArray(value.misses) ? value.misses : []).filter(isRecord).slice(0, STORY_LIMITS.castPerShot)
+        .filter((m) => typeof m.id === "string" && ID.test(m.id))
+        .map((m) => ({ id: m.id as string, reason: typeof m.reason === "string" ? m.reason.trim().slice(0, 300) : "" }));
+    const check: StoryCastCheck = { keyframeUrl: keyframe.url, ok: value.ok, tries: value.tries as number, misses };
+    if (value.unread === true) check.unread = true;
+    if (finite(value.costUsd) && value.costUsd >= 0) check.costUsd = value.costUsd;
+    if (typeof value.at === "string" && value.at.length <= 40) check.at = value.at;
+    return check;
 }
 
 function settingsOf(value: unknown): StorySettings | undefined {
@@ -145,6 +159,8 @@ export function parseStoryFilm(value: unknown): StoryParse {
         }
         const keyframe = assetOf(raw.keyframe);
         if (keyframe) shot.keyframe = keyframe;
+        const check = castCheckOf(raw.check, keyframe);
+        if (check) shot.check = check;
         const clip = assetOf(raw.clip);
         if (clip) shot.clip = clip;
         shots.push(shot);

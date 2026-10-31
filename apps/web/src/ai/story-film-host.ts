@@ -2,12 +2,13 @@
 // (ProjectMeta.storyFilmJson, no undo step), prices each step with the routed providers (never under; a step without a
 // price never runs), opens Sign in with OpenNan before a paid step, checks the balance covers what the step holds,
 // runs the step through ai.run on the controller (every result saved to Media and recorded on the story as it lands,
-// so a re-run never pays twice), and lays the result out as a reel. One step runs at a time; Cancel stops it.
+// so a re-run never pays twice; the keyframes' cast checks too), and lays the result out as a reel. One step runs at a
+// time; Cancel stops it.
 import {
     OPENNAN_PROVIDER_ID, isProviderCapability, type PriceAnswer, type ProviderModel, type ProviderRegistry,
 } from "@opennan/provider-sdk";
 import {
-    estimateStep, parseDraftReply, readStoryJson, reelInputOf, runStep, storyJson, withAssembled, withNewerAssets,
+    estimateCastCheck, estimateStep, parseDraftReply, readStoryJson, reelInputOf, runStep, storyJson, withAssembled, withNewerAssets,
     type DraftRequest, type ItemUpdate, type StepEstimate, type StepOptions, type StoryFilm, type StoryFilmHost, type StoryRunResult, type StoryStep,
 } from "@opennan/story-film";
 import { applyReelLayout, type CommandResult, type ControllerSnapshot, type EditorCommand, type ExecuteOptions } from "@opennan/timeline-core";
@@ -124,6 +125,11 @@ export class StoryFilmSession {
 
     estimate(story: StoryFilm, step: StoryStep, options: StepOptions = {}): Promise<StepEstimate> {
         return estimateStep(this.host, story, step, options);
+    }
+
+    /** The dearest single cast check of the story's shots (null: no shot has a cast). */
+    castCheckPrice(story: StoryFilm): Promise<PriceAnswer | null> {
+        return estimateCastCheck(this.host, story);
     }
 
     /** Signs in when needed and checks the balance covers the hold; false: nothing runs. */

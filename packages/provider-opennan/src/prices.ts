@@ -241,7 +241,9 @@ export async function priceRun(catalog: OpenNanCatalog, request: PriceRequest, q
         }
         if (!MODEL_CATEGORY[capability]) return unknown();
         const models = await catalog.models(capability);
-        const chosen = typeof input.model === "string" ? models.find((m) => m.id === input.model) : models[0];
+        // A text call that sends images without a model runs on the first that sees them: it is priced on that one.
+        const sendsImages = capability === "text.generate" && Array.isArray(input.images) && input.images.length > 0;
+        const chosen = typeof input.model === "string" ? models.find((m) => m.id === input.model) : sendsImages ? models.find((m) => m.vision) : models[0];
         if (!chosen) return unknown("OpenNan lists no such model.");
         const quoted = (local: PriceAnswer) => withQuote(quotes, quoteBody(capability, input, units, chosen.id), local);
         switch (capability) {

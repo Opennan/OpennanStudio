@@ -1,7 +1,8 @@
 // Story film end to end against the fake OpenNan server: AI library → Story film (its own window) → write a story (the story writer drafts
 // it; the draft is edited and saved) → cast sheets → keyframes → clips → music → "Put on timeline" (9:16, the film on
-// V1, the title, the music). A second pass pays for nothing; one keyframe is redrawn on its own. Copying a video from
-// Media sends its frames on one contact sheet with an original cast.
+// V1, the title, the music). The cast check looks at each keyframe: a miss is redrawn with the look restated, and a
+// shot still off after its redraw says "Check this shot". A second pass pays for nothing; one keyframe is redrawn on its
+// own. Copying a video from Media sends its frames on one contact sheet with an original cast.
 import { expect, test, type Page } from "@playwright/test";
 import { FAKE_OPENNAN, fakeState } from "./fixtures/fake-opennan";
 import { importFixtures, signInOpenNan } from "./ai-helpers";
@@ -72,10 +73,19 @@ test("writes, draws, animates, scores and lays out a story film; a second pass p
     expect(sheets[0]!.body).toMatchObject({ model: "nano-banana-pro", size: "2K", aspect_ratio: "16:9" });
 
     await page.getByRole("button", { name: "Shots", exact: true }).click();
+    const check = page.getByTestId("story-film-cast-check");
+    await expect(check).toBeChecked();
+    await expect(page.getByText(/^Check characters match \(\+~\$\d+\.\d{3} per shot\)$/)).toBeVisible({ timeout: 20_000 });
+    // Shot 1's first look finds Mae off her sheet: it is redrawn with her look restated, and the redraw matches.
+    await queueReply(JSON.stringify({ characters: [{ id: "theo", match: true }, { id: "mae", match: false, reason: "no ponytail" }] }));
     await runStep(page, "story-film-run-frames", ["story-film-item-s01", "story-film-item-s02"]);
     const frames = (await posts("/v1/images/generations")).slice(2);
-    expect(frames).toHaveLength(2);
-    expect((frames[1]!.body as { images?: unknown[] }).images).toHaveLength(1);
+    expect(frames).toHaveLength(3);
+    expect(String((frames[1]!.body as { prompt: string }).prompt)).toMatch(/Most important: Mae must look exactly like reference image 2: .*no ponytail$/);
+    expect((frames[2]!.body as { images?: unknown[] }).images).toHaveLength(1);
+    expect(await posts("/v1/chat/completions")).toHaveLength(1 + 3);
+    await expect(page.getByTestId("story-film-item-s01")).toContainText("Made, characters match");
+    await expect(page.getByTestId("story-film-flag-s01")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Animate", exact: true }).click();
     await expect(page.getByTestId("story-film-model")).toHaveValue("seedance-2-mini", { timeout: 20_000 });
@@ -109,12 +119,25 @@ test("writes, draws, animates, scores and lays out a story film; a second pass p
     await expect(page.getByTestId("story-film-run-cast")).toBeDisabled();
     expect((await fakeState()).requests.filter((r) => r.method === "POST").length).toBe(before);
 
-    // One keyframe redrawn on its own.
+    // One keyframe redrawn on its own; Mae stays off her sheet after its redraw too: kept, and the shot says check it.
     await page.getByRole("button", { name: "Shots", exact: true }).click();
     const redo = page.getByTestId("story-film-redo-s02");
     await expect(redo).toHaveText(/^≈ \$\d+\.\d+ · Make again$/, { timeout: 20_000 });
+    const miss = JSON.stringify({ characters: [{ id: "mae", match: false, reason: "short dark hair" }] });
+    await queueReply(miss);
+    await queueReply(miss);
     await redo.click();
-    await expect.poll(async () => (await posts("/v1/images/generations")).length, { timeout: 60_000 }).toBe(5);
+    await expect.poll(async () => (await posts("/v1/images/generations")).length, { timeout: 60_000 }).toBe(7);
+    await expect(page.getByTestId("story-film-flag-s02")).toContainText("Check this shot. Mae: short dark hair", { timeout: 30_000 });
+    await expect(page.getByTestId("story-film-item-s02")).toHaveAttribute("data-flagged", "true");
+    // With the check off, a redo is one image and no look.
+    const chats = (await posts("/v1/chat/completions")).length;
+    await check.uncheck();
+    await expect(redo).toHaveText(/^≈ \$\d+\.\d+ · Make again$/, { timeout: 20_000 });
+    await redo.click();
+    await expect.poll(async () => (await posts("/v1/images/generations")).length, { timeout: 60_000 }).toBe(8);
+    await expect(page.getByTestId("story-film-flag-s02")).toHaveCount(0, { timeout: 30_000 });
+    expect(await posts("/v1/chat/completions")).toHaveLength(chats);
 });
 
 test("copies a video from Media: its frames on one contact sheet, an original cast by default", async ({ page }) => {

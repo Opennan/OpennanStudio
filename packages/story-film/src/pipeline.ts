@@ -5,10 +5,12 @@
 // never-under estimate). Every result is recorded on the story with the request that made it, so a re-run skips what
 // exists and never pays twice; "redo" runs one item again and keeps the old asset if the new one fails. Keyframes run
 // in order (each anchors on the one before); sheets and clips run two at a time. Cancel stops what has not started and
-// cancels what runs.
+// cancels what runs. After each keyframe the cast check (check.ts) looks at it once; a character off their sheet gets
+// the keyframe redrawn with the look restated (once by default), and a shot still off after that is kept and flagged.
 import { formatUsdEstimate, type PriceAnswer, type PriceUnits, type ProviderModel } from "@opennan/provider-sdk";
-import { castOf, keyframePrompt, motionPrompt, musicPrompt, sheetPrompt } from "./recipe";
-import type { StoryAsset, StoryFilm, StoryShot, StoryStep } from "./types";
+import { CAST_CHECK_MAX_REDRAWS, CAST_CHECK_REDRAWS, castCheckRequest, parseCastCheck } from "./check";
+import { castOf, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, sheetPrompt } from "./recipe";
+import type { StoryAsset, StoryCastCheck, StoryFilm, StoryShot, StoryStep } from "./types";
 import { filmSeconds, shotSeconds } from "./validate";
 
 /** The proven defaults: the 2K image model that takes references, and the video model that kept the style best for its price. */
@@ -69,6 +71,18 @@ export interface StepOptions {
     only?: readonly string[];
     /** Run items that already have an asset again (with `only`: redo those). */
     redo?: boolean;
+    /**
+     * Frames: how many times a keyframe is redrawn when its cast check finds a character off their sheet (default 1,
+     * at most 3; 0 turns the check off). The estimate counts every check and every redraw it may make.
+     */
+    castCheck?: number;
+}
+
+/** The redraws a step's cast check may make (0: no check). */
+export function castCheckRedraws(step: StoryStep, options: Pick<StepOptions, "castCheck"> = {}): number {
+    if (step !== "frames") return 0;
+    const asked = options.castCheck ?? CAST_CHECK_REDRAWS;
+    return Number.isFinite(asked) ? Math.max(0, Math.min(CAST_CHECK_MAX_REDRAWS, Math.floor(asked))) : CAST_CHECK_REDRAWS;
 }
 
 /** FNV-1a of the request: short, stable, enough to tell two requests apart. */
@@ -189,6 +203,8 @@ export interface StepEstimate {
     ready: boolean;
     /** Why it is not ready. */
     reason?: string;
+    /** Frames with the cast check: the dearest single check of one shot (micro-dollars), counted in the total. */
+    checkMicroUsd?: number;
 }
 
 /** What a run of the step would cost: each item priced by the provider, summed (an unknown price blocks the run). */
@@ -200,6 +216,8 @@ export async function estimateStep(host: StoryFilmHost, story: StoryFilm, step: 
     let reason: string | undefined;
     // A keyframe not drawn yet still counts as the next one's reference when this run draws it first.
     const running = new Set(items.map((item) => item.id));
+    const redraws = castCheckRedraws(step, options);
+    let checkMicroUsd = 0;
     for (const item of items) {
         const index = story.shots.findIndex((s) => s.id === item.id);
         const previous = step === "frames" && index > 0 ? story.shots[index - 1]!.id : null;
@@ -216,19 +234,53 @@ export async function estimateStep(host: StoryFilmHost, story: StoryFilm, step: 
             microUsd += answer.estimate.microUsd;
             holdUsd += Math.max(answer.estimate.holdUsd ?? 0, answer.estimate.usd);
         }
-        else if (answer.kind !== "free" && answer.kind !== "billed-elsewhere") reason ??= answer.kind === "unavailable" ? answer.reason : answer.kind === "over-limit" ? `${item.label} is over the limit.` : "The price could not be read. Try again in a moment.";
+        else if (answer.kind !== "free" && answer.kind !== "billed-elsewhere") reason ??= priceProblem(item.label, answer);
+        // The cast check, worst case: every look it may take, and every redraw at the keyframe's own price.
+        const check = redraws > 0 ? castCheckRequest(story, story.shots[index]!, QUOTE_PLACEHOLDER) : null;
+        if (!check) continue;
+        const checked = await host.price(check.capability, check.input, { images: check.input.images.length }).catch((): PriceAnswer => ({ kind: "unknown" }));
+        if (checked.kind === "estimate") {
+            checkMicroUsd = Math.max(checkMicroUsd, checked.estimate.microUsd);
+            microUsd += checked.estimate.microUsd * (1 + redraws);
+            holdUsd += Math.max(checked.estimate.holdUsd ?? 0, checked.estimate.usd) * (1 + redraws);
+        }
+        else if (checked.kind !== "free" && checked.kind !== "billed-elsewhere") reason ??= `Cast check: ${priceProblem(item.label, checked)} Turn the check off to draw without it.`;
+        if (answer.kind === "estimate") {
+            microUsd += answer.estimate.microUsd * redraws;
+            holdUsd += Math.max(answer.estimate.holdUsd ?? 0, answer.estimate.usd) * redraws;
+        }
     }
     if (items.length === 0) reason ??= "Nothing to make: everything is made.";
     return {
         items: rows, microUsd, usd: microUsd / 1_000_000, label: formatUsdEstimate(microUsd), holdUsd: Math.round(holdUsd * 1e6) / 1e6, ready: reason === undefined,
-        ...(reason ? { reason } : {}),
+        ...(reason ? { reason } : {}), ...(checkMicroUsd > 0 ? { checkMicroUsd } : {}),
     };
 }
 
+function priceProblem(label: string, answer: PriceAnswer): string {
+    if (answer.kind === "unavailable") return answer.reason;
+    if (answer.kind === "over-limit") return `${label} is over the limit.`;
+    return "The price could not be read. Try again in a moment.";
+}
+
+/**
+ * What one cast check costs at most for this story (its shot with the most characters; sheets not drawn yet count),
+ * for "Check characters match (+$x per shot)". Null: no shot has a cast.
+ */
+export async function estimateCastCheck(host: StoryFilmHost, story: StoryFilm): Promise<PriceAnswer | null> {
+    const sheeted = { ...story, characters: story.characters.map((c) => (c.sheet ? c : { ...c, sheet: { url: QUOTE_PLACEHOLDER, key: "quote" } })) };
+    const widest = [...story.shots].sort((a, b) => castOf(story, b).length - castOf(story, a).length)[0];
+    const check = widest ? castCheckRequest(sheeted, widest, QUOTE_PLACEHOLDER) : null;
+    if (!check) return null;
+    return host.price(check.capability, check.input, { images: check.input.images.length }).catch((): PriceAnswer => ({ kind: "unknown" }));
+}
+
+/** An input image that is not made yet, priced as one (the quote counts images; it never fetches this link). */
+const QUOTE_PLACEHOLDER = "https://opennan.com/studio/quote-input.png";
+
 /** The input a price is asked for: references not drawn yet count as references (a placeholder link). */
 function pricedInput(item: StoryItem): Record<string, unknown> {
-    const placeholder = "https://opennan.com/studio/quote-input.png";
-    const swap = (value: unknown) => (value === "pending" ? placeholder : value);
+    const swap = (value: unknown) => (value === "pending" ? QUOTE_PLACEHOLDER : value);
     const input = { ...item.input };
     if (input.image !== undefined) input.image = swap(input.image);
     if (Array.isArray(input.images)) input.images = input.images.map(swap);
@@ -242,12 +294,30 @@ export function withAsset(story: StoryFilm, step: StoryStep, id: string, asset: 
         case "cast":
             return { ...story, spentUsd, characters: story.characters.map((c) => (c.id === id ? { ...c, sheet: asset } : c)) };
         case "frames":
-            return { ...story, spentUsd, shots: story.shots.map((s) => (s.id === id ? { ...s, keyframe: asset } : s)) };
+            // A new keyframe is unchecked: the old one's check goes with it.
+            return { ...story, spentUsd, shots: story.shots.map((s) => (s.id === id ? { ...withoutCheck(s), keyframe: asset } : s)) };
         case "animate":
             return { ...story, spentUsd, shots: story.shots.map((s) => (s.id === id ? { ...s, clip: asset } : s)) };
         case "music":
             return { ...story, spentUsd, musicAsset: asset };
     }
+}
+
+function withoutCheck(shot: StoryShot): StoryShot {
+    const next = { ...shot };
+    delete next.check;
+    return next;
+}
+
+/** The story with a shot's cast check (and what this look cost added to what the story has spent). */
+export function withCheck(story: StoryFilm, id: string, check: StoryCastCheck, costUsd = 0): StoryFilm {
+    const spentUsd = Math.round(((story.spentUsd ?? 0) + costUsd) * 1_000_000) / 1_000_000;
+    return { ...story, ...(spentUsd > 0 ? { spentUsd } : {}), shots: story.shots.map((s) => (s.id === id ? { ...s, check } : s)) };
+}
+
+/** The shot's check is about its current keyframe and found a character off their sheet (or could not tell). */
+export function isFlagged(shot: StoryShot): boolean {
+    return Boolean(shot.check && shot.keyframe && shot.check.keyframeUrl === shot.keyframe.url && !shot.check.ok);
 }
 
 export type ItemStatus = "queued" | "running" | "done" | "failed" | "cancelled";
@@ -277,15 +347,20 @@ export interface StepOutcome {
     made: string[];
     failed: Array<{ id: string; error: string }>;
     cancelled: boolean;
-    /** What this run was charged (dollars). */
+    /** What this run was charged (dollars), cast checks and redraws included. */
     spentUsd: number;
+    /** Frames: shots redrawn after their cast check found a character off their sheet. */
+    redrawn: string[];
+    /** Frames: shots kept after their last try still off (or not readable): "check this shot". */
+    flagged: Array<{ id: string; misses: StoryCastCheck["misses"]; unread?: boolean }>;
 }
 
 /** Runs a step's items (missing ones, or the chosen ones with redo), storing each result on the story as it lands. */
 export async function runStep(host: StoryFilmHost, story: StoryFilm, step: StoryStep, options: RunStepOptions = {}): Promise<StepOutcome> {
     let current = story;
     const queue = itemsToRun(story, step, options).map((item) => item.id);
-    const outcome: StepOutcome = { story, made: [], failed: [], cancelled: false, spentUsd: 0 };
+    const outcome: StepOutcome = { story, made: [], failed: [], cancelled: false, spentUsd: 0, redrawn: [], flagged: [] };
+    const redraws = castCheckRedraws(step, options);
     for (const id of queue) options.onItem?.({ step, id, status: "queued" });
     let saving: Promise<void> = Promise.resolve();
     const save = () => {
@@ -334,20 +409,84 @@ export async function runStep(host: StoryFilmHost, story: StoryFilm, step: Story
                 if (sequential) stop = true;
                 continue;
             }
-            const asset: StoryAsset = { url: media.url, key: item.key, at: (options.now?.() ?? new Date()).toISOString() };
-            if (typeof item.input.model === "string") asset.model = item.input.model;
-            if (result.costUsd !== undefined) asset.costUsd = result.costUsd;
-            if (media.width && media.height) {
-                asset.width = media.width;
-                asset.height = media.height;
-            }
-            const seconds = media.durationSeconds ?? (typeof item.input.durationSeconds === "number" ? item.input.durationSeconds : undefined);
-            if (seconds && item.capability !== "image.generate") asset.durationSeconds = seconds;
-            current = withAsset(current, step, id, asset);
+            current = withAsset(current, step, id, assetOf(item, media, result.costUsd, options));
             outcome.made.push(id);
-            outcome.spentUsd = Math.round((outcome.spentUsd + (result.costUsd ?? 0)) * 1_000_000) / 1_000_000;
+            outcome.spentUsd = addUsd(outcome.spentUsd, result.costUsd);
+            let cancelled = false;
+            if (redraws > 0) {
+                // The keyframe is stored before it is checked: a check that fails or is cancelled never loses it.
+                void save();
+                cancelled = await castCheck(item);
+            }
             options.onItem?.({ step, id, status: "done", ...(result.costUsd !== undefined ? { costUsd: result.costUsd } : {}) });
             void save();
+            if (cancelled) {
+                outcome.cancelled = true;
+                return;
+            }
+        }
+    };
+    /** Looks at a new keyframe and redraws it while a character is off their sheet; true: cancelled meanwhile. */
+    const castCheck = async (item: StoryItem): Promise<boolean> => {
+        const id = item.id;
+        const progress = (message: string) => options.onItem?.({ step, id, status: "running", message });
+        let tries = 1;
+        let costUsd = 0;
+        for (;;) {
+            const shot = current.shots.find((s) => s.id === id)!;
+            const request = castCheckRequest(current, shot, ref(shot.keyframe!.url));
+            if (!request) return false;
+            progress(tries === 1 ? "Checking the cast" : "Checking the redraw");
+            const looked = await host.run(request.capability, request.input, { signal: options.signal });
+            if (!looked.ok && (looked.cancelled || options.signal?.aborted)) return true;
+            const lookCost = looked.ok ? (looked.costUsd ?? 0) : 0;
+            costUsd = addUsd(costUsd, lookCost);
+            outcome.spentUsd = addUsd(outcome.spentUsd, lookCost);
+            const reply = looked.ok ? (looked.result as { text?: unknown } | undefined)?.text : undefined;
+            const verdict = typeof reply === "string" ? parseCastCheck(reply, request.ids) : { read: false as const };
+            // The look's verdict on the shot (`add`: what this look cost, when the story has not counted it yet).
+            const record = (misses: StoryCastCheck["misses"], unread: boolean, add = lookCost): StoryCastCheck => {
+                const check: StoryCastCheck = { keyframeUrl: shot.keyframe!.url, ok: !unread && misses.length === 0, tries, misses, at: (options.now?.() ?? new Date()).toISOString() };
+                if (unread) check.unread = true;
+                if (costUsd > 0) check.costUsd = costUsd;
+                current = withCheck(current, id, check, add);
+                return check;
+            };
+            // The last word on the shot: kept, and flagged when a character is still off (or nobody could tell).
+            const settle = (check: StoryCastCheck) => {
+                if (!check.ok) outcome.flagged.push({ id, misses: check.misses, ...(check.unread ? { unread: true } : {}) });
+            };
+            // An answer that does not read never pays for a redraw: the shot is kept for the person to look at.
+            if (!verdict.read) {
+                settle(record([], true));
+                return false;
+            }
+            if (verdict.misses.length === 0 || tries > redraws) {
+                settle(record(verdict.misses, false));
+                return false;
+            }
+            const names = verdict.misses.map((m) => current.characters.find((c) => c.id === m.id)?.name ?? m.id).join(" and ");
+            const redrawing = `Redrawing: ${names} did not match the sheet`;
+            progress(redrawing);
+            record(verdict.misses, false);
+            const index = current.shots.findIndex((s) => s.id === id);
+            const description = redrawPrompt(current, shot, index > 0, verdict.misses);
+            const redrawn = await host.run(item.capability, { ...item.input, description }, {
+                signal: options.signal,
+                onProgress: (p) => options.onItem?.({ step, id, status: "running", ...(p.progress !== undefined ? { progress: p.progress } : {}), message: redrawing }),
+            });
+            const media = redrawn.ok ? redrawn.media[0] : undefined;
+            if (!media) {
+                // A failed redraw keeps the keyframe there is, flagged with what the check saw (its cost is counted).
+                settle(record(verdict.misses, false, 0));
+                return !redrawn.ok && Boolean(redrawn.cancelled || options.signal?.aborted);
+            }
+            const cost = redrawn.ok ? redrawn.costUsd : undefined;
+            current = withAsset(current, step, id, assetOf(item, media, cost, options));
+            outcome.spentUsd = addUsd(outcome.spentUsd, cost);
+            if (!outcome.redrawn.includes(id)) outcome.redrawn.push(id);
+            void save();
+            tries += 1;
         }
     };
     const workers = sequential ? 1 : Math.max(1, Math.min(options.concurrency ?? 2, 4));
@@ -358,6 +497,22 @@ export async function runStep(host: StoryFilmHost, story: StoryFilm, step: Story
     await saving;
     outcome.story = current;
     return outcome;
+}
+
+const addUsd = (a: number, b: number | undefined) => Math.round((a + (b ?? 0)) * 1_000_000) / 1_000_000;
+
+/** The asset a run made for an item (its request's key, model, cost, size and length). */
+function assetOf(item: StoryItem, media: StoryRunMedia, costUsd: number | undefined, options: Pick<RunStepOptions, "now">): StoryAsset {
+    const asset: StoryAsset = { url: media.url, key: item.key, at: (options.now?.() ?? new Date()).toISOString() };
+    if (typeof item.input.model === "string") asset.model = item.input.model;
+    if (costUsd !== undefined) asset.costUsd = costUsd;
+    if (media.width && media.height) {
+        asset.width = media.width;
+        asset.height = media.height;
+    }
+    const seconds = media.durationSeconds ?? (typeof item.input.durationSeconds === "number" ? item.input.durationSeconds : undefined);
+    if (seconds && item.capability !== "image.generate") asset.durationSeconds = seconds;
+    return asset;
 }
 
 /** Image-to-video models for the picker: the proven ones first (in order), then any other the provider lists. Never a model it does not sell. */

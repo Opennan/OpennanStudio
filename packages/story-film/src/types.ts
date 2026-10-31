@@ -32,6 +32,26 @@ export interface StoryCharacter {
     sheet?: StoryAsset | null;
 }
 
+/**
+ * The cast check of a keyframe: a vision call compared it with the cast's sheets (hair, outfit, colours). It belongs
+ * to the keyframe it looked at; a new keyframe has none until it is checked.
+ */
+export interface StoryCastCheck {
+    /** The keyframe it looked at. */
+    keyframeUrl: string;
+    /** Every character of the shot matched their sheet. */
+    ok: boolean;
+    /** Keyframes drawn for the shot in that run (the first one plus its redraws). */
+    tries: number;
+    /** The characters that did not match on the last look, and why (empty when ok). */
+    misses: Array<{ id: string; reason: string }>;
+    /** The last look gave no answer (the call failed or its answer did not read): nobody checked this keyframe. */
+    unread?: boolean;
+    /** What the checks cost, in dollars. */
+    costUsd?: number;
+    at?: string;
+}
+
 export interface StoryShot {
     id: string;
     /** Character ids in the shot, in reference order (their sheets go to the keyframe in this order). */
@@ -43,6 +63,8 @@ export interface StoryShot {
     /** 4 to 15 (default 5). */
     seconds?: number;
     keyframe?: StoryAsset | null;
+    /** The keyframe's cast check (a flagged shot shows "check this shot"). */
+    check?: StoryCastCheck | null;
     clip?: StoryAsset | null;
 }
 

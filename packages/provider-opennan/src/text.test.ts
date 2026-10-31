@@ -98,6 +98,27 @@ describe("story film on OpenNan", () => {
         expect((refused as Error).message).toMatch(/not charged/);
     });
 
+    it("prices a text call with images and no model on the model it will run on (the first that sees images)", async () => {
+        const p = await provider();
+        const input = { prompt: "Check.", images: [{ mediaUrl: "opennan-local://media/a.png" }, { mediaUrl: "opennan-local://media/b.png" }], maxTokens: 1000 };
+        const unnamed = await p.price!({ capability: "text.generate", input, units: {} });
+        const vision = await p.price!({ capability: "text.generate", input: { ...input, model: "text-vision" }, units: {} });
+        expect(unnamed).toEqual(vision);
+    });
+
+    it("answers a cast check with every listed character matching unless a reply is queued", async () => {
+        const p = await provider();
+        const input = {
+            instruction: "Check one keyframe of an animated film against the character design sheets of its cast.",
+            prompt: "Characters to check:\n- theo (image 2): Theo. Look: ginger curls\n- mae (image 3): Mae. Look: chestnut ponytail",
+            images: ["https://x/k.png", "https://x/t.png", "https://x/m.png"], maxTokens: 1000,
+        };
+        const out = await p.run!({ capability: "text.generate", input }).result();
+        expect(JSON.parse((out.result as { text: string }).text)).toEqual({ characters: [{ id: "theo", match: true, reason: "" }, { id: "mae", match: true, reason: "" }] });
+        fake.queueChatReply(JSON.stringify({ characters: [{ id: "theo", match: true }, { id: "mae", match: false, reason: "no ponytail" }] }));
+        expect((await p.run!({ capability: "text.generate", input }).result()).result).toMatchObject({ text: expect.stringContaining("no ponytail") });
+    });
+
     it("downloads a video-site link as a video, free", async () => {
         const p = await provider();
         const out = await p.run!({ capability: "web.fetch", input: { url: "https://www.instagram.com/reel/abc/" } }).result();

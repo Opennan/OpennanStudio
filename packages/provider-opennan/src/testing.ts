@@ -115,7 +115,7 @@ export interface FakeOpenNan {
     readonly cloud: FakeCloud;
     /** The AI director and project pipelines' knobs in process (the same as /__test/director/*). */
     readonly director: FakeDirector;
-    /** The next POST /v1/chat/completions answers (in order; the same as POST /__test/chat-reply). Without one it echoes. */
+    /** The next POST /v1/chat/completions answers (in order; the same as POST /__test/chat-reply). Without one it echoes, and a cast check passes. */
     queueChatReply(text: string): void;
     close(): Promise<void>;
 }
@@ -613,6 +613,17 @@ function captionLanguage(value: string): string {
     return `${lang!.toLowerCase()}-${region.length === 4 ? region[0]!.toUpperCase() + region.slice(1).toLowerCase() : region.toUpperCase()}`;
 }
 
+/**
+ * Story film's cast check (a system message that starts "Check one keyframe") without a queued reply: every listed
+ * character ("- id (image n)") matches its sheet. Queue a reply to make one miss.
+ */
+function castCheckReply(messages: Array<{ content?: unknown }>, prompt: string): string | null {
+    const system = messages.find((m) => typeof m.content === "string" && m.content.startsWith("Check one keyframe"));
+    if (!system) return null;
+    const ids = [...prompt.matchAll(/^- ([a-z0-9_-]+) \(image \d+\)/gm)].map((m) => m[1]);
+    return JSON.stringify({ characters: ids.map((id) => ({ id, match: true, reason: "" })) });
+}
+
 export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promise<FakeOpenNan> {
     const interval = options.intervalSeconds ?? 3;
     const expiresIn = options.expiresInSeconds ?? 600;
@@ -1012,7 +1023,7 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
                 if (images > 0 && model.vision !== true) return refuse(400, "invalid_request_error", `${String(body.model)} does not take images.`, "images_not_supported");
                 if (balance <= 0) return refuse(402, "insufficient_balance", "Your balance is too low for this request.");
                 const prompt = parts.map((p) => (typeof p.text === "string" ? p.text : "")).join("\n");
-                const reply = chatReplies.shift() ?? `Echo: ${prompt.slice(0, 200)}`;
+                const reply = chatReplies.shift() ?? castCheckReply(messages, prompt) ?? `Echo: ${prompt.slice(0, 200)}`;
                 const promptTokens = Math.ceil(prompt.length / 3) + images * 1000;
                 const completionTokens = Math.ceil(reply.length / 3);
                 const rate = model.price as { input_usd: number; output_usd: number };

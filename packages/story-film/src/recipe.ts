@@ -63,3 +63,23 @@ export function motionPrompt(story: Pick<StoryFilm, "medium">, shot: Pick<StoryS
 export function musicPrompt(story: Pick<StoryFilm, "music" | "title">): string {
     return story.music || `Gentle instrumental score for an animated short film called ${story.title}, no vocals`;
 }
+
+/**
+ * A keyframe drawn again after its cast check: the same prompt with each character that did not match restated as
+ * the first thing to get right (restating the look is what fixed the prototype's one lost look), and what was wrong.
+ */
+export function redrawPrompt(
+    story: Pick<StoryFilm, "style" | "characters" | "medium">, shot: Pick<StoryShot, "cast" | "frame">, withPrevious: boolean,
+    misses: ReadonlyArray<{ id: string; reason: string }>,
+): string {
+    const cast = castOf(story, shot);
+    const stress = misses.map((miss) => {
+        const index = cast.findIndex((c) => c.id === miss.id);
+        if (index < 0) return null;
+        const c = cast[index]!;
+        const wrong = miss.reason ? ` The last drawing got this wrong: ${miss.reason}` : "";
+        return `${c.name} must look exactly like reference image ${index + 1}: ${c.look}. Same hair, same outfit, same colours.${wrong}`;
+    }).filter((line): line is string => line !== null);
+    const first = stress.length > 0 ? ` Most important: ${stress.join(" ")}` : "";
+    return `${keyframePrompt(story, shot, withPrevious)}${first}`;
+}

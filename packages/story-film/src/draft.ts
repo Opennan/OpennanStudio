@@ -122,6 +122,7 @@ export function parseDraftReply(reply: string, source: { kind: "write" } | { kin
     for (const shot of Array.isArray(draft.shots) ? (draft.shots as unknown[]) : []) {
         if (!shot || typeof shot !== "object") continue;
         delete (shot as Record<string, unknown>).keyframe;
+        delete (shot as Record<string, unknown>).check;
         delete (shot as Record<string, unknown>).clip;
     }
     for (const character of Array.isArray(draft.characters) ? (draft.characters as unknown[]) : []) {

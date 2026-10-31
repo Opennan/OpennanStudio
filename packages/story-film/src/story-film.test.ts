@@ -1,6 +1,7 @@
 // Story film: the validator on the prototype's story, the recipe's exact prompts, drafts, and the reel input.
 import { reelInputOf, withAssembled } from "./assemble";
 import { mergeStory, storyProgress, withNewerAssets } from "./edit";
+import { castCheckRequest, parseCastCheck } from "./check";
 import { copyDraftRequest, jsonObjectOf, parseDraftReply, writeDraftRequest } from "./draft";
 import { keyframePrompt, motionPrompt, sheetPrompt } from "./recipe";
 import type { StoryFilm } from "./types";
@@ -146,7 +147,7 @@ describe("mergeStory and storyProgress", () => {
         expect(merged.characters.map((c) => [c.id, c.sheet?.url ?? null])).toEqual([["theo", "opennan-local://media/theo.png"], ["zed", null]]);
         expect(merged.spentUsd).toBe(0.1);
         const progress = storyProgress(merged);
-        expect(progress[0]).toEqual({ step: "cast", made: 1, total: 2, missing: ["zed"], changed: ["theo"] });
+        expect(progress[0]).toEqual({ step: "cast", made: 1, total: 2, missing: ["zed"], changed: ["theo"], flagged: [] });
         expect(progress[1]).toMatchObject({ step: "frames", made: 0, total: 12 });
     });
 });
@@ -160,5 +161,36 @@ describe("withNewerAssets", () => {
         expect(merged.title).toBe("Edited");
         expect(merged.characters.map((c) => c.sheet?.url)).toEqual(["opennan-local://media/old-theo.png", "opennan-local://media/new-mae.png"]);
         expect(merged.spentUsd).toBe(0.05);
+    });
+});
+
+describe("the cast check's request and answer", () => {
+    it("asks only about characters with a sheet, and reads yes or no per listed id", () => {
+        const story = rainCheck();
+        expect(castCheckRequest(story, story.shots[0]!, "k")).toBeNull();
+        const drawn = { ...story, characters: story.characters.map((c, i) => (i === 1 ? { ...c, sheet: { url: "opennan-local://media/mae.png", key: "k" } } : c)) };
+        const request = castCheckRequest(drawn, story.shots[0]!, { mediaUrl: "opennan-local://media/f.png" })!;
+        expect(request.ids).toEqual(["mae"]);
+        expect(request.input.images).toEqual([{ mediaUrl: "opennan-local://media/f.png" }, { mediaUrl: "opennan-local://media/mae.png" }]);
+        expect(parseCastCheck('```json\n{"characters":[{"id":"mae","match":"no","reason":"  short   hair "}]}\n```', ["mae"])).toEqual({ read: true, misses: [{ id: "mae", reason: "short hair" }] });
+        expect(parseCastCheck('{"characters":[{"id":"mae","match":true}]}', ["mae"])).toEqual({ read: true, misses: [] });
+        // Every listed id must be answered; anything else does not read.
+        expect(parseCastCheck('{"characters":[{"id":"theo","match":true}]}', ["theo", "mae"])).toEqual({ read: false });
+        expect(parseCastCheck("Looks fine.", ["mae"])).toEqual({ read: false });
+    });
+
+    it("travels with its keyframe through merges and runs, and never comes from a draft", () => {
+        const story = rainCheck();
+        const keyframe = { url: "opennan-local://media/k1.png", key: "k", at: "2026-10-31T10:00:00.000Z" };
+        const check = { keyframeUrl: keyframe.url, ok: false, tries: 2, misses: [{ id: "mae", reason: "no ponytail" }] };
+        const made: StoryFilm = { ...story, shots: story.shots.map((s, i) => (i === 0 ? { ...s, keyframe, check } : s)) };
+        expect(mergeStory(made, story).shots[0]!.check).toEqual(check);
+        expect(withNewerAssets(story, made).shots[0]!.check).toEqual(check);
+        const newer = { ...keyframe, url: "opennan-local://media/k2.png", at: "2026-10-31T11:00:00.000Z" };
+        const redone: StoryFilm = { ...story, shots: story.shots.map((s, i) => (i === 0 ? { ...s, keyframe: newer } : s)) };
+        expect(withNewerAssets(made, redone).shots[0]).toMatchObject({ keyframe: newer });
+        expect(withNewerAssets(made, redone).shots[0]!.check).toBeUndefined();
+        const draft = parseDraftReply(JSON.stringify({ ...made }), { kind: "write" });
+        expect(draft.ok && draft.story.shots[0]!.check).toBeFalsy();
     });
 });

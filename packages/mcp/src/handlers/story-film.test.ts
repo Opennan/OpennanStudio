@@ -108,6 +108,39 @@ describe("story film tools", () => {
         }
     });
 
+    it("checks each keyframe's cast: a miss is redrawn once, a shot still off is listed, cast_check 0 turns it off", async () => {
+        const { call, close } = await studio();
+        try {
+            await call("story_film_create", { story: STORY });
+            await call("story_film_cast");
+            const bare = await call("story_film_frames", { estimate_only: true, cast_check: 0 });
+            const checked = await call("story_film_frames", { estimate_only: true });
+            const usd = (r: Result) => r.structuredContent!.estimateUsd as number;
+            // The check's looks and a possible redraw of each shot are in the price.
+            expect(usd(checked)).toBeGreaterThan(usd(bare) * 2);
+            const miss = JSON.stringify({ characters: [{ id: "theo", match: true }, { id: "mae", match: false, reason: "no ponytail" }] });
+            // Shot 1: off, redrawn, off again (flagged). Shot 2: the fake's default answer (every character matches).
+            fake.queueChatReply(miss);
+            fake.queueChatReply(miss);
+            const frames = await call("story_film_frames");
+            expect(frames.isError).toBe(false);
+            expect(posts("/v1/images/generations").slice(2)).toHaveLength(3);
+            expect(posts("/v1/chat/completions")).toHaveLength(3);
+            expect(String(posts("/v1/images/generations")[3]!.prompt)).toMatch(/Most important: Mae must look exactly like reference image 2: .* The last drawing got this wrong: no ponytail$/);
+            expect(textOf(frames)).toMatch(/Redrawn after the cast check: s01\. Check these shots \(a character still looks off their sheet\): s01 \(mae: no ponytail\)\./);
+            expect(frames.structuredContent).toMatchObject({ redrawn: ["s01"], flagged: [{ id: "s01", misses: [{ id: "mae", reason: "no ponytail" }] }] });
+            expect(usd(checked)).toBeGreaterThanOrEqual(frames.structuredContent!.costUsd as number);
+            const progress = (await call("story_film_get")).structuredContent!.progress as Array<{ step: string; flagged: string[] }>;
+            expect(progress.find((p) => p.step === "frames")!.flagged).toEqual(["s01"]);
+            // Redo the flagged shot with the check off: one image, no look.
+            const chats = posts("/v1/chat/completions").length;
+            expect((await call("story_film_frames", { ids: ["s01"], redo: true, cast_check: 0 })).isError).toBe(false);
+            expect(posts("/v1/chat/completions")).toHaveLength(chats);
+        } finally {
+            await close();
+        }
+    });
+
     it("drafts from a written story and from a contact sheet, keeping the draft editable", async () => {
         const { call, close } = await studio();
         try {

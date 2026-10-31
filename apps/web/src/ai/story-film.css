@@ -79,3 +79,12 @@
 /* The footer stays at the bottom of the scrolling dialog (an opaque strip: the steps scroll under it). */
 .story-film-footer { position: sticky; bottom: -16px; z-index: 1; background: color-mix(in oklab, var(--on-muted) 50%, var(--on-background)); }
 .story-film-footer-gap { flex: 1; }
+
+/* The cast check: its switch on Shots, and a flagged shot ("Check this shot") ringed and explained. */
+.story-film-castcheck { display: flex; flex-direction: column; gap: 2px; }
+.story-film-castcheck p { margin: 0 0 0 24px; }
+.story-film-item[data-flagged] { box-shadow: 0 0 0 1px var(--on-destructive-text); }
+.story-film-item[data-flagged] .story-film-card-state { color: var(--on-destructive-text); }
+.story-film-flag { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; color: var(--on-foreground); }
+.story-film-flag svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--on-destructive-text); }
+.story-film-flag strong { font-weight: 600; color: var(--on-foreground-strong); }
