@@ -23,7 +23,7 @@ app's built-in server). The story is stored on the project, so agents and the ed
 
 ## The recipe (what makes the characters stay the same)
 
-1. **Story** (`story.json`, see `examples/story-film/rain-check.json`; the film it made is `docs/media/story-film-rain-check.mp4`): `title`, `style`, `medium` (`2d` | `3d` |
+1. **Story** (`story.json`, see `examples/story-film/rain-check.json`): `title`, `style`, `medium` (`2d` | `3d` |
    `stop-motion` | `anime`), `characters` `[{ id, name, look }]`, `shots` `[{ id, cast, frame, motion, seconds }]`,
    `music`. 5 s a shot (4 to 15).
    - `style` is one paragraph that ends every image prompt: medium, linework, shading, palette, light, era, and

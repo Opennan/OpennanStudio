@@ -47,11 +47,6 @@ A cast check looks at every keyframe and redraws one whose character drifted
 from their sheet. Agents use the `story_film_*` MCP tools; the guide is
 [`skills/story-film/SKILL.md`](skills/story-film/SKILL.md).
 
-[![Rain Check, a hand-drawn story film made with Story film: a 9:16 reel with the title above the film, the same two characters in every shot](docs/images/story-film-rain-check.gif)](docs/media/story-film-rain-check.mp4)
-
-*Rain Check*, made from [`examples/story-film/rain-check.json`](examples/story-film/rain-check.json): 12 shots, about $4 to make again with the default models.
-[Watch the full 60 s film with music](docs/media/story-film-rain-check.mp4).
-
 ## Run locally
 
 ```bash
