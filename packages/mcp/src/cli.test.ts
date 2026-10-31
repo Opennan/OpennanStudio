@@ -45,7 +45,7 @@ describe("opennan-studio CLI", () => {
         expect(await runCli(["mcp", "serve"], io().io)).toBe(2);
         expect(await runCli(["mcp", "serve", "--project", "f.json", "--tools", "some"], io().io)).toBe(2);
         expect(serverOptionsFor(undefined)).toEqual({});
-        expect(serverOptionsFor("offline").tools).toHaveLength(67);
+        expect(serverOptionsFor("offline").tools).toHaveLength(71);
         expect(() => serverOptionsFor("generation")).toThrow("--tools must be all or offline");
     });
 

@@ -5662,6 +5662,12 @@ export const EDITOR_TYPES: Readonly<Record<EditorTypeName, { [key: string]: unkn
                             },
                             "aspectRatio": {
                                 "type": "string"
+                            },
+                            "storyFilmJson": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             }
                         },
                         "additionalProperties": false

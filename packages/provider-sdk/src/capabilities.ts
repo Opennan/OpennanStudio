@@ -16,6 +16,8 @@ export const OPEN_CAPABILITIES = [
     "graphics.generate", "graphics.templates",
     // Phase 11 (AI in the editor): media tools on a clip's used range, and on-device stabilize.
     "captions.translate", "audio.isolate-voice", "video.upscale", "media.stabilize",
+    // Story film: a text model answers a prompt (a story draft), optionally looking at images (a video's frames).
+    "text.generate",
 ] as const;
 
 /** Capabilities that only run on the device (provider-local, desktop main): never OpenNan, not listed in routing. */

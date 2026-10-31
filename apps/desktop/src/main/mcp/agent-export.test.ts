@@ -45,7 +45,8 @@ describe("agent exports on desktop take the GPU path and are first-class jobs", 
     });
     afterEach(() => {
         db.close();
-        fs.rmSync(dir, { recursive: true, force: true });
+        // Windows can still hold a file the export just wrote: retry like export-jobs.test.ts.
+        fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     });
 
     async function setup(run: Run) {

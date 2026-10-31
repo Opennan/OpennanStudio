@@ -12,13 +12,13 @@ export const FIXTURE_VIDEO = path.join(path.dirname(fileURLToPath(import.meta.ur
 /** 2x2 black PNG. */
 export const BLACK_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAC0lEQVR4nGNgQAYAAA4AAamRc7EAAAAASUVORK5CYII=";
 
-export interface StudioClip { id: string; trackType: string; trackIndex: number; startTime: number; endTime: number; mediaUrl: string | null }
-export interface StudioScene { id: string; duration: number; trackIndex?: number | null; sourceVideoUrl?: string | null; cardConfig?: string | null }
+export interface StudioClip { id: string; trackType: string; trackIndex: number; startTime: number; endTime: number; mediaUrl: string | null; textContent?: string | null }
+export interface StudioScene { id: string; duration: number; trackIndex?: number | null; sourceVideoUrl?: string | null; cardConfig?: string | null; fitMode?: string | null }
 export interface StudioSnapshot {
     clips: StudioClip[];
     scenes: StudioScene[];
     markers: Array<{ time: number; label?: string | null }>;
-    project: { name: string; aspectRatio: string } | null;
+    project: { name: string; aspectRatio: string; storyFilmJson?: string | null } | null;
     currentTime: number;
 }
 

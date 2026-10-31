@@ -17,6 +17,7 @@ const PACKAGES = {
     "@opennan/provider-opennan": "packages/provider-opennan/src",
     "@opennan/provider-fal": "packages/provider-fal/src",
     "@opennan/director-client": "packages/director-client/src",
+    "@opennan/story-film": "packages/story-film/src",
 };
 
 function escape(name) {

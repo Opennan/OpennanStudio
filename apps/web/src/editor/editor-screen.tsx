@@ -13,6 +13,7 @@ import { createFrameCapture } from "../ai/capture-frame";
 import { createAiRunner } from "@opennan/provider-sdk";
 import { AutoCaptionsDialog } from "../ai/auto-captions-dialog";
 import { GenerateDialog } from "../ai/generate-dialog";
+import { StoryFilmDialog } from "../ai/story-film-dialog";
 import { createMediaImporter } from "../ai/import-generated";
 import { ExportDialog } from "../export/export-dialog";
 import { useLocalExport, type LocalExport } from "../export/use-local-export";
@@ -61,6 +62,7 @@ interface EditorBridge {
     store?: EditorStore;
     openGenerate?(kind: GenerateKind, options?: { fromFrame?: boolean }): void;
     openAutoCaptions?(target?: AiTargetRef): void;
+    openStoryFilm?(): void;
 }
 
 function EditorScreen({ projectId }: { projectId: string }) {
@@ -101,6 +103,7 @@ function EditorScreen({ projectId }: { projectId: string }) {
         notEnoughCredits: (hold) => void pushToast({ kind: "error", message: notEnoughCreditsMessage(hold), action: { label: "Buy credits", run: () => account.openConsole("billing") } }),
         openGenerate: (kind, options) => bridge.current.openGenerate?.(kind, options),
         openAutoCaptions: (target) => bridge.current.openAutoCaptions?.(target),
+        openStoryFilm: () => bridge.current.openStoryFilm?.(),
     }), [providers, account, openSignIn, pushToast]);
     bridge.current.ai = ai;
     useEffect(() => () => ai.dispose(), [ai]);
@@ -139,13 +142,15 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
     const store = useEditorStoreApi();
     const [captioning, setCaptioning] = useState<false | { target?: AiTargetRef }>(false);
     const [generating, setGenerating] = useState<{ kind: GenerateKind; fromFrame?: boolean } | null>(null);
+    const [filming, setFilming] = useState(false);
     bridge.current.controller = controller;
     bridge.current.store = store;
     bridge.current.openGenerate = (kind, options) => setGenerating({ kind, ...(options?.fromFrame ? { fromFrame: true } : {}) });
     bridge.current.openAutoCaptions = (target) => setCaptioning(target ? { target } : {});
+    bridge.current.openStoryFilm = () => setFilming(true);
     // A dialog owns the keyboard: the editor keymap and the timeline's own listeners are both off.
     const pastingAttributes = useEditorStore((s) => s.attributePastePicker !== null);
-    const dialogOpen = exporting || captioning !== false || generating !== null || pastingAttributes;
+    const dialogOpen = exporting || captioning !== false || generating !== null || filming || pastingAttributes;
     useEditorShortcuts(timeline, { enabled: !dialogOpen });
     const { debug, providers, backend, media, ui } = useStudioRuntime();
     const [dockTab, setDockTab] = useState<RightDockTab>(loadRightDockTab);
@@ -203,6 +208,7 @@ function EditorWorkspace({ library, exporting, setExporting, localExport, bridge
             {exporting && <ExportDialog onClose={() => setExporting(false)} local={localExport} />}
             {captioning && <AutoCaptionsDialog target={captioning.target} onClose={() => setCaptioning(false)} />}
             {generating && <GenerateDialog initialKind={generating.kind} fromFrame={generating.fromFrame} captureFrame={captureFrame} onClose={() => setGenerating(null)} />}
+            {filming && <StoryFilmDialog projectId={projectId} onClose={() => setFilming(false)} />}
         </div>
     );
 }

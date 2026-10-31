@@ -59,6 +59,7 @@
 
 /* ── AI library ─────────────────────────────────────── */
 .on-ai-library { display: flex; flex-direction: column; gap: 12px; }
+.on-ai-tile-wide { grid-column: 1 / -1; }
 .on-ai-tiles { list-style: none; margin: 0; padding: 0 12px 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .on-ai-tile {
   display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; min-height: 76px; padding: 10px;

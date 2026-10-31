@@ -58,6 +58,7 @@ export interface EditorAiOptions {
     refreshAccount?(): void;
     openGenerate?(kind: GenerateKind, options?: { fromFrame?: boolean }): void;
     openAutoCaptions?: TimelineAiHost["openAutoCaptions"];
+    openStoryFilm?: TimelineAiHost["openStoryFilm"];
     /** The OpenNan balance (null: unknown) and a fresh read of it, checked against what a paid run holds. */
     account?: HoldAccount;
     /** The balance does not cover what the run holds (after a fresh read): nothing is sent. */
@@ -422,6 +423,7 @@ export function createEditorAi(options: EditorAiOptions): EditorAi {
         },
         ...(options.openGenerate ? { openGenerate: options.openGenerate } : {}),
         ...(options.openAutoCaptions ? { openAutoCaptions: options.openAutoCaptions } : {}),
+        ...(options.openStoryFilm ? { openStoryFilm: options.openStoryFilm } : {}),
         dispose() {
             disposed = true;
             stopRegistry();

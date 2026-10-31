@@ -1,6 +1,6 @@
 import {
     BILLING_SAFETY, captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateSoundEffectCost, estimateStemsCost, estimateToolCost,
-    estimateVideoModelCost, estimateVoiceCost, formatUsdEstimate, isOverLimit, startedUnits, toMicroUsd, type ToolPriceBlock,
+    estimateVideoModelCost, estimateVoiceCost, estimateTextCost, promptTokenBound, formatUsdEstimate, isOverLimit, startedUnits, toMicroUsd, type ToolPriceBlock,
 } from "./prices";
 
 const TRANSCRIBE: ToolPriceBlock = { unit: "source_minute", per: "minute", usd: 0.004768, max_minutes: 30 };
@@ -121,6 +121,35 @@ describe("model estimates", () => {
         expect(estimateVideoModelCost(price, 10)).toMatchObject({ microUsd: 2_400_010 });
         expect(estimateVideoModelCost({ matrix: [{ ours_usd: 0.7, duration: 3, ours_usd_per_second: 0.233333 }] }, 3)!.microUsd).toBeGreaterThanOrEqual(700_000);
         expect(estimateVideoModelCost({ from_usd: 0.5 }, 5)).toBeNull();
+    });
+
+    it("image: a sent size or quality prices the worst matching tier, plus each input image", () => {
+        const price = {
+            from_usd: 0.05, per_input_image_usd: 0.002,
+            tiers: [{ quality: null, size: "1K", usd: 0.05 }, { quality: null, size: "2K", usd: 0.05 }, { quality: null, size: "4K", usd: 0.09 }, { quality: "high", size: "2K", usd: 0.07 }],
+        };
+        expect(estimateImageCost(price, 3, { size: "2K" })).toMatchObject({ microUsd: 70_000 + 6_000 + 1 });
+        expect(estimateImageCost(price, 0, { size: "4K" })).toMatchObject({ microUsd: 90_001 });
+        expect(estimateImageCost(price, 0, { quality: "high", size: "2K" })).toMatchObject({ microUsd: 70_001 });
+        expect(estimateImageCost(price, 0, { size: "8K" })).toBeNull();
+        expect(estimateImageCost({ from_usd: 0.05 }, 0, { size: "2K" })).toBeNull();
+    });
+
+    it("video: the call's quality and sound choice narrow the rows that price it", () => {
+        const price = { matrix: [{ quality: "720p", duration: 5, ours_usd: 0.25, audio: false }, { quality: "1080p", duration: 5, ours_usd: 0.6, audio: false }, { quality: "720p", duration: 5, ours_usd: 0.4, audio: true }] };
+        expect(estimateVideoModelCost(price, 5, { quality: "720p", audio: false })).toMatchObject({ microUsd: 250_005 });
+        expect(estimateVideoModelCost(price, 5, { quality: "720p" })).toMatchObject({ microUsd: 400_005 });
+        expect(estimateVideoModelCost(price, 5)).toMatchObject({ microUsd: 600_005 });
+        expect(estimateVideoModelCost(price, 5, { quality: "4k" })).toBeNull();
+    });
+
+    it("text: the prompt bound at the input price plus max_tokens at the output price, never under", () => {
+        const price = { input_usd: 3, output_usd: 15 };
+        expect(estimateTextCost(price, { promptTokens: 10_000, maxTokens: 4_000 })).toMatchObject({ microUsd: 30_000 + 60_000 + 1, label: "≈ $0.091" });
+        expect(estimateTextCost({ input_usd: 3 }, { promptTokens: 1, maxTokens: 1 })).toBeNull();
+        expect(estimateTextCost(price, { promptTokens: 1, maxTokens: 0 })).toBeNull();
+        // Every character a token, eight a message, 32 a call, each image at its maximum.
+        expect(promptTokenBound(["abc", "héllo"], 2, 1000)).toBe(3 + 5 + 16 + 32 + 2000);
     });
 
     it("voice: started 1,000-character blocks at the block price", () => {

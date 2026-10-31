@@ -69,4 +69,6 @@ export interface TimelineAiHost {
     openGenerate?(kind: GenerateKind, options?: { fromFrame?: boolean }): void;
     /** The host's auto-captions dialog (engine switch), on the whole timeline or one item. */
     openAutoCaptions?(target?: AiTargetRef): void;
+    /** The host's Story film wizard (the AI library's Story film tile). */
+    openStoryFilm?(): void;
 }

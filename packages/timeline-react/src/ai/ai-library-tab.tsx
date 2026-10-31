@@ -2,7 +2,7 @@
 // The AI library (phase 11): tiles that open the editor host's generate dialog in one mode — image, video, video from the
 // frame at the playhead, voice (text to speech), music, sound effect. The host prices each run, signs in, and places the
 // result at the playhead (one undo step). Without a host that can generate, the tiles are disabled with the reason.
-import { AudioLines, Film, Frame, Image as ImageIcon, Mic, Music } from "lucide-react";
+import { AudioLines, Clapperboard, Film, Frame, Image as ImageIcon, Mic, Music } from "lucide-react";
 import { useTimelineMessages } from "../hooks/use-timeline-messages";
 import type { GenerateKind } from "./ai-host";
 import { useAiHost } from "./use-ai";
@@ -46,6 +46,15 @@ export function AiLibraryTab() {
                             </li>
                         );
                     })}
+                    {host?.openStoryFilm && (
+                        <li className="on-ai-tile-wide">
+                            <button type="button" className="on-ai-tile" data-testid="ai-tile-story-film" onClick={() => host.openStoryFilm?.()}>
+                                <Clapperboard aria-hidden="true" />
+                                <span>{t("ai_tileStoryFilm")}</span>
+                                <span className="on-ai-tile-sub">{t("ai_tileStoryFilmSub")}</span>
+                            </button>
+                        </li>
+                    )}
                 </ul>
             </div>
         </div>

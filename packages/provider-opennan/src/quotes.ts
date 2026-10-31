@@ -72,6 +72,9 @@ export function quoteBody(capability: ProviderCapability, input: Record<string, 
             if (typeof input.aspectRatio === "string") body.aspect_ratio = input.aspectRatio;
             if (capability === "video.image-to-video" || present(input.image)) body.image = QUOTE_IMAGE_PLACEHOLDER;
             if (present(input.endImage)) body.end_image = QUOTE_IMAGE_PLACEHOLDER;
+            if (Array.isArray(input.referenceImages) && input.referenceImages.length > 0) body.reference_images = input.referenceImages.map(() => QUOTE_IMAGE_PLACEHOLDER);
+            if (typeof input.quality === "string") body.quality = input.quality;
+            if (typeof input.generateAudio === "boolean") body.generate_audio = input.generateAudio;
             return body;
         }
         case "image.generate":
@@ -79,6 +82,9 @@ export function quoteBody(capability: ProviderCapability, input: Record<string, 
             const body: Record<string, unknown> = { model };
             if (typeof input.aspectRatio === "string") body.aspect_ratio = input.aspectRatio;
             if (capability === "image.edit" || present(input.image) || (units.images ?? 0) > 0) body.image = QUOTE_IMAGE_PLACEHOLDER;
+            if (Array.isArray(input.images) && input.images.length > 0) body.images = input.images.map(() => QUOTE_IMAGE_PLACEHOLDER);
+            if (typeof input.size === "string") body.size = input.size;
+            if (typeof input.quality === "string") body.quality = input.quality;
             return body;
         }
         case "audio.tts": {

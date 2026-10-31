@@ -115,6 +115,8 @@ export interface FakeOpenNan {
     readonly cloud: FakeCloud;
     /** The AI director and project pipelines' knobs in process (the same as /__test/director/*). */
     readonly director: FakeDirector;
+    /** The next POST /v1/chat/completions answers (in order; the same as POST /__test/chat-reply). Without one it echoes, and a cast check passes. */
+    queueChatReply(text: string): void;
     close(): Promise<void>;
 }
 
@@ -237,8 +239,14 @@ export function fakeQuote(body: Record<string, unknown>): FakeQuoteAnswer {
             const refused = only(QUOTE_FIELDS.image, id);
             if (refused) return refused;
             const count = (typeof body.image === "string" ? 1 : 0) + (Array.isArray(body.images) ? body.images.length : 0);
-            const price = image.price as { from_usd: number; per_input_image_usd?: number };
-            const usd = price.from_usd + (price.per_input_image_usd ?? 0) * count;
+            const price = image.price as { from_usd: number; per_input_image_usd?: number; tiers?: Array<{ quality: string | null; size: string | null; usd: number }> };
+            let base = price.from_usd;
+            if (body.size !== undefined || body.quality !== undefined) {
+                const tier = (price.tiers ?? []).find((t) => t.size === (body.size ?? null) && t.quality === (body.quality ?? null));
+                if (!tier) return invalid(`${id} does not offer that quality or size.`, "tier_not_offered");
+                base = tier.usd;
+            }
+            const usd = base + (price.per_input_image_usd ?? 0) * count;
             return quoteAnswer({ model: id }, usd, usd, { quality: body.quality ?? null, size: body.size ?? null, input_images: count });
         }
         const voice = find("voice");
@@ -396,14 +404,29 @@ const VIDEO_MATRIX = [
     { quality: "720p", duration: 5, ours_usd: 0.4, ours_usd_per_second: 0.08, audio: false },
     { quality: "1080p", duration: 5, ours_usd: 0.7, ours_usd_per_second: 0.14, audio: false },
 ];
+/** Story film's models (2026-10-31 catalog): the 2K image model that takes reference images, and its default video model. */
+const PRO_IMAGE_TIERS = [
+    { quality: null, size: null, usd: 0.05 }, { quality: null, size: "1K", usd: 0.05 }, { quality: null, size: "2K", usd: 0.05 }, { quality: null, size: "4K", usd: 0.09 },
+];
+const MINI_MATRIX = [
+    { quality: "720p", duration: 5, ours_usd: 0.26, ours_usd_per_second: 0.052, audio: false },
+    { quality: "1080p", duration: 5, ours_usd: 0.6, ours_usd_per_second: 0.12, audio: false },
+];
 const MODELS: Record<string, Array<Record<string, unknown>>> = {
     image: [
         { id: "nano-banana-2", name: "Nano Banana 2", price: { from_usd: 0.039, per_input_image_usd: 0.002, unit: "image" } },
         { id: "seedream-4", name: "Seedream 4", price: { from_usd: 0.03, unit: "image" } },
+        { id: "nano-banana-pro", name: "Nano Banana Pro", sizes: ["1K", "2K", "4K"], price: { from_usd: 0.05, per_input_image_usd: 0.002, unit: "image", tiers: PRO_IMAGE_TIERS } },
     ],
     video: [
         { id: "kling-3", name: "Kling 3", durations: [5, 10], price: { from_usd: 0.4, matrix: VIDEO_MATRIX } },
         { id: "seedance-2", name: "Seedance 2", durations: [5, 10], price: { from_usd: 0.5, matrix: [{ quality: "720p", duration: 5, ours_usd: 0.5, ours_usd_per_second: 0.1, audio: false }] } },
+        { id: "seedance-2-mini", name: "Seedance 2 Mini", durations: [4, 5, 6, 8, 10, 12, 15], qualities: ["720p", "1080p"], price: { from_usd: 0.26, matrix: MINI_MATRIX } },
+        { id: "kling-o3", name: "Kling O3", durations: [5, 10], qualities: ["720p", "1080p"], price: { from_usd: 0.6, matrix: [{ quality: "720p", duration: 5, ours_usd: 0.6, ours_usd_per_second: 0.12, audio: false }, { quality: "1080p", duration: 5, ours_usd: 0.9, ours_usd_per_second: 0.18, audio: false }] } },
+    ],
+    text: [
+        { id: "text-fast", name: "Text Fast", vision: false, price: { unit: "tokens", input_usd: 0.1, output_usd: 0.4 } },
+        { id: "text-vision", name: "Text Vision", vision: true, price: { unit: "tokens", input_usd: 1, output_usd: 5 } },
     ],
     voice: [{ id: "kokoro", name: "Kokoro", price: { billing_block_characters: 1000, minimum_usd: 0.026 } }],
     music: [
@@ -590,6 +613,17 @@ function captionLanguage(value: string): string {
     return `${lang!.toLowerCase()}-${region.length === 4 ? region[0]!.toUpperCase() + region.slice(1).toLowerCase() : region.toUpperCase()}`;
 }
 
+/**
+ * Story film's cast check (a system message that starts "Check one keyframe") without a queued reply: every listed
+ * character ("- id (image n)") matches its sheet. Queue a reply to make one miss.
+ */
+function castCheckReply(messages: Array<{ content?: unknown }>, prompt: string): string | null {
+    const system = messages.find((m) => typeof m.content === "string" && m.content.startsWith("Check one keyframe"));
+    if (!system) return null;
+    const ids = [...prompt.matchAll(/^- ([a-z0-9_-]+) \(image \d+\)/gm)].map((m) => m[1]);
+    return JSON.stringify({ characters: ids.map((id) => ({ id, match: true, reason: "" })) });
+}
+
 export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promise<FakeOpenNan> {
     const interval = options.intervalSeconds ?? 3;
     const expiresIn = options.expiresInSeconds ?? 600;
@@ -611,6 +645,7 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
     let taskSteps = 1;
     let quotesStatus: "live" | "404" | "429" | "503" = "live";
     let cancelBusy = 0;
+    let chatReplies: string[] = [];
 
     const mint = (name: string, expiresAt: string | null = null) => {
         const key = `sk-fake_${randomBytes(24).toString("hex")}`;
@@ -806,6 +841,11 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
                 cancelBusy = Number.isInteger(n) && n >= 0 && n <= 100 ? n : 1;
                 return send(200, { ok: true, n: cancelBusy });
             }
+            if (path === "/__test/chat-reply") {
+                if (typeof body.text !== "string") return send(400, { ok: false });
+                chatReplies.push(body.text);
+                return send(200, { ok: true, queued: chatReplies.length });
+            }
             if (path === "/__test/reset") {
                 handle.reset();
                 return send(200, { ok: true });
@@ -970,6 +1010,36 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
                 }
                 tasks.set(task.id, task);
                 return send(202, taskBody(task));
+            }
+
+            // ── story film: text (one JSON answer) and the video-site download ──
+            if (path === "/v1/chat/completions" && req.method === "POST") {
+                if (!key!.scopes.includes("api:text")) return refuse(403, "permission_error", "This API key is not allowed to use text models (scope api:text).");
+                const model = (MODELS.text ?? []).find((m) => m.id === body.model);
+                if (!model) return refuse(400, "invalid_request_error", `Unknown model ${String(body.model)}.`, "model_not_found");
+                const messages = Array.isArray(body.messages) ? (body.messages as Array<{ content?: unknown }>) : [];
+                const parts = messages.flatMap((m) => (Array.isArray(m.content) ? (m.content as Array<Record<string, unknown>>) : [{ type: "text", text: m.content }]));
+                const images = parts.filter((p) => p.type === "image_url").length;
+                if (images > 0 && model.vision !== true) return refuse(400, "invalid_request_error", `${String(body.model)} does not take images.`, "images_not_supported");
+                if (balance <= 0) return refuse(402, "insufficient_balance", "Your balance is too low for this request.");
+                const prompt = parts.map((p) => (typeof p.text === "string" ? p.text : "")).join("\n");
+                const reply = chatReplies.shift() ?? castCheckReply(messages, prompt) ?? `Echo: ${prompt.slice(0, 200)}`;
+                const promptTokens = Math.ceil(prompt.length / 3) + images * 1000;
+                const completionTokens = Math.ceil(reply.length / 3);
+                const rate = model.price as { input_usd: number; output_usd: number };
+                const cost = round6((promptTokens * rate.input_usd + completionTokens * rate.output_usd) / 1_000_000);
+                balance = round6(balance - cost);
+                return send(200, {
+                    id: `chatcmpl_${++serial}`, object: "chat.completion", created: Math.floor(Date.now() / 1000), model: body.model,
+                    choices: [{ index: 0, message: { role: "assistant", content: reply }, finish_reason: "stop" }],
+                    usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens, cost_usd: cost },
+                });
+            }
+            if (path === "/v1/media/video-download" && req.method === "POST") {
+                if (typeof body.url !== "string" || !/^https:\/\/([a-z0-9-]+\.)*(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|vimeo\.com|x\.com)\//.test(body.url)) {
+                    return refuse(400, "invalid_request_error", "OpenNan's proxy takes supported video-site https links.", "download_unsupported");
+                }
+                return raw(200, WEBM, "video/mp4");
             }
 
             const generation = /^\/v1\/(images|videos|music)\/generations$/.exec(path);
@@ -1168,6 +1238,7 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
             taskSteps = 1;
             quotesStatus = "live";
             cancelBusy = 0;
+            chatReplies = [];
             cloudServer.reset();
             directorServer.reset();
         },
@@ -1180,6 +1251,9 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
         mintKey: (name = "OpenNan Studio (test)") => mint(name),
         cloud: cloudServer.cloud,
         director: directorServer.director,
+        queueChatReply(text) {
+            chatReplies.push(text);
+        },
         close: () => new Promise<void>((resolve) => {
             directorServer.reset(); // running and held turns stop (their waits end within 50 ms)
             server.closeAllConnections?.();

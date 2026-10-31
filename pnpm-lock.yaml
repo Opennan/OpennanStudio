@@ -51,6 +51,9 @@ importers:
       '@opennan/provider-sdk':
         specifier: workspace:*
         version: link:../../packages/provider-sdk
+      '@opennan/story-film':
+        specifier: workspace:*
+        version: link:../../packages/story-film
       '@opennan/timeline-core':
         specifier: workspace:*
         version: link:../../packages/timeline-core
@@ -232,6 +235,9 @@ importers:
       '@opennan/provider-sdk':
         specifier: workspace:*
         version: link:../../packages/provider-sdk
+      '@opennan/story-film':
+        specifier: workspace:*
+        version: link:../../packages/story-film
       '@opennan/timeline-core':
         specifier: workspace:*
         version: link:../../packages/timeline-core
@@ -357,6 +363,9 @@ importers:
       '@opennan/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
+      '@opennan/story-film':
+        specifier: workspace:*
+        version: link:../story-film
       '@opennan/timeline-core':
         specifier: workspace:*
         version: link:../timeline-core
@@ -466,6 +475,28 @@ importers:
         version: 4.1.12(@types/node@20.19.43)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   packages/provider-sdk:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.30)(tsx@4.23.15)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.12(@types/node@20.19.43)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/story-film:
+    dependencies:
+      '@opennan/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
+      '@opennan/timeline-core':
+        specifier: workspace:*
+        version: link:../timeline-core
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

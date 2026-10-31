@@ -74,7 +74,7 @@ describe("provider host", () => {
     it("lists OpenNan, runs a job, and imports its media into the media store", async () => {
         const { host, events, imports } = await setup();
         expect(host.list().map((p) => p.id)).toEqual(["opennan"]);
-        expect((await host.models("opennan", "image.generate")).map((m) => m.id)).toEqual(["nano-banana-2", "seedream-4"]);
+        expect((await host.models("opennan", "image.generate")).map((m) => m.id)).toEqual(["nano-banana-2", "seedream-4", "nano-banana-pro"]);
         const { jobId } = host.run({ providerId: "opennan", capability: "image.generate", input: { description: "a cat" }, projectId: PROJECT });
         await vi.waitFor(() => expect(last(events, jobId)?.status).toBe("succeeded"), { timeout: 5000 });
         expect(imports).toEqual([{ projectId: PROJECT, name: "image-20261019-120000.png", mimeType: "image/png", kind: "image", size: 68 }]);

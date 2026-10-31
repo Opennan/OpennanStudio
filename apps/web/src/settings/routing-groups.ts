@@ -38,6 +38,7 @@ export const CAPABILITY_LABELS: Record<ProviderCapability, string> = {
     "audio.isolate-voice": "Isolate voice",
     "video.upscale": "Upscale video",
     "media.stabilize": "Stabilize video",
+    "text.generate": "Story writing",
     "opennan.story.plan": "Story planning",
     "opennan.story.storyboard": "Storyboards",
     "opennan.story.consistency": "Character and location consistency",
@@ -52,7 +53,7 @@ export const ROUTING_GROUPS: RoutingGroup[] = [
     { id: "image", title: "Image", locked: false, capabilities: ["image.generate", "image.edit", "image.remove-background"] },
     { id: "audio", title: "Voice & audio", locked: false, capabilities: ["audio.tts", "audio.isolate-voice", "audio.separate", "audio.voice-clone", "audio.voice-convert", "audio.music", "audio.sfx"] },
     { id: "captions", title: "Captions & transcribe", locked: false, capabilities: ["audio.transcribe", "captions.translate"] },
-    { id: "tools", title: "Analysis & tools", locked: false, capabilities: ["media.analyze", "media.process", "web.fetch", "graphics.generate", "graphics.templates", "render.export"] },
+    { id: "tools", title: "Analysis & tools", locked: false, capabilities: ["text.generate", "media.analyze", "media.process", "web.fetch", "graphics.generate", "graphics.templates", "render.export"] },
     { id: "story", title: "Story & storyboard", locked: true, capabilities: [...OPENNAN_CAPABILITIES] },
 ];
 

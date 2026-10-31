@@ -1,5 +1,5 @@
-// Packs timeline-core, export, provider-sdk, provider-opennan, mcp-schema, and mcp, installs the tarballs into an
-// empty folder with npm, and checks the installed package: ESM imports of "." and
+// Packs timeline-core, export, provider-sdk, provider-opennan, story-film, mcp-schema, and mcp, installs the
+// tarballs into an empty folder with npm, and checks the installed package: ESM imports of "." and
 // "./server", the bin shim, runtime dependencies, and the dist-smoke flow. The
 // optional peers of @opennan/export (@ffmpeg/*, timeline-media, regl) stay uninstalled.
 // npm fetches the MCP SDK tree from the registry, so the run needs it: mandatory in CI
@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-opennan", "mcp-schema", "mcp"].map((name) => path.resolve(PKG, "..", name));
+const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-opennan", "story-film", "mcp-schema", "mcp"].map((name) => path.resolve(PKG, "..", name));
 const required = process.env.CI === "true" || process.argv.includes("--require");
 const run = (command, args, cwd) => execFileSync(command, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 
@@ -52,7 +52,7 @@ try {
         "if (typeof node.startHttpServer !== 'function' || typeof server.createStudioMcpServer !== 'function') process.exit(1);",
     ].join(" ")], app);
     // Spec §3: every shipped package carries its generated notices (Task 24c).
-    for (const name of ["timeline-core", "export", "provider-sdk", "mcp-schema", "mcp"]) await access(path.join(app, "node_modules/@opennan", name, "THIRD_PARTY_NOTICES"));
+    for (const name of ["timeline-core", "export", "provider-sdk", "story-film", "mcp-schema", "mcp"]) await access(path.join(app, "node_modules/@opennan", name, "THIRD_PARTY_NOTICES"));
     console.log(`pack-smoke: bin ${run(path.join(app, "node_modules/.bin/opennan-studio"), ["--version"], app).trim()}`);
     run(process.execPath, [path.join(PKG, "scripts/dist-smoke.mjs"), path.join(app, "node_modules/@opennan/mcp/dist/cli.js")], PKG);
     console.log("pack-smoke: installed package works");

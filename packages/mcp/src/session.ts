@@ -43,6 +43,11 @@ export interface StudioHost {
     readFile?(path: string, kind: "audio" | "video"): Promise<File>;
     /** Installed graphics template ids. When present, add_graphics_clip refuses other ids. */
     graphicsTemplateIds?(): Promise<string[]>;
+    /**
+     * Story film's copy step: `frames` frames of a project video, evenly spaced, on one contact sheet image saved to the
+     * project's media (story_film_copy sends it to the story writer). Absent: the agent passes its own sheet.
+     */
+    storySheet?(mediaUrl: string, frames: number, signal?: AbortSignal): Promise<{ url: string; frames: number; everySeconds: number; durationSeconds: number }>;
 }
 
 /** The OpenNan project pipeline a priced step runs (the route's tool id, as POST /v1/quotes names it). */

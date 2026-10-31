@@ -5,13 +5,16 @@
 // server's own quote (POST /v1/quotes, quotes.ts) whenever it answers; the tools list still decides status and
 // limits; without a quote (an older server, 429, 503) the local estimate answers, never under.
 import {
-    captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateStemsCost, estimateToolCost, estimateVideoModelCost, estimateVoiceCost, isOverLimit,
-    type CostEstimate, type ImageModelPrice, type OverLimit, type PriceAnswer, type PriceRequest, type PriceUnits, type ProviderCapability, type ProviderModel,
+    captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateStemsCost, estimateTextCost, estimateToolCost, estimateVideoModelCost, estimateVoiceCost, isOverLimit,
+    promptTokenBound, type CostEstimate, type ImageModelPrice, type TextModelPrice, type OverLimit, type PriceAnswer, type PriceRequest, type PriceUnits, type ProviderCapability, type ProviderModel,
     type ProviderVoice, type StemsModelPrice, type ToolPriceBlock, type VideoModelPrice, type VoiceModelPrice, quotedEstimate,
 } from "@opennan/provider-sdk";
 import type { OpenNanApi } from "./api";
 import { TIER_NOT_OFFERED_MESSAGE } from "./errors";
 import { quoteBody, type QuoteClient } from "./quotes";
+
+/** The output cap a text call sends when the input names none. */
+export const DEFAULT_TEXT_MAX_TOKENS = 8_000;
 
 export const CATALOG_CACHE_MS = 10 * 60_000;
 export const PRICES_UNAVAILABLE = "OpenNan prices are not available right now.";
@@ -33,6 +36,7 @@ export const MODEL_CATEGORY: Partial<Record<ProviderCapability, string>> = {
     "image.generate": "image", "image.edit": "image",
     "video.text-to-video": "video", "video.image-to-video": "video",
     "audio.tts": "voice", "audio.music": "music", "audio.separate": "music",
+    "text.generate": "text",
 };
 
 export interface ToolRow {
@@ -47,6 +51,9 @@ interface ModelRow {
     endpoint?: unknown;
     price?: unknown;
     durations?: unknown;
+    qualities?: unknown;
+    sizes?: unknown;
+    vision?: unknown;
 }
 
 interface Cached<T> {
@@ -108,6 +115,10 @@ export function createOpenNanCatalog(api: OpenNanApi, options: { now?(): number;
                 if (index === 0) model.default = true;
                 if (row.price !== undefined && row.price !== null) model.price = row.price;
                 if (Array.isArray(row.durations) && row.durations.every((d) => typeof d === "number")) model.durations = [...(row.durations as number[])];
+                // Video models list their qualities, image models their sizes.
+                const qualities = category === "image" ? row.sizes : row.qualities;
+                if (Array.isArray(qualities) && qualities.length > 0 && qualities.every((q) => typeof q === "string")) model.qualities = [...(qualities as string[])];
+                if (row.vision === true) model.vision = true;
                 return model;
             });
         },
@@ -193,10 +204,22 @@ async function withQuote(quotes: QuoteClient | undefined, body: Record<string, u
     return local;
 }
 
+const present = (value: unknown) => value !== undefined && value !== null && value !== "";
+
+/** The tokens a text.generate input may bill: its prompt and instruction (each image at its most), and its output cap. */
+export function textTokens(input: Record<string, unknown>): { promptTokens: number; maxTokens: number } {
+    const texts = [input.instruction, input.prompt].filter((t): t is string => typeof t === "string" && t.length > 0);
+    const images = Array.isArray(input.images) ? input.images.length : 0;
+    const maxTokens = positive(input.maxTokens) ?? DEFAULT_TEXT_MAX_TOKENS;
+    return { promptTokens: promptTokenBound(texts, images), maxTokens: Math.round(maxTokens) };
+}
+
 /** The price of one run (PriceRequest) on OpenNan: its quote when the server gives one, else the estimate. Never rejects. */
 export async function priceRun(catalog: OpenNanCatalog, request: PriceRequest, quotes?: QuoteClient): Promise<PriceAnswer> {
     const { capability, input, units } = request;
     try {
+        // The video download is free (rate limited on the server).
+        if (capability === "web.fetch") return { kind: "free" };
         const tool = OPENNAN_TOOLS[capability];
         if (tool) {
             const toolUnitsNow = toolUnits(capability, input, units);
@@ -218,22 +241,29 @@ export async function priceRun(catalog: OpenNanCatalog, request: PriceRequest, q
         }
         if (!MODEL_CATEGORY[capability]) return unknown();
         const models = await catalog.models(capability);
-        const chosen = typeof input.model === "string" ? models.find((m) => m.id === input.model) : models[0];
+        // A text call that sends images without a model runs on the first that sees them: it is priced on that one.
+        const sendsImages = capability === "text.generate" && Array.isArray(input.images) && input.images.length > 0;
+        const chosen = typeof input.model === "string" ? models.find((m) => m.id === input.model) : sendsImages ? models.find((m) => m.vision) : models[0];
         if (!chosen) return unknown("OpenNan lists no such model.");
         const quoted = (local: PriceAnswer) => withQuote(quotes, quoteBody(capability, input, units, chosen.id), local);
         switch (capability) {
             case "image.generate":
             case "image.edit":
             {
-                // The image the call sends counts (image edit always sends one), whatever a caller's units say.
-                const sent = capability === "image.edit" || (input.image !== undefined && input.image !== null && input.image !== "") ? 1 : 0;
-                return quoted(fallbackOf(estimateImageCost(chosen.price as ImageModelPrice, Math.max(units.images ?? 0, sent)), "This model has no price."));
+                // The images the call sends count (image edit always sends one), whatever a caller's units say.
+                const sent = (present(input.image) || capability === "image.edit" ? 1 : 0) + (Array.isArray(input.images) ? input.images.length : 0);
+                const tier = { ...(typeof input.size === "string" ? { size: input.size } : {}), ...(typeof input.quality === "string" ? { quality: input.quality } : {}) };
+                return quoted(fallbackOf(estimateImageCost(chosen.price as ImageModelPrice, Math.max(units.images ?? 0, sent), tier), "This model has no price for that size."));
             }
             case "video.text-to-video":
             case "video.image-to-video": {
                 const seconds = positive(input.durationSeconds) ?? units.seconds ?? chosen.durations?.[0];
-                return quoted(fallbackOf(seconds === undefined ? null : estimateVideoModelCost(chosen.price as VideoModelPrice, seconds), "This model has no price for that length."));
+                const tier = { ...(typeof input.quality === "string" ? { quality: input.quality } : {}), ...(typeof input.generateAudio === "boolean" ? { audio: input.generateAudio } : {}) };
+                return quoted(fallbackOf(seconds === undefined ? null : estimateVideoModelCost(chosen.price as VideoModelPrice, seconds, tier), "This model has no price for that length and quality."));
             }
+            case "text.generate":
+                // No quote for text: the never-under bound of the prompt and the output cap the call sends.
+                return fallbackOf(estimateTextCost(chosen.price as TextModelPrice, textTokens(input)), "This model has no price.");
             case "audio.tts": {
                 const characters = typeof input.text === "string" && input.text ? [...input.text].length : units.characters;
                 return quoted(fallbackOf(characters === undefined ? null : estimateVoiceCost(chosen.price as VoiceModelPrice, characters), "Speech needs its text."));

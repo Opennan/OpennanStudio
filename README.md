@@ -39,6 +39,14 @@ effect and places it at the playhead. Each run shows its price first. Projects
 always stay on this device: OpenNan only runs the AI tools and models, through
 its API.
 
+**Story film** makes a ~60 s animated short with the same characters in every
+shot, in any art style, from a story you write or the beats of a video you copy.
+Open it from the AI library's Story film tile: Story, Cast, Shots, Animate,
+Music, then one click lays it out as a 9:16 reel with the title above the film.
+A cast check looks at every keyframe and redraws one whose character drifted
+from their sheet. Agents use the `story_film_*` MCP tools; the guide is
+[`skills/story-film/SKILL.md`](skills/story-film/SKILL.md).
+
 ## Run locally
 
 ```bash
@@ -110,6 +118,7 @@ to the open timeline. Full guide: [packages/mcp](packages/mcp/README.md).
 - `packages/provider-opennan`: Sign in with OpenNan (device flow), the account and credits, and AI jobs on OpenNan's tools and models API (api.opennan.com); OpenNan is the default provider for every AI tool it offers.
 - `packages/provider-fal`: fal.ai with your own key, for image and video generation (Apache-2.0, reference community adapter).
 - `packages/director-client`: the client for OpenNan's project pipeline routes (story plan, storyboard, scene video, copy-video). No app uses it: those routes need a project stored on OpenNan, and Studio projects are local (see its README).
+- `packages/story-film`: Story film: the story (stored on the project), the recipe's prompts, drafts from a text model, and the cast, keyframes (with the cast check), clips and music over the AI providers, laid out as a 9:16 reel; an example story is [`examples/story-film/rain-check.json`](examples/story-film/rain-check.json).
 - `packages/mcp-schema`: MCP tool names and JSON schemas generated from the editor commands (Apache-2.0).
 - `packages/mcp`: MCP server for CLI agents (stdio, localhost HTTP, stdio bridge) and the `opennan-studio` CLI (`login`, `logout`, `whoami`, `mcp serve`, …); see `docs/ai-tool-coverage.md`.
 - `apps/playground`: the editor on `LocalBackend` with sample media (`pnpm --filter @opennan/playground dev`).

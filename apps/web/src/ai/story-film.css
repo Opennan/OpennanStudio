@@ -1,0 +1,90 @@
+/* Story film window (AI library → Story film): theme tokens only (packages/timeline-react/src/theme/tokens.css),
+   monochrome dark + white action colour; states always carry words. A wide dialog with a grid of sheets, keyframes
+   and clips; the footer (Back, Close, Next) stays in view while the steps scroll. */
+.dialog.story-film-dialog { width: min(960px, 100%); }
+.story-film { display: flex; flex-direction: column; gap: 10px; min-width: 0; font-size: 13px; }
+.story-film-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.story-film-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; }
+.story-film-step {
+    height: 26px; padding: 0 12px; border: 0; border-radius: var(--on-radius-full); background: var(--on-fill); color: var(--on-text-secondary);
+    font: 500 12px var(--on-font-sans); cursor: pointer; transition: background-color var(--on-duration), color var(--on-duration);
+}
+.story-film-steps li[aria-current="step"] .story-film-step { background: var(--on-fill-strong); color: var(--on-foreground-strong); }
+.story-film-steps li[data-done] .story-film-step { color: var(--on-foreground); }
+.story-film-step:focus-visible, .story-film-mode:focus-visible { outline: none; box-shadow: var(--on-focus-ring); }
+.story-film-step:disabled, .story-film-mode:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.story-film-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.story-film-intro { margin: 0; font-size: 12px; }
+.story-film-body > p { margin: 0; }
+.story-film-modes {
+    display: inline-flex; gap: 2px; padding: 3px; width: max-content; max-width: 100%; border-radius: var(--on-radius-full);
+    background: var(--on-fill); box-shadow: var(--on-ring-hairline);
+}
+.story-film-mode {
+    height: 26px; padding: 0 12px; border: 0; border-radius: var(--on-radius-full); background: transparent; color: var(--on-text-secondary);
+    font: 500 12px var(--on-font-sans); cursor: pointer; white-space: nowrap; transition: background-color var(--on-duration), color var(--on-duration);
+}
+.story-film-mode[aria-checked="true"] { background: var(--on-fill-strong); color: var(--on-foreground-strong); }
+
+.story-film-field { flex: 1; gap: 0; }
+.story-film-fields { display: flex; gap: 8px; align-items: flex-end; }
+.story-film-textarea { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.45; font-size: 13px; }
+.story-film-script { min-height: 120px; }
+.story-film-check { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--on-text-secondary); }
+.story-film-check input { accent-color: var(--on-primary); }
+.story-film-fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; border: 0; }
+.story-film-fieldset legend { padding: 0; margin-bottom: 4px; font-size: 12px; }
+.story-film-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.story-film-editor { display: flex; flex-direction: column; gap: 8px; }
+.story-film-subhead { margin: 6px 0 0; font: 600 12px var(--on-font-sans); letter-spacing: 0.02em; text-transform: uppercase; color: var(--on-text-secondary); }
+.story-film-card { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: var(--on-radius-md); background: var(--on-surface-raised); box-shadow: var(--on-ring-hairline); min-width: 0; }
+.story-film-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.story-film-card-label { flex: 1; min-width: 0; font-weight: 500; color: var(--on-foreground-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.story-film-card-state { flex: none; font-size: 12px; color: var(--on-text-secondary); font-variant-numeric: tabular-nums; }
+.story-film-row { gap: 6px; }
+.story-film-remove { flex: none; }
+.story-film-seconds { width: auto; height: 28px; padding: 0 6px; font-size: 12px; }
+.story-film-cast { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+.story-film-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.story-film-item[data-state="running"] { box-shadow: 0 0 0 1px var(--on-foreground-strong); }
+.story-film-item[data-state="failed"] .story-film-card-state { color: var(--on-destructive-text); }
+.story-film-frame {
+    display: flex; align-items: center; justify-content: center; aspect-ratio: 16 / 9; border-radius: var(--on-radius-sm); overflow: hidden;
+    background: var(--on-fill); text-align: center; padding: 0 6px;
+}
+.story-film-media { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--on-fill); }
+.story-film-music { flex-direction: row; align-items: center; gap: 8px; }
+.story-film-music audio { flex: 1; min-width: 0; height: 32px; }
+.story-film-progress { height: 2px; border-radius: var(--on-radius-full); background: var(--on-fill-strong); overflow: hidden; }
+.story-film-progress span { display: block; height: 100%; background: var(--on-foreground-strong); transition: width var(--on-duration); }
+
+.story-film-error { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0; font-size: 12px; color: var(--on-destructive-text); }
+.story-film-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--on-success-text); }
+.story-film-error svg, .story-film-ok svg { flex: none; width: 14px; height: 14px; }
+.story-film-banner {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--on-radius-md);
+    background: var(--on-fill); box-shadow: var(--on-ring-hairline); font-size: 12px;
+}
+.story-film-banner span:not(.story-film-spinner) { flex: 1; }
+.story-film-spinner {
+    display: inline-block; flex: none; width: 12px; height: 12px; border-radius: var(--on-radius-full);
+    border: 2px solid var(--on-fill-strong); border-top-color: var(--on-foreground-strong); animation: story-film-spin 0.8s linear infinite;
+}
+@keyframes story-film-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .story-film-spinner { animation: none; } }
+
+/* The footer stays at the bottom of the scrolling dialog (an opaque strip: the steps scroll under it). */
+.story-film-footer { position: sticky; bottom: -16px; z-index: 1; background: color-mix(in oklab, var(--on-muted) 50%, var(--on-background)); }
+.story-film-footer-gap { flex: 1; }
+
+/* The cast check: its switch on Shots, and a flagged shot ("Check this shot") ringed and explained. */
+.story-film-castcheck { display: flex; flex-direction: column; gap: 2px; }
+.story-film-castcheck p { margin: 0 0 0 24px; }
+.story-film-item[data-flagged] { box-shadow: 0 0 0 1px var(--on-destructive-text); }
+.story-film-item[data-flagged] .story-film-card-state { color: var(--on-destructive-text); }
+.story-film-flag { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; color: var(--on-foreground); }
+.story-film-flag svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--on-destructive-text); }
+.story-film-flag strong { font-weight: 600; color: var(--on-foreground-strong); }

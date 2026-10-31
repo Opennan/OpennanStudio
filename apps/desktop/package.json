@@ -36,6 +36,7 @@
         "@opennan/provider-local": "workspace:*",
         "@opennan/provider-opennan": "workspace:*",
         "@opennan/provider-sdk": "workspace:*",
+        "@opennan/story-film": "workspace:*",
         "@opennan/timeline-core": "workspace:*",
         "@opennan/timeline-media": "workspace:*",
         "@opennan/timeline-react": "workspace:*",

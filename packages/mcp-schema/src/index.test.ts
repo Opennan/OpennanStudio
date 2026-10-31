@@ -9,7 +9,7 @@ describe("@opennan/mcp-schema public API", () => {
     });
 
     it("exports the registry, coverage, and schema helpers", () => {
-        expect(schema.STUDIO_TOOLS.length).toBe(schema.EDITOR_TOOLS.length + schema.CAPABILITY_TOOLS.length + schema.STUDIO_CAPABILITY_TOOLS.length + schema.PIPELINE_TOOLS.length);
+        expect(schema.STUDIO_TOOLS.length).toBe(schema.EDITOR_TOOLS.length + schema.CAPABILITY_TOOLS.length + schema.STUDIO_CAPABILITY_TOOLS.length + schema.PIPELINE_TOOLS.length + schema.STORY_FILM_TOOLS.length);
         expect(schema.OPENNAN_TOOL_NAMES).toHaveLength(130);
         expect(typeof schema.renderCoverageMarkdown).toBe("function");
         expect(typeof schema.editorCommandTypes).toBe("function");

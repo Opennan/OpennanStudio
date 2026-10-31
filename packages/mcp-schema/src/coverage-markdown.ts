@@ -22,8 +22,12 @@ const HOST_ANSWERS: Readonly<Record<string, string>> = {
 /** Phase 9b project pipeline tools: OpenNan runs them only on projects stored on its server; Studio projects are local. */
 const PIPELINE_ANSWER = "unavailable: OpenNan runs it only on projects stored on OpenNan, and Studio projects stay on the device (host seam `pipelines`, supplied by no current host)";
 
+const STORY_FILM_STEP = "story film: makes what the project's story film is missing on the routed provider, priced first (`estimate_only`, `accept_max_usd`); each result lands in the project's media and on the story";
+
 function phase5(tool: ToolDefinition): string {
     if ((PROJECT_PIPELINE_TOOLS as readonly string[]).includes(tool.name)) return PIPELINE_ANSWER;
+    if (tool.name.startsWith("story_film_") && tool.kind === "capability") return STORY_FILM_STEP;
+    if (tool.name === "story_film_create") return "offline with `story`; `text` drafts through the routed story writer (`text.generate`), priced first";
     if (tool.kind === "capability") {
         if (HOST_ANSWERS[tool.name]) return HOST_ANSWERS[tool.name]!;
         if (tool.commands?.includes("ai.run")) {

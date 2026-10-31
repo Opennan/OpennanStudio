@@ -77,6 +77,10 @@ export type { AiMediaSource, AiMediaSourceResult, AiMediaKind, AiSnapshot } from
 export type { AiToolId, AiToolParams, AiToolPlan, AiToolPlanResult, AiToolUnits, AiToolLimit, UpscaleResolution, MattingBackground } from "./ai/tools";
 export { planCaptionPlacement, CAPTIONS_TRACK_LABEL, type CaptionPlacementPlan } from "./lib/caption-placement";
 export { planAiPlacement, type AiPlacementPlan, type AiPlacementState } from "./lib/ai-placement";
+export {
+    REEL_LAYOUT, LAYOUT_PRESETS, applyReelLayout, planReelLayout, reelScenePatch, reelTitleStyle, titlePositionY, filmOffsetPercent,
+    type LayoutPreset, type ReelClip, type ReelExecutor, type ReelLayoutInput, type ReelLayoutOutcome, type ReelLayoutPlan, type ReelLayoutState, type ReelPlanResult,
+} from "./layout/reel";
 export { asCreateClipInput, isLocalCommand } from "./controller/commands";
 export type { EditorCommand, EditorCommandType, CommandResult, ExecuteOptions, StartedCommand, TimelineToast, TimelineToastKind, TrackRef } from "./controller/commands";
 export { DEFAULT_COMMAND_ERROR_MESSAGES, DEFAULT_FALLBACK_ERROR_MESSAGE } from "./controller/messages";
