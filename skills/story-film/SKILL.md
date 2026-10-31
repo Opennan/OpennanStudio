@@ -82,7 +82,8 @@ When the video is copied with keep motion (`story_film_copy { keep_motion: true 
 takes reference videos; the editor's checkbox), each shot is remade from the real one instead of animated from a drawn
 keyframe:
 
-1. **Shots**: Studio finds the video's cuts and makes shots of 2 to 15 s (a piece under 2 s joins its shorter neighbour,
+1. **Shots**: Studio finds the video's cuts (a frame that stands out from the second around it, so a faint cut in a
+   flickering old film counts and a steady pan does not) and makes shots of 2 to 15 s (a piece under 2 s joins its shorter neighbour,
    a piece over 15 s is split evenly; at most 40 shots). Each shot is cut out as a project video (`story-shot-01.mp4`,
    ...). The contact sheet shows a few frames of every shot, labelled S1, S2, ..., and the story writer writes exactly
    one story shot per real shot. Each story shot keeps `source: { start, end, clip }` and its seconds (the real
@@ -108,8 +109,10 @@ keyframe:
   does `keep_motion: false` (on `story_film_copy` or `story_film_animate`). The shots keep their place in the video.
 - **Hosts**: the editor finds shots and cuts clips in the page, and `mcp serve --ffmpeg` with ffmpeg. The desktop app's
   built-in MCP server cannot sample frames or find shots yet: make the sheet yourself, pass `sheet_image_url`, `media_url`
-  (the project video) and `shots: [{ start, end }]` (from `ffmpeg -i video.mp4 -vf "select='gt(scene,0.3)',showinfo"
-  -f null -`, then 2-15 s pieces); each shot is then cut from the project video when it is animated.
+  (the project video) and `shots: [{ start, end }]`: list every frame's scene score (`ffmpeg -i video.mp4 -vf
+  "select='gte(scene,0)',metadata=print" -f null -`), cut where a frame's score is the largest within 1 s around it, at
+  least 0.12 and 5 times the median score of that second (a fixed threshold misses faint cuts), then make 2-15 s pieces.
+  Each shot is then cut from the project video when it is animated.
 
 ## Tool order
 

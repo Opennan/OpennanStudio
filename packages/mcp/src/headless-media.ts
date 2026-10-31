@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chooseWorkingEncoder, createSourcePolicy, probeFile, runProcess } from "@opennan/export/node";
 import { CapabilityUnavailableError, JobFailedError, type MediaPreparer, type MediaPreparePurpose, type PreparedMedia } from "@opennan/provider-sdk";
-import { splitShots, type ShotRange } from "@opennan/story-film";
+import { SCENE_SCORE_CUTS, findCuts, splitShots, type ShotRange } from "@opennan/story-film";
 import {
     LOCAL_MEDIA_URL_PREFIX, detectBeats, detectSilences, type AnalysisJob, type AnalysisJobOutcome, type BeatOptions, type MediaAnalyzerHost, type SilenceOptions,
 } from "@opennan/timeline-core";
@@ -245,11 +245,40 @@ export interface StoryShotsOptions extends StorySheetOptions {
     prepare: MediaPreparer;
 }
 
-/** ffmpeg's scene score from which a frame starts a new shot. */
-export const SCENE_THRESHOLD = 0.3;
+/** The scene score of every frame, from ffmpeg's metadata print (each frame's pts_time line, then its score line). */
+export function parseSceneScores(log: string): { times: number[]; scores: number[] } {
+    const times: number[] = [];
+    const scores: number[] = [];
+    let time: number | null = null;
+    for (const line of log.split("\n")) {
+        const at = /pts_time:\s*(-?[0-9.]+)/.exec(line);
+        if (at) time = Number(at[1]);
+        const score = /lavfi\.scene_score=([0-9.]+)/.exec(line);
+        if (score && time !== null && Number.isFinite(time)) {
+            times.push(time);
+            scores.push(Number(score[1]));
+            time = null;
+        }
+    }
+    return { times, scores };
+}
 
 /**
- * Story film's "Remake from your video" on `mcp serve --ffmpeg`: the video's cuts (ffmpeg's scene score), made into
+ * The video's cuts: ffmpeg's scene score of every frame (on a small picture), then @opennan/story-film's adaptive
+ * rule (a frame that stands out from the second around it; a fixed threshold missed faint cuts of old films).
+ */
+export async function findSceneCuts(ffmpegPath: string, file: string, signal?: AbortSignal, run: typeof runProcess = runProcess): Promise<number[]> {
+    // Printed to stdout (kept whole; stderr is cut to its tail). The colon of pipe:1 is escaped twice: once for the
+    // filter graph, once for the filter's options.
+    const filter = "scale=160:-2,select='gte(scene,0)',metadata=print:file=pipe\\\\:1";
+    const result = await run(ffmpegPath, [...QUIET, ...inputArgs(file, undefined, undefined), "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", filter, "-f", "null", "-"], { signal });
+    if (result.code !== 0) throw new Error(`ffmpeg could not find the shots: ${result.stderr.trim().split("\n").pop() ?? "unknown error"}`);
+    const { times, scores } = parseSceneScores(result.stdout);
+    return findCuts(times, scores, SCENE_SCORE_CUTS);
+}
+
+/**
+ * Story film's "Remake from your video" on `mcp serve --ffmpeg`: the video's cuts (findSceneCuts), made into
  * shots of 2-15 s by @opennan/story-film, and (with `cut`) each shot cut out as its own project video.
  */
 export function createStoryShotsMaker(options: StoryShotsOptions) {
@@ -260,10 +289,7 @@ export function createStoryShotsMaker(options: StoryShotsOptions) {
         const info = await probeFile(options.ffmpeg.ffprobePath, file, signal, INPUT_GUARDS).catch(() => null);
         const duration = info?.durationSeconds;
         if (!duration || !(duration > 0) || !info?.hasVideo) throw new Error("The video's length could not be read.");
-        const filter = `scale=160:-2,select='gt(scene,${SCENE_THRESHOLD})',showinfo`;
-        const result = await run(options.ffmpeg.ffmpegPath, ["-hide_banner", "-nostdin", "-loglevel", "info", ...inputArgs(file, undefined, undefined), "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", filter, "-f", "null", "-"], { signal });
-        if (result.code !== 0) throw new Error(`ffmpeg could not find the shots: ${result.stderr.trim().split("\n").pop() ?? "unknown error"}`);
-        const cuts = [...result.stderr.matchAll(/Parsed_showinfo.*?pts_time:\s*([0-9.]+)/g)].map((m) => Number(m[1])).filter((t) => Number.isFinite(t));
+        const cuts = await findSceneCuts(options.ffmpeg.ffmpegPath, file, signal, run);
         const split = splitShots(cuts, duration);
         const shots: Array<ShotRange & { clip?: string }> = split.shots.map((shot) => ({ ...shot }));
         if (cut) {

@@ -9,17 +9,25 @@ import type { StoryFilm, StoryShot } from "./types";
 /** The length a real shot may have: a reference video needs 2 s at least, and a story shot is 15 s at most. */
 export const SHOT_SPLIT = Object.freeze({ minSeconds: 2, maxSeconds: 15 });
 
-/** How a frame difference (0..1: the mean colour change of a small picture) counts as a cut. */
-export const CUT_DETECTION = Object.freeze({
-    /** Always a cut from this much change. */
-    hard: 0.32,
-    /** A cut from this much change when it also stands out from the frames around it. */
-    soft: 0.14,
-    /** "Stands out": this many times the median change of the frames around it. */
-    ratio: 4,
-    /** Frames on each side the median looks at. */
-    window: 6,
-});
+/**
+ * When a frame starts a new shot. A cut is the largest score within `windowSeconds` around it (one cut per jump, not
+ * the frames just after it), at least `floor`, and at least `ratio` times the median score of the frames within
+ * `windowSeconds` (it stands out from its neighbourhood: a steady pan or a flickering old film scores high on every
+ * frame, a cut only on one). Tuned on a 1910s film whose cuts score from 0.24 to 0.42 on ffmpeg's scene score, among
+ * flicker of about 0.02 (a fixed 0.3 missed two of its thirteen cuts).
+ */
+export interface CutRule {
+    floor: number;
+    ratio: number;
+    windowSeconds: number;
+}
+
+/** The editor's measure: the mean colour change of a small picture (0..1), sampled six times a second. */
+export const CUT_DETECTION: Readonly<CutRule> = Object.freeze({ floor: 0.08, ratio: 2.5, windowSeconds: 1 });
+/** ffmpeg's scene score (0..1) of every frame (mcp serve --ffmpeg). */
+export const SCENE_SCORE_CUTS: Readonly<CutRule> = Object.freeze({ floor: 0.12, ratio: 5, windowSeconds: 1 });
+/** Frames this close to the start are never a cut, nor a rival of one (decoders often jump on the first frames). */
+export const CUT_START_SECONDS = 0.25;
 
 export interface ShotRange {
     start: number;
@@ -36,16 +44,26 @@ function median(values: number[]): number {
 }
 
 /**
- * Cut times from sampled frames: `times[i]` is a frame's time and `diffs[i]` how much it differs from frame i - 1
- * (0..1; diffs[0] is ignored). A cut is placed at the first frame after it.
+ * Cut times from sampled frames: `times[i]` is a frame's time and `scores[i]` how much it differs from frame i - 1
+ * (scores[0] and the first CUT_START_SECONDS are ignored: the first frame has nothing before it). A cut is placed at
+ * the first frame after it.
  */
-export function findCuts(times: readonly number[], diffs: readonly number[]): number[] {
+export function findCuts(times: readonly number[], scores: readonly number[], rule: Readonly<CutRule> = CUT_DETECTION): number[] {
+    const count = Math.min(times.length, scores.length);
     const cuts: number[] = [];
-    for (let i = 1; i < Math.min(times.length, diffs.length); i += 1) {
-        const diff = diffs[i]!;
-        if (!(diff >= CUT_DETECTION.soft)) continue;
-        const around = [...diffs.slice(Math.max(1, i - CUT_DETECTION.window), i), ...diffs.slice(i + 1, i + 1 + CUT_DETECTION.window)];
-        if (diff >= CUT_DETECTION.hard || diff >= CUT_DETECTION.ratio * Math.max(0.01, median(around))) cuts.push(ms(times[i]!));
+    const opening = (j: number) => j === 0 || times[j]! < CUT_START_SECONDS;
+    for (let i = 1; i < count; i += 1) {
+        const score = scores[i]!;
+        if (!(score >= rule.floor) || opening(i)) continue;
+        const around: number[] = [];
+        let peak = true;
+        for (let j = 1; j < count && peak; j += 1) {
+            if (j === i || opening(j) || Math.abs(times[j]! - times[i]!) > rule.windowSeconds + 1e-9) continue;
+            around.push(scores[j]!);
+            // The largest in its window (a tie goes to the earlier frame).
+            if (scores[j]! > score || (scores[j]! === score && j < i)) peak = false;
+        }
+        if (peak && score >= rule.ratio * Math.max(1e-3, median(around))) cuts.push(ms(times[i]!));
     }
     return cuts;
 }

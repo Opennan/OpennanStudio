@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { encoderChoice } from "@opennan/export";
 import { LOCAL_PROTOCOLS, MEDIA_DEMUXERS } from "@opennan/export/node";
 import { CapabilityUnavailableError, JobFailedError } from "@opennan/provider-sdk";
@@ -11,7 +12,7 @@ import { connectInMemory } from "./testing/connect";
 import { fixtureProject } from "./testing/fixture";
 import { openHeadlessProject } from "./headless";
 import {
-    MEDIA_TOOLS_NEED_FFMPEG, ONLY_PROJECT_MEDIA, createFfmpegAnalyzer, createHeadlessMediaPreparer, createStoryShotsMaker, createStorySheetMaker, framesAtTimes, minPixelsScale, projectMediaPath,
+    MEDIA_TOOLS_NEED_FFMPEG, ONLY_PROJECT_MEDIA, createFfmpegAnalyzer, createHeadlessMediaPreparer, createStoryShotsMaker, createStorySheetMaker, findSceneCuts, framesAtTimes, minPixelsScale, parseSceneScores, projectMediaPath,
 } from "./headless-media";
 
 // Same lookup as headless.test.ts: OPENNAN_FFMPEG / OPENNAN_FFPROBE, else Homebrew.
@@ -167,6 +168,27 @@ describe("story film shots (remake from your video)", () => {
         expect(framesAtTimes([1, 7.5])).toBe("select='gte(t,1.000)*(isnan(prev_t)+lt(prev_t,1.000))+gte(t,7.500)*(isnan(prev_t)+lt(prev_t,7.500))'");
         expect(minPixelsScale(409_600)).toBe("scale='if(lt(iw*ih,409600),ceil(iw*sqrt(409600/(iw*ih))/2)*2,trunc(iw/2)*2)':'if(lt(iw*ih,409600),ceil(ih*sqrt(409600/(iw*ih))/2)*2,trunc(ih/2)*2)'");
     });
+
+    it("reads every frame's scene score from ffmpeg's metadata print", () => {
+        const log = [
+            "[Parsed_metadata_2 @ 0x1] frame:0    pts:0       pts_time:0", "[Parsed_metadata_2 @ 0x1] lavfi.scene_score=0.000000",
+            "[Parsed_metadata_2 @ 0x1] frame:1    pts:42      pts_time:0.042", "[Parsed_metadata_2 @ 0x1] lavfi.scene_score=0.926616", "frame=  2 fps=0.0",
+        ].join("\n");
+        expect(parseSceneScores(log)).toEqual({ times: [0, 0.042], scores: [0, 0.926616] });
+    });
+
+    // "Romance of an Umbrella" (1909, public domain, Wikimedia Commons), 8.3 s to 11.3 s at 240x240: its two faint cuts
+    // (film 9.21 s, scene score 0.27, and 10.46 s, 0.24) were missed by a fixed 0.3 threshold.
+    it.skipIf(!HAS_FFMPEG)("finds an old film's faint cuts, and none in a steady pan", async () => {
+        const excerpt = fileURLToPath(new URL("./testing/fixtures/umbrella-8.3s-11.3s.webm", import.meta.url));
+        const cuts = await findSceneCuts(FFMPEG, excerpt);
+        expect(cuts).toHaveLength(2);
+        expect(Math.abs(cuts[0]! - (9.21 - 8.3))).toBeLessThan(0.08);
+        expect(Math.abs(cuts[1]! - (10.46 - 8.3))).toBeLessThan(0.08);
+        const pan = path.join(mediaDir, "pan");
+        execFileSync(FFMPEG, ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24:duration=6", "-vf", "crop=640:360:x='t*70':y='t*20'", "-c:v", "libvpx-vp9", "-b:v", "200k", "-f", "webm", "-y", pan]);
+        expect(await findSceneCuts(FFMPEG, pan)).toEqual([]);
+    }, 60_000);
 
     it.skipIf(!HAS_FFMPEG)("finds the cut of a two-shot video, cuts each shot out as a project video, and samples a sheet per shot", async () => {
         const file = path.join(mediaDir, "two-shots");

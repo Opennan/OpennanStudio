@@ -2,16 +2,25 @@
 // draft's shots placed on the real ones, and Animate remaking each shot from its real shot (the clip as @Video1, the
 // cast sheets and the keyframe as images) when the video model takes reference videos, else from its keyframe. A
 // reference out of the model's limits never runs; the reference clip is part of what makes a clip (never paid twice).
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { PriceAnswer, ProviderModel } from "@opennan/provider-sdk";
 import { reelInputOf } from "./assemble";
 import { copyDraftRequest, parseDraftReply } from "./draft";
 import { mergeStory } from "./edit";
 import { estimateStep, isStale, keepsMotion, remakeOf, runStep, storyItem, storyItems, withVideoModel, type StoryFilmHost, type StoryRunResult } from "./pipeline";
 import { remakePrompt } from "./recipe";
-import { findCuts, remakeSeconds, shotSheetTimes, splitShots, storySecondsOf, withShotSources } from "./shots";
+import { CUT_DETECTION, SCENE_SCORE_CUTS, findCuts, remakeSeconds, shotSheetTimes, splitShots, storySecondsOf, withShotSources } from "./shots";
 import { rainCheck } from "./test-story";
 import type { StoryFilm } from "./types";
 import { parseStoryFilm, readStoryJson, storyJson } from "./validate";
+
+interface Series { times: number[]; scores: number[] }
+/** "Romance of an Umbrella" (1909, public domain): ffmpeg's scene score of every frame, the editor's frame differences, and a steady pan's. */
+const umbrella = () => JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures/umbrella-cuts.json"), "utf8")) as {
+    cuts: number[]; sceneScores: Series; frameDiffs: { fps: number; diffs: number[] }; pan: { sceneScores: Series; frameDiffs: { fps: number; diffs: number[] } };
+};
 
 const SEEDANCE_25: ProviderModel = {
     id: "seedance-2-5", label: "Seedance 2.5", durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -53,13 +62,50 @@ function fakeHost() {
 }
 
 describe("cutting a video into shots", () => {
-    it("finds a cut where a frame differs far more than the frames around it, never on steady motion", () => {
+    it("finds a cut where a frame stands out from the second around it, never on steady motion or flicker", () => {
         const times = Array.from({ length: 40 }, (_, i) => i / 4);
         const diffs = times.map((_, i) => (i === 12 ? 0.5 : i === 30 ? 0.2 : 0.03 + (i % 3) * 0.005));
         expect(findCuts(times, diffs)).toEqual([3, 7.5]);
-        // A steady pan (every frame changes a lot) has no cut.
+        // A steady pan (every frame changes a lot) has no cut; nor does a still.
         expect(findCuts(times, times.map(() => 0.2))).toEqual([]);
+        expect(findCuts(times, times.map((_, i) => 0.18 + (i % 4) * 0.01))).toEqual([]);
         expect(findCuts(times, times.map(() => 0.01))).toEqual([]);
+        // One cut per jump: the frame after a cut that still differs a lot is not another cut.
+        expect(findCuts(times, times.map((_, i) => (i === 12 ? 0.5 : i === 13 ? 0.3 : 0.02)))).toEqual([3]);
+    });
+
+    it("finds all thirteen cuts of a flickering 1909 film with ffmpeg's scene score, including the faint ones a fixed 0.3 missed", () => {
+        const film = umbrella();
+        const cuts = findCuts(film.sceneScores.times, film.sceneScores.scores, SCENE_SCORE_CUTS);
+        expect(cuts).toHaveLength(13);
+        for (const [i, cut] of film.cuts.entries()) expect(Math.abs(cuts[i]! - cut)).toBeLessThan(0.06);
+        // The two faint cuts (0.271 at 9.21 s, 0.238 at 10.46 s) are found; the old fixed threshold missed both.
+        const score = (t: number) => film.sceneScores.scores[film.sceneScores.times.findIndex((x) => Math.abs(x - t) < 0.02)]!;
+        expect(score(9.208)).toBeLessThan(0.3);
+        expect(score(10.458)).toBeLessThan(0.3);
+        expect(cuts.some((c) => Math.abs(c - 9.21) < 0.06) && cuts.some((c) => Math.abs(c - 10.46) < 0.06)).toBe(true);
+        // A steady pan scores on every frame and is never cut.
+        expect(findCuts(film.pan.sceneScores.times, film.pan.sceneScores.scores, SCENE_SCORE_CUTS)).toEqual([]);
+        // The shots: pieces under 2 s (a reference video's minimum) join a neighbour, so each shot starts on a real cut.
+        const shots = splitShots(cuts, 17.667).shots;
+        for (const shot of shots.slice(1)) expect(cuts).toContain(shot.start);
+        for (const shot of shots) expect(shot.end - shot.start).toBeGreaterThanOrEqual(2);
+    });
+
+    it("finds the same cuts with the editor's frame difference sampled six times a second", () => {
+        const film = umbrella();
+        const times = film.frameDiffs.diffs.map((_, i) => i / film.frameDiffs.fps);
+        const cuts = findCuts(times, film.frameDiffs.diffs, CUT_DETECTION);
+        // Every cut after the opening, each within one sample (1/6 s) of the real one.
+        const real = film.cuts.slice(1);
+        const after = cuts.filter((c) => c > 2);
+        expect(after).toHaveLength(real.length);
+        for (const [i, cut] of real.entries()) expect(Math.abs(after[i]! - cut)).toBeLessThanOrEqual(1 / 6 + 0.01);
+        // The opening's flicker gives at most one cut before 2 s (it joins the next shot either way).
+        expect(cuts.filter((c) => c <= 2).length).toBeLessThanOrEqual(1);
+        for (const shot of splitShots(cuts, 17.667).shots.slice(1)) expect(cuts).toContain(shot.start);
+        const panTimes = film.pan.frameDiffs.diffs.map((_, i) => i / 6);
+        expect(findCuts(panTimes, film.pan.frameDiffs.diffs, CUT_DETECTION)).toEqual([]);
     });
 
     it("joins pieces under 2 s to their shorter neighbour and splits pieces over 15 s evenly", () => {

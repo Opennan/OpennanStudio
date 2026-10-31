@@ -5,7 +5,7 @@ export const STORY_FILM_PACKAGE_VERSION = "0.1.0";
 export { STORY_FILM_VERSION, STORY_MEDIUMS, STORY_STEPS, type StoryAsset, type StoryCastCheck, type StoryCharacter, type StoryFilm, type StoryMedium, type StorySettings, type StoryShot, type StoryShotSource, type StorySource, type StoryStep } from "./types";
 export { DEFAULT_SHOT_SECONDS, STORY_LIMITS, assetOf, castCheckOf, filmSeconds, parseStoryFilm, readStoryJson, referenceLimitsOf, shotSeconds, shotSourceOf, slugId, storyJson, type StoryParse } from "./validate";
 export { VIDEO_PROMPT_MAX, castOf, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, remakePrompt, sheetPrompt } from "./recipe";
-export { CUT_DETECTION, SHOT_SPLIT, findCuts, remakeSeconds, shotSheetTimes, splitShots, storySecondsOf, withShotSources, type ShotRange } from "./shots";
+export { CUT_DETECTION, SCENE_SCORE_CUTS, SHOT_SPLIT, findCuts, remakeSeconds, shotSheetTimes, splitShots, storySecondsOf, withShotSources, type CutRule, type ShotRange } from "./shots";
 export {
     CAST_CHECK_MAX_REDRAWS, CAST_CHECK_MAX_TOKENS, CAST_CHECK_REDRAWS, castCheckRequest, parseCastCheck, type CastCheckRequest, type CastVerdict,
 } from "./check";
