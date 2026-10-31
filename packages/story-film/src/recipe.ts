@@ -99,6 +99,6 @@ export function remakePrompt(story: Pick<StoryFilm, "style" | "characters" | "me
         ? ` Replace the people with ${cast.map((c, i) => `@Image${i + 1} (${c.name}: ${c.look})`).join(" and ")}. Keep their looks exactly as drawn in their reference sheets.`
         : " Keep the place and the action; there are no characters to replace.";
     const style = withKeyframe ? ` Match the art style, line weight and colours of @Image${anchor} (this shot's first frame).` : "";
-    const text = `Recreate @Video1 exactly: same motion, timing, blocking and camera move, frame by frame.${people} The shot: ${shot.frame} What happens: ${shot.motion}${style} Render as a ${mediumOf(story).film}: ${story.style} No text, no watermark.`;
+    const text = `Recreate @Video1 exactly: same motion, timing, blocking and camera move, frame by frame.${people} The shot: ${shot.frame} What happens: ${shot.motion}${style} Render as a ${mediumOf(story).film}: ${story.style.replace(/[.\s]+$/, "")}. No text, no watermark.`;
     return text.length > VIDEO_PROMPT_MAX ? `${text.slice(0, VIDEO_PROMPT_MAX - 1)}…` : text;
 }

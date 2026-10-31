@@ -6,7 +6,7 @@
 // - images: the file as is when the destination takes its type, else a PNG;
 // - the timeline: its audible sources (the export's audio model) mixed with an OfflineAudioContext, mono.
 // Media is read through the media environment (auth headers only for its own origin, as the export reads it).
-import type { MediaPrepareInput, MediaPreparePurpose, MediaPreparer, PreparedMedia } from "@opennan/provider-sdk";
+import { minPixelsSize, type MediaPrepareInput, type MediaPreparePurpose, type MediaPreparer, type PreparedMedia } from "@opennan/provider-sdk";
 import type { AudioSource } from "@opennan/export";
 
 type Mediabunny = typeof import("mediabunny");
@@ -56,6 +56,9 @@ export function audioContainer(purpose: MediaPreparePurpose, seconds: number, sa
     return "wav";
 }
 
+/** The picture size to encode (the source's, or scaled up to the destination's smallest picture). */
+export const scaledToMinPixels = minPixelsSize;
+
 function checkSize(size: number, purpose: MediaPreparePurpose): void {
     if (size > purpose.maxBytes) {
         throw new MediaPrepareError(`The prepared file is ${(size / 1048576).toFixed(1)} MB, more than the ${Math.floor(purpose.maxBytes / 1048576)} MB this tool takes. Use a shorter range.`);
@@ -97,6 +100,7 @@ export function createWebMediaPreparer(options: WebPreparerOptions): MediaPrepar
             let extension: string;
             const conversionOptions: Record<string, unknown> = { trim: range, copy: false, showWarnings: false };
             let size: { width: number; height: number } | null = null;
+            let frameRate: number | undefined;
             if (purpose.output === "audio") {
                 const rate = purpose.sampleRate ?? 44_100;
                 let container = audioContainer(purpose, seconds, rate);
@@ -114,14 +118,26 @@ export function createWebMediaPreparer(options: WebPreparerOptions): MediaPrepar
             } else {
                 const track = await source.getPrimaryVideoTrack();
                 if (!track) throw new MediaPrepareError("This clip has no video.");
-                // Never resized: the result's size is the source's, which a stacked result (an upscale) needs.
-                size = { width: track.displayWidth, height: track.displayHeight };
-                const mp4 = purpose.contentTypes.includes("video/mp4") && (await mb.canEncodeVideo("avc"));
-                if (!mp4 && !purpose.contentTypes.includes("video/webm")) throw new MediaPrepareError("This browser cannot encode a video this tool takes.");
+                // Never resized (the result's size is the source's, which a stacked result such as an upscale needs),
+                // except up to the destination's smallest picture (a reference video's minimum pixels).
+                size = scaledToMinPixels(track.displayWidth, track.displayHeight, purpose.minPixels);
+                const resized = size.width !== track.displayWidth || size.height !== track.displayHeight;
+                const mp4 = purpose.contentTypes.includes("video/mp4") && (await mb.canEncodeVideo("avc", resized ? size : undefined));
+                if (!mp4 && !purpose.contentTypes.includes("video/webm")) throw new MediaPrepareError("This browser cannot encode an MP4 video, which this needs. Use the desktop app.");
                 format = mp4 ? new mb.Mp4OutputFormat() : new mb.WebMOutputFormat();
                 contentType = mp4 ? "video/mp4" : "video/webm";
                 extension = mp4 ? "mp4" : "webm";
-                conversionOptions.video = { codec: mp4 ? "avc" : "vp9", bitrate: mb.QUALITY_HIGH, forceTranscode: true };
+                const video: Record<string, unknown> = { codec: mp4 ? "avc" : "vp9", bitrate: mb.QUALITY_HIGH, forceTranscode: true };
+                if (resized) Object.assign(video, { width: size.width, height: size.height, fit: "fill" });
+                if (purpose.frameRate) {
+                    const stats = await track.computePacketStats(120).catch(() => null);
+                    frameRate = stats && stats.averagePacketRate > 0 ? stats.averagePacketRate : undefined;
+                    const fixed = frameRate === undefined ? purpose.frameRate.min : Math.min(purpose.frameRate.max, Math.max(purpose.frameRate.min, frameRate));
+                    // A variable or out-of-range rate is re-timed to a constant one the destination takes.
+                    if (frameRate === undefined || Math.abs(fixed - frameRate) > 0.5) video.frameRate = fixed;
+                    frameRate = fixed;
+                }
+                conversionOptions.video = video;
                 conversionOptions.audio = purpose.keepAudio ? { codec: mp4 ? "aac" : "opus", forceTranscode: true } : { discard: true };
             }
             const output = new mb.Output({ format, target });
@@ -143,7 +159,7 @@ export function createWebMediaPreparer(options: WebPreparerOptions): MediaPrepar
             const measured = await check.computeDuration().catch(() => seconds);
             return {
                 data: new Blob([buffer], { type: contentType }), contentType, filename: `${baseName(input.source.mediaUrl)}.${extension}`,
-                sizeBytes: buffer.byteLength, durationSeconds: Math.max(measured, seconds), ...(size ? size : {}),
+                sizeBytes: buffer.byteLength, durationSeconds: Math.max(measured, seconds), ...(size ? size : {}), ...(frameRate !== undefined ? { frameRate } : {}),
             };
         } finally {
             source.dispose?.();

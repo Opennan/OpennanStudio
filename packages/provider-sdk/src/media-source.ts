@@ -67,3 +67,19 @@ export function parseMediaSourceRef(value: unknown): MediaSourceRef | string {
     if (ref.startSeconds !== undefined && ref.endSeconds !== undefined && ref.endSeconds <= ref.startSeconds) return "endSeconds must come after startSeconds";
     return ref;
 }
+
+/**
+ * The picture size a preparer encodes for `purpose.minPixels`: the source's, or (when it has fewer pixels) scaled up
+ * with its shape kept, each side even, until it has at least that many.
+ */
+export function minPixelsSize(width: number, height: number, minPixels: number | undefined): { width: number; height: number } {
+    if (!minPixels || !(width > 0) || !(height > 0) || width * height >= minPixels) return { width, height };
+    const scale = Math.sqrt(minPixels / (width * height));
+    let w = Math.ceil((width * scale) / 2) * 2;
+    let h = Math.ceil((height * scale) / 2) * 2;
+    while (w * h < minPixels) {
+        w += 2;
+        h = Math.ceil((w * height) / width / 2) * 2;
+    }
+    return { width: w, height: h };
+}

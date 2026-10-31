@@ -1,4 +1,4 @@
-import { audioContainer, encodeWav, rangeToSend } from "./prepare-media-web";
+import { audioContainer, encodeWav, rangeToSend, scaledToMinPixels } from "./prepare-media-web";
 
 const purpose = (contentTypes: string[], maxBytes = 200 * 1024 * 1024) => ({ output: "audio" as const, maxBytes, contentTypes });
 
@@ -34,5 +34,20 @@ describe("web media preparer helpers", () => {
         expect(view.getUint32(24, true)).toBe(16000);
         expect(view.getInt16(46, true)).toBe(32767);
         expect(view.getInt16(48, true)).toBe(-32768);
+    });
+});
+
+describe("scaledToMinPixels", () => {
+    it("keeps a picture that is large enough and scales a small one up to the minimum, shape kept, sides even", () => {
+        expect(scaledToMinPixels(1280, 720, 409_600)).toEqual({ width: 1280, height: 720 });
+        expect(scaledToMinPixels(640, 360, undefined)).toEqual({ width: 640, height: 360 });
+        const up = scaledToMinPixels(640, 360, 409_600);
+        expect(up.width * up.height).toBeGreaterThanOrEqual(409_600);
+        expect(up.width % 2 + up.height % 2).toBe(0);
+        expect(Math.abs(up.width / up.height - 16 / 9)).toBeLessThan(0.01);
+        expect(up).toEqual({ width: 854, height: 480 });
+        const tall = scaledToMinPixels(360, 640, 409_600);
+        expect(tall.width * tall.height).toBeGreaterThanOrEqual(409_600);
+        expect(tall.height).toBeGreaterThan(tall.width);
     });
 });

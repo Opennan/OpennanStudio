@@ -268,6 +268,21 @@ export function fakeMp4Facts(bytes: Buffer): { seconds?: number; width?: number;
     return facts;
 }
 
+/** Tests: a minimal MP4 (an mvhd box with the length, a tkhd box with the picture size), what fakeMp4Facts reads. */
+export function fakeMp4(seconds: number, width: number, height: number): Uint8Array {
+    const mvhd = Buffer.alloc(8 + 100);
+    mvhd.writeUInt32BE(mvhd.length, 0);
+    mvhd.write("mvhd", 4, "ascii");
+    mvhd.writeUInt32BE(1000, 8 + 12);
+    mvhd.writeUInt32BE(Math.round(seconds * 1000), 8 + 16);
+    const tkhd = Buffer.alloc(8 + 84);
+    tkhd.writeUInt32BE(tkhd.length, 0);
+    tkhd.write("tkhd", 4, "ascii");
+    tkhd.writeUInt32BE(width * 65536, 8 + 76);
+    tkhd.writeUInt32BE(height * 65536, 8 + 80);
+    return new Uint8Array(Buffer.concat([Buffer.from("\0\0\0\x10ftypisom\0\0\0\0", "binary"), mvhd, tkhd]));
+}
+
 /** POST /v1/quotes, worked out by the server's rules on the fake's catalog (no HTTP: tests call it too). */
 export function fakeQuote(body: Record<string, unknown>): FakeQuoteAnswer {
     const invalid = (message: string, code?: string) => quoteError(400, "invalid_request_error", message, code);

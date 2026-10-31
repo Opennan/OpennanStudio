@@ -6,7 +6,7 @@ import { createOpenNanApi } from "./api";
 import { createOpenNanProvider } from "./provider";
 import { parseReferenceLimits, preparedReferenceProblem, referenceLengthProblem, referencePurpose } from "./references";
 import { OpenNanSession, memoryCredentialStore } from "./session";
-import { FAKE_REFERENCE_VIDEOS, fakeMp4Facts, fakeQuote, startFakeOpenNan, type FakeOpenNan } from "./testing";
+import { FAKE_REFERENCE_VIDEOS, fakeMp4, fakeMp4Facts, fakeQuote, startFakeOpenNan, type FakeOpenNan } from "./testing";
 
 let fake: FakeOpenNan;
 beforeAll(async () => {
@@ -15,20 +15,7 @@ beforeAll(async () => {
 afterAll(() => fake.close());
 beforeEach(() => fake.reset());
 
-/** A minimal MP4: an mvhd box with the length and a tkhd box with the picture size (what the server's probe reads). */
-function mp4(seconds: number, width: number, height: number): Uint8Array {
-    const mvhd = Buffer.alloc(8 + 100);
-    mvhd.writeUInt32BE(mvhd.length, 0);
-    mvhd.write("mvhd", 4, "ascii");
-    mvhd.writeUInt32BE(1000, 8 + 12);
-    mvhd.writeUInt32BE(Math.round(seconds * 1000), 8 + 16);
-    const tkhd = Buffer.alloc(8 + 84);
-    tkhd.writeUInt32BE(tkhd.length, 0);
-    tkhd.write("tkhd", 4, "ascii");
-    tkhd.writeUInt32BE(width * 65536, 8 + 76);
-    tkhd.writeUInt32BE(height * 65536, 8 + 80);
-    return new Uint8Array(Buffer.concat([Buffer.from("\0\0\0\x10ftypisom\0\0\0\0", "binary"), mvhd, tkhd]));
-}
+const mp4 = fakeMp4;
 
 function preparer(seconds: number, size = { width: 1280, height: 720 }, extra: { frameRate?: number; contentType?: string } = {}) {
     const calls: Array<{ input: MediaPrepareInput; purpose: MediaPreparePurpose }> = [];
