@@ -70,7 +70,7 @@ jobs:
       - run: pnpm --filter @opennan/web e2e
 
   golden:
-    runs-on: macos-14
+    runs-on: macos-15
     # Snapshots were measured with ffmpeg 7.1 (golden/harness.ts SNAPSHOT_FFMPEG); Homebrew's `ffmpeg`
     # formula has moved past it, so use the keg-only versioned formula and point the harness at it.
     env:
