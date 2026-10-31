@@ -83,3 +83,22 @@ export function redrawPrompt(
     const first = stress.length > 0 ? ` Most important: ${stress.join(" ")}` : "";
     return `${keyframePrompt(story, shot, withPrevious)}${first}`;
 }
+
+/** The most a video prompt holds (the provider's limit for a description). */
+export const VIDEO_PROMPT_MAX = 4000;
+
+/**
+ * A remade shot: the real shot is @Video1 (its motion, timing, blocking and camera are kept), the cast sheets are
+ * @Image1..n in cast order, and the shot's keyframe is the last image (the style anchor). The new cast's looks are
+ * restated next to their sheets, as in every keyframe prompt.
+ */
+export function remakePrompt(story: Pick<StoryFilm, "style" | "characters" | "medium">, shot: Pick<StoryShot, "cast" | "frame" | "motion">, withKeyframe: boolean): string {
+    const cast = castOf(story, shot);
+    const anchor = cast.length + 1;
+    const people = cast.length > 0
+        ? ` Replace the people with ${cast.map((c, i) => `@Image${i + 1} (${c.name}: ${c.look})`).join(" and ")}. Keep their looks exactly as drawn in their reference sheets.`
+        : " Keep the place and the action; there are no characters to replace.";
+    const style = withKeyframe ? ` Match the art style, line weight and colours of @Image${anchor} (this shot's first frame).` : "";
+    const text = `Recreate @Video1 exactly: same motion, timing, blocking and camera move, frame by frame.${people} The shot: ${shot.frame} What happens: ${shot.motion}${style} Render as a ${mediumOf(story).film}: ${story.style} No text, no watermark.`;
+    return text.length > VIDEO_PROMPT_MAX ? `${text.slice(0, VIDEO_PROMPT_MAX - 1)}…` : text;
+}

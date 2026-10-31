@@ -10,12 +10,15 @@ export type ReelInputResult = { ok: true; input: ReelLayoutInput } | { ok: false
 export function reelInputOf(story: StoryFilm): ReelInputResult {
     const missing = story.shots.filter((s) => !s.clip).map((s) => s.id);
     if (missing.length > 0) return { ok: false, error: `Animate ${missing.length === 1 ? "shot" : "shots"} ${missing.join(", ")} first.`, missing };
+    const keepMotion = story.source?.kind === "copy" && story.source.keepMotion === true;
     const input: ReelLayoutInput = {
         title: story.title,
         clips: story.shots.map((shot, i) => {
             const clip = shot.clip!;
-            // The shot's own length, unless the clip came back shorter (a scene never runs past its media).
-            const seconds = Math.min(shotSeconds(shot), clip.durationSeconds && clip.durationSeconds > 0 ? clip.durationSeconds : shotSeconds(shot));
+            // The shot's own length, unless the clip came back shorter (a scene never runs past its media). A copy that
+            // keeps the original motion keeps the original cut too: a shot runs as long as its real shot.
+            const real = keepMotion && shot.source ? Math.max(1, shot.source.end - shot.source.start) : Infinity;
+            const seconds = Math.min(shotSeconds(shot), real, clip.durationSeconds && clip.durationSeconds > 0 ? clip.durationSeconds : shotSeconds(shot));
             return { mediaUrl: clip.url, durationSeconds: seconds, label: `${i + 1}. ${shot.id}`, ...(clip.width && clip.height ? { width: clip.width, height: clip.height } : {}) };
         }),
         music: story.musicAsset ? { mediaUrl: story.musicAsset.url, ...(story.musicAsset.durationSeconds ? { durationSeconds: story.musicAsset.durationSeconds } : {}) } : null,

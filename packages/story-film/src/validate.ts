@@ -2,7 +2,8 @@
 // checked and normalized here before anything uses it. Texts are trimmed and capped, ids are short slugs, a shot's
 // cast names known characters, seconds are whole numbers from 4 to 15 (default 5). Assets are kept only when they are
 // well formed, so a hand-edited file can never point a run at something it did not make.
-import { STORY_FILM_VERSION, STORY_MEDIUMS, type StoryAsset, type StoryCastCheck, type StoryCharacter, type StoryFilm, type StoryShot, type StorySettings, type StorySource } from "./types";
+import type { ReferenceVideoLimits } from "@opennan/provider-sdk";
+import { STORY_FILM_VERSION, STORY_MEDIUMS, type StoryAsset, type StoryCastCheck, type StoryCharacter, type StoryFilm, type StoryShot, type StoryShotSource, type StorySettings, type StorySource } from "./types";
 
 export const STORY_LIMITS = Object.freeze({
     title: 80,
@@ -77,12 +78,47 @@ export function castCheckOf(value: unknown, keyframe: StoryAsset | null): StoryC
     return check;
 }
 
+/** Stored reference video limits, or undefined (half-formed limits are dropped: a remake then falls back to the keyframe). */
+export function referenceLimitsOf(value: unknown): ReferenceVideoLimits | undefined {
+    if (!isRecord(value)) return undefined;
+    const pos = (key: string) => (finite(value[key]) && (value[key] as number) > 0 ? (value[key] as number) : undefined);
+    const max = pos("max");
+    const maxSeconds = pos("maxSeconds");
+    const totalSeconds = pos("totalSeconds");
+    if (max === undefined || maxSeconds === undefined || totalSeconds === undefined) return undefined;
+    const words = (key: string) => (Array.isArray(value[key]) ? (value[key] as unknown[]).filter((w): w is string => typeof w === "string" && /^[a-z0-9-]{1,32}$/.test(w)).slice(0, 8) : []);
+    const modes = words("modes");
+    const limits: ReferenceVideoLimits = { max: Math.floor(max), minSeconds: pos("minSeconds") ?? 0, maxSeconds, totalSeconds, modes: modes.length > 0 ? modes : ["reference"] };
+    const formats = words("formats");
+    if (formats.length > 0) limits.formats = formats;
+    for (const key of ["maxMb", "minSide", "maxSide", "minPixels", "minFps", "maxFps", "editMinSeconds"] as const) {
+        const n = pos(key);
+        if (n !== undefined) limits[key] = n;
+    }
+    return limits;
+}
+
 function settingsOf(value: unknown): StorySettings | undefined {
     if (!isRecord(value)) return undefined;
     const settings: StorySettings = {};
     for (const key of ["imageModel", "videoModel"] as const) if (typeof value[key] === "string" && MODEL.test(value[key] as string)) settings[key] = value[key] as string;
     for (const key of ["imageSize", "quality"] as const) if (typeof value[key] === "string" && /^[A-Za-z0-9]{1,8}$/.test(value[key] as string)) settings[key] = value[key] as string;
+    if (Array.isArray(value.videoDurations)) {
+        const durations = value.videoDurations.filter((d): d is number => finite(d) && d > 0 && d <= 600).slice(0, 64);
+        if (durations.length > 0) settings.videoDurations = durations;
+    }
+    const reference = referenceLimitsOf(value.videoReference);
+    if (reference) settings.videoReference = reference;
     return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
+/** A shot's stored source range (seconds of the copied video), or undefined when it is not one. */
+export function shotSourceOf(value: unknown): StoryShotSource | undefined {
+    if (!isRecord(value) || !finite(value.start) || !finite(value.end)) return undefined;
+    if (value.start < 0 || value.end <= value.start || value.end > 86_400) return undefined;
+    const source: StoryShotSource = { start: Math.round(value.start * 1000) / 1000, end: Math.round(value.end * 1000) / 1000 };
+    if (typeof value.clip === "string" && MEDIA_URL.test(value.clip) && value.clip.length <= 4096) source.clip = value.clip;
+    return source;
 }
 
 function sourceOf(value: unknown): StorySource | undefined {
@@ -90,6 +126,7 @@ function sourceOf(value: unknown): StorySource | undefined {
     if (value.kind === "write") return { kind: "write" };
     if (value.kind !== "copy") return undefined;
     const source: StorySource = { kind: "copy", cast: value.cast === "keep" ? "keep" : "original" };
+    if (typeof value.keepMotion === "boolean") source.keepMotion = value.keepMotion;
     if (typeof value.mediaUrl === "string" && MEDIA_URL.test(value.mediaUrl)) source.mediaUrl = value.mediaUrl;
     if (typeof value.link === "string" && /^https:\/\//.test(value.link) && value.link.length <= 4096) source.link = value.link;
     return source;
@@ -163,6 +200,8 @@ export function parseStoryFilm(value: unknown): StoryParse {
         if (check) shot.check = check;
         const clip = assetOf(raw.clip);
         if (clip) shot.clip = clip;
+        const source = shotSourceOf(raw.source);
+        if (source) shot.source = source;
         shots.push(shot);
     }
     if (errors.length > 0) return { ok: false, errors };

@@ -3,7 +3,7 @@
 // keep the beats and the feel, safe to publish); "keep" keeps the people as they are, only for the user's own video.
 // The draft is always a draft: the person edits it before anything paid runs.
 import { parseStoryFilm, STORY_LIMITS, type StoryParse } from "./validate";
-import type { StoryMedium } from "./types";
+import type { StoryMedium, StorySource } from "./types";
 
 /** The output cap of a draft call (12 shots of JSON take about 3,000 tokens; thinking models need room). */
 export const DRAFT_MAX_TOKENS = 12_000;
@@ -46,6 +46,11 @@ export interface CopyDraftInput {
     /** Anything the person adds (what the video is about, what to change). */
     notes?: string;
     medium?: StoryMedium;
+    /**
+     * The video's real shots (Studio found the cuts), in order, with the sheet frames (1-based, inclusive) that show
+     * each one: the draft then has exactly one story shot per real shot, so each can be remade from its real shot.
+     */
+    shots?: ReadonlyArray<{ start: number; end: number; firstFrame: number; lastFrame: number }>;
 }
 
 export interface DraftRequest {
@@ -66,14 +71,27 @@ export function writeDraftRequest(input: WriteDraftInput): DraftRequest {
     return { capability: "text.generate", input: { instruction: INSTRUCTION, prompt: asks.join("\n\n"), maxTokens: DRAFT_MAX_TOKENS } };
 }
 
+const fmt = (seconds: number) => String(Math.round(seconds * 10) / 10);
+
 /** The text call that retells a reference video (its frames on one contact sheet) as a draft. */
 export function copyDraftRequest(input: CopyDraftInput): DraftRequest {
     const cast = input.cast === "keep"
         ? "Keep the characters as they appear in the video (this is the person's own video): describe each one's look exactly."
         : "Make an ORIGINAL cast: new character designs and new names that play the same roles, and a new title. Keep the beats, the order, the pacing and the feel. Never copy a real person's likeness, names, logos, brands or dialogue from the video.";
+    const shots = input.shots && input.shots.length > 0 ? input.shots : null;
+    const sheet = shots
+        ? `The image is a contact sheet of ${input.frames} frames from a reference video, in order (left to right, then top to bottom), each labelled with its shot number, from a ${Math.round(input.durationSeconds)}-second video.`
+        : `The image is a contact sheet of ${input.frames} frames from a reference video, in order (left to right, then top to bottom), one every ${Math.round(input.everySeconds * 10) / 10} seconds of a ${Math.round(input.durationSeconds)}-second video.`;
+    const retell = shots
+        ? [
+            `The video has exactly ${shots.length} shots (cut to cut):`,
+            shots.map((shot, i) => `- shot ${i + 1}: ${fmt(shot.start)}-${fmt(shot.end)} s (${fmt(shot.end - shot.start)} s), frame${shot.firstFrame === shot.lastFrame ? ` ${shot.firstFrame}` : `s ${shot.firstFrame}-${shot.lastFrame}`}`).join("\n"),
+            `Write exactly ${shots.length} story shots, in this order, one for each real shot: the same action, blocking and camera, played by the story's characters. "frame" is the first moment of that real shot with the new cast; "motion" is what happens in it and how the camera moves. Set "seconds" to the whole number nearest the shot's length (at least ${STORY_LIMITS.minSeconds}). Describe the reference's art style in "style" (medium, linework, palette, light).`,
+        ].join("\n")
+        : "Retell it as a story film with one shot per beat of the video. Describe the reference's art style in \"style\" (medium, linework, palette, light).";
     const prompt = [
-        `The image is a contact sheet of ${input.frames} frames from a reference video, in order (left to right, then top to bottom), one every ${Math.round(input.everySeconds * 10) / 10} seconds of a ${Math.round(input.durationSeconds)}-second video.`,
-        "Retell it as a story film with one shot per beat of the video. Describe the reference's art style in \"style\" (medium, linework, palette, light).",
+        sheet,
+        retell,
         cast,
         input.medium ? `Medium: ${input.medium}.` : "",
         input.notes?.trim() ? `Notes from the person: ${input.notes.trim()}` : "",
@@ -114,7 +132,7 @@ export function jsonObjectOf(reply: string): unknown {
 }
 
 /** A text model's reply as a story draft (validated; its source recorded), or what is wrong with it. */
-export function parseDraftReply(reply: string, source: { kind: "write" } | { kind: "copy"; cast: "original" | "keep"; mediaUrl?: string; link?: string }): StoryParse {
+export function parseDraftReply(reply: string, source: StorySource): StoryParse {
     const value = jsonObjectOf(reply);
     if (value === null || typeof value !== "object") return { ok: false, errors: ["the story writer's answer had no story in it"] };
     const draft = { ...(value as Record<string, unknown>) };
@@ -124,6 +142,7 @@ export function parseDraftReply(reply: string, source: { kind: "write" } | { kin
         delete (shot as Record<string, unknown>).keyframe;
         delete (shot as Record<string, unknown>).check;
         delete (shot as Record<string, unknown>).clip;
+        delete (shot as Record<string, unknown>).source;
     }
     for (const character of Array.isArray(draft.characters) ? (draft.characters as unknown[]) : []) {
         if (character && typeof character === "object") delete (character as Record<string, unknown>).sheet;

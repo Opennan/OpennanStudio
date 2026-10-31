@@ -7,9 +7,10 @@
 // in order (each anchors on the one before); sheets and clips run two at a time. Cancel stops what has not started and
 // cancels what runs. After each keyframe the cast check (check.ts) looks at it once; a character off their sheet gets
 // the keyframe redrawn with the look restated (once by default), and a shot still off after that is kept and flagged.
-import { formatUsdEstimate, type PriceAnswer, type PriceUnits, type ProviderModel } from "@opennan/provider-sdk";
+import { formatUsdEstimate, type PriceAnswer, type PriceUnits, type ProviderModel, type ReferenceVideoLimits } from "@opennan/provider-sdk";
 import { CAST_CHECK_MAX_REDRAWS, CAST_CHECK_REDRAWS, castCheckRequest, parseCastCheck } from "./check";
-import { castOf, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, sheetPrompt } from "./recipe";
+import { castOf, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, remakePrompt, sheetPrompt } from "./recipe";
+import { remakeSeconds } from "./shots";
 import type { StoryAsset, StoryCastCheck, StoryFilm, StoryShot, StoryStep } from "./types";
 import { filmSeconds, shotSeconds } from "./validate";
 
@@ -62,8 +63,10 @@ export interface StoryItem {
     key: string;
     /** The asset it made, when there is one. */
     asset: StoryAsset | null;
-    /** Why it cannot run yet (a sheet or keyframe it needs is missing). */
+    /** Why it cannot run yet (a sheet or keyframe it needs is missing, a reference shot out of the model's limits). */
     blocked?: string;
+    /** Animate: remade from its real shot (a reference video), not animated from its keyframe. */
+    remake?: boolean;
 }
 
 export interface StepOptions {
@@ -138,10 +141,62 @@ function frameItem(story: StoryFilm, id: string): StoryItem | null {
     return item;
 }
 
+/** The most images a remake sends besides its reference video (the cast's sheets, then the keyframe). */
+export const REMAKE_MAX_IMAGES = 9;
+
+/**
+ * The real shot a shot is remade from, or null when it animates from its keyframe: the story copied a video with "keep
+ * the original motion", the shot has its place in that video (and a clip or the source video to cut it from), and the
+ * story's video model takes reference videos.
+ */
+export function remakeOf(story: StoryFilm, shot: StoryShot): { reference: Record<string, unknown>; seconds: number; limits: ReferenceVideoLimits } | null {
+    const limits = story.settings?.videoReference;
+    const source = shot.source;
+    if (story.source?.kind !== "copy" || story.source.keepMotion !== true || !source || !limits || !limits.modes.includes("reference")) return null;
+    const seconds = Math.round((source.end - source.start) * 1000) / 1000;
+    const reference = source.clip
+        // The clip is the range cut out: its length (a frame of slack: a re-encode may end a frame later).
+        ? { mediaUrl: source.clip, seconds: Math.round((seconds + 0.05) * 1000) / 1000 }
+        : story.source.mediaUrl ? { mediaUrl: story.source.mediaUrl, startSeconds: source.start, endSeconds: source.end } : null;
+    return reference ? { reference, seconds, limits } : null;
+}
+
+/** Why a real shot cannot be a reference video (the model's limits), or null. */
+export function remakeProblem(seconds: number, limits: ReferenceVideoLimits): string | null {
+    const s = Math.round(seconds * 10) / 10;
+    if (seconds < limits.minSeconds) return `The original shot is ${s} s: the video model takes reference shots of ${limits.minSeconds} s at least. Join it to a neighbour, or turn off "Keep the original motion".`;
+    if (seconds > Math.min(limits.maxSeconds, limits.totalSeconds)) return `The original shot is ${s} s: the video model takes reference shots of ${Math.min(limits.maxSeconds, limits.totalSeconds)} s at most.`;
+    return null;
+}
+
+function remakeItem(story: StoryFilm, index: number, remake: NonNullable<ReturnType<typeof remakeOf>>): StoryItem {
+    const shot = story.shots[index]!;
+    const { videoModel, quality } = settingsOf(story);
+    const cast = castOf(story, shot);
+    const seconds = remakeSeconds(remake.seconds, story.settings?.videoDurations);
+    const images = [...cast.map((c) => (c.sheet ? ref(c.sheet.url) : null)), shot.keyframe ? ref(shot.keyframe.url) : null].filter((i): i is { mediaUrl: string } => i !== null).slice(0, REMAKE_MAX_IMAGES);
+    const input: Record<string, unknown> = {
+        description: remakePrompt(story, shot, Boolean(shot.keyframe)), referenceVideos: [remake.reference], referenceMode: "reference",
+        ...(images.length > 0 ? { referenceImages: images } : {}), durationSeconds: seconds, aspectRatio: STORY_DEFAULTS.aspectRatio, model: videoModel, quality, generateAudio: false,
+    };
+    const item: StoryItem = {
+        step: "animate", id: shot.id, label: `Shot ${index + 1}`, capability: "video.image-to-video", input, units: { seconds, referenceSeconds: remake.seconds },
+        key: requestKey(input), asset: shot.clip ?? null, remake: true,
+    };
+    const missing = cast.filter((c) => !c.sheet);
+    const problem = remakeProblem(remake.seconds, remake.limits);
+    if (problem) item.blocked = problem;
+    else if (missing.length > 0) item.blocked = `Draw ${missing.map((c) => c.name).join(" and ")} first.`;
+    else if (!shot.keyframe) item.blocked = "Draw the keyframe first.";
+    return item;
+}
+
 function clipItem(story: StoryFilm, id: string): StoryItem | null {
     const index = story.shots.findIndex((s) => s.id === id);
     if (index < 0) return null;
     const shot = story.shots[index]!;
+    const remake = remakeOf(story, shot);
+    if (remake) return remakeItem(story, index, remake);
     const { videoModel, quality } = settingsOf(story);
     const seconds = shotSeconds(shot);
     const input: Record<string, unknown> = {
@@ -513,6 +568,29 @@ function assetOf(item: StoryItem, media: StoryRunMedia, costUsd: number | undefi
     const seconds = media.durationSeconds ?? (typeof item.input.durationSeconds === "number" ? item.input.durationSeconds : undefined);
     if (seconds && item.capability !== "image.generate") asset.durationSeconds = seconds;
     return asset;
+}
+
+/**
+ * The story set to animate with `model`: its id, and what a remake needs to know of it (its lengths, and its reference
+ * video limits, or none). Called whenever the model is chosen or its listing is read again.
+ */
+export function withVideoModel(story: StoryFilm, model: Pick<ProviderModel, "id" | "durations" | "referenceVideos">, quality?: string): StoryFilm {
+    const settings = { ...story.settings, videoModel: model.id, ...(quality ? { quality } : {}) };
+    delete settings.videoDurations;
+    delete settings.videoReference;
+    if (model.durations?.length) settings.videoDurations = [...model.durations];
+    if (model.referenceVideos) settings.videoReference = { ...model.referenceVideos, modes: [...model.referenceVideos.modes], ...(model.referenceVideos.formats ? { formats: [...model.referenceVideos.formats] } : {}) };
+    return { ...story, settings };
+}
+
+/** The story says the same about its video model as `model` does (nothing to save). */
+export function sameVideoModel(story: StoryFilm, model: Pick<ProviderModel, "id" | "durations" | "referenceVideos">): boolean {
+    return JSON.stringify(withVideoModel(story, model).settings) === JSON.stringify(story.settings);
+}
+
+/** The story copies a video and keeps its motion, with shots placed on their real shots. */
+export function keepsMotion(story: StoryFilm): boolean {
+    return story.source?.kind === "copy" && story.source.keepMotion === true && story.shots.some((s) => s.source);
 }
 
 /** Image-to-video models for the picker: the proven ones first (in order), then any other the provider lists. Never a model it does not sell. */

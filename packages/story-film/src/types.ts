@@ -3,6 +3,8 @@
 // The story lives on the project (ProjectMeta.storyFilmJson), so the editor, agents and a re-run all see the same
 // assets and never pay twice for one.
 
+import type { ReferenceVideoLimits } from "@opennan/provider-sdk";
+
 export const STORY_FILM_VERSION = 1;
 
 /** How the film is drawn: picks the medium words of the keyframe and motion prompts ("2d" is the proven recipe). */
@@ -52,6 +54,17 @@ export interface StoryCastCheck {
     at?: string;
 }
 
+/**
+ * Where a copied shot sits in the source video (seconds), and its clip: that range cut out as a project video. A remake
+ * sends the clip as the shot's reference video, so the new shot keeps the real shot's motion, blocking and camera.
+ */
+export interface StoryShotSource {
+    start: number;
+    end: number;
+    /** The range as its own project video (absent: the range of the story's source video is sent). */
+    clip?: string;
+}
+
 export interface StoryShot {
     id: string;
     /** Character ids in the shot, in reference order (their sheets go to the keyframe in this order). */
@@ -66,6 +79,8 @@ export interface StoryShot {
     /** The keyframe's cast check (a flagged shot shows "check this shot"). */
     check?: StoryCastCheck | null;
     clip?: StoryAsset | null;
+    /** A copied video's shot this one remakes. */
+    source?: StoryShotSource;
 }
 
 export interface StorySettings {
@@ -74,12 +89,20 @@ export interface StorySettings {
     imageSize?: string;
     videoModel?: string;
     quality?: string;
+    /** The video model's lengths (seconds), as the provider lists them: a remake rounds the shot's length to one. */
+    videoDurations?: number[];
+    /** The video model's reference video limits (absent: it takes none, and shots animate from their keyframes). */
+    videoReference?: ReferenceVideoLimits;
 }
 
-/** Where the draft came from. A copy makes an original cast and title by default; "keep" is for the user's own videos. */
+/**
+ * Where the draft came from. A copy makes an original cast and title by default; "keep" is for the user's own videos.
+ * `keepMotion`: each shot is remade from its real shot (the source clip as a reference video) when the video model
+ * takes reference videos; else, and when it is off, shots animate from their keyframes.
+ */
 export type StorySource =
     | { kind: "write" }
-    | { kind: "copy"; cast: "original" | "keep"; mediaUrl?: string; link?: string };
+    | { kind: "copy"; cast: "original" | "keep"; mediaUrl?: string; link?: string; keepMotion?: boolean };
 
 export interface StoryFilm {
     version: typeof STORY_FILM_VERSION;
