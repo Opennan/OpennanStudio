@@ -13,17 +13,17 @@ import { castOf, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, sheetP
 import type { StoryAsset, StoryCastCheck, StoryFilm, StoryShot, StoryStep } from "./types";
 import { filmSeconds, shotSeconds } from "./validate";
 
-/** The proven defaults: the 2K image model that takes references, and the video model that kept the style best for its price. */
+/** The proven defaults: the 2K image model that takes references, and the video model whose motion and physics held up best. */
 export const STORY_DEFAULTS = Object.freeze({
     imageModel: "nano-banana-pro",
     imageSize: "2K",
-    videoModel: "seedance-2-mini",
+    videoModel: "seedance-2-5",
     quality: "720p",
     aspectRatio: "16:9",
 });
 
 /** Video models offered first, in this order (any other image-to-video model the provider lists follows). */
-export const STORY_VIDEO_MODELS = ["seedance-2-mini", "kling-o3", "veo-3-1-fast", "hailuo-2-3"] as const;
+export const STORY_VIDEO_MODELS = ["seedance-2-5", "seedance-2-mini", "kling-o3", "veo-3-1-fast", "hailuo-2-3"] as const;
 
 /** Music lengths the provider takes (seconds). */
 const MUSIC_SECONDS = { min: 10, max: 240 };
@@ -522,7 +522,7 @@ export function videoModelChoices(models: readonly ProviderModel[]): ProviderMod
     return [...first, ...models.filter((m) => !(STORY_VIDEO_MODELS as readonly string[]).includes(m.id))];
 }
 
-/** The default video model: seedance-2-mini when the provider sells it, else the first of the choices. */
+/** The default video model: seedance-2-5 when the provider sells it, else seedance-2-mini, else the first of the choices. */
 export function defaultVideoModel(models: readonly ProviderModel[]): string | null {
     return videoModelChoices(models)[0]?.id ?? null;
 }

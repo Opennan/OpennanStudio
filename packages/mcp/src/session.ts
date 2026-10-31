@@ -5,7 +5,7 @@ import type {
     PreviewFrameOptions, PreviewFrameResult, RenderedFrame, SelectedTransition, TimelineBackend, TimelineController,
     TimelineMarker, TimelineToolMode, UploadedMedia,
 } from "@opennan/timeline-core";
-import type { AiJobBook, AiJobRecord, ProviderVoice } from "@opennan/provider-sdk";
+import type { AiJobBook, AiJobRecord, ProviderCapability, ProviderModel, ProviderVoice } from "@opennan/provider-sdk";
 import type { ExportJobStatus, StudioExporter } from "./export";
 import { priceOnRegistry, voicesOnRegistry, type PriceQuestion, type PriceRegistry, type PriceReply } from "./prices";
 
@@ -138,6 +138,8 @@ export interface StudioSession {
     aiJobs?(): Promise<AiJobRecord[]>;
     /** Voices of the routed text-to-speech provider (list_voices); null when no provider offers speech. */
     voices?(): Promise<ProviderVoice[] | null>;
+    /** Models the routed provider sells for a capability (empty when it lists none). Absent: the host has no registry. */
+    models?(capability: ProviderCapability): Promise<ProviderModel[]>;
     /** OpenNan project pipelines (storyboard, scene video, copy-video, story plan); absent on every current host. */
     pipelines?: StudioProjectPipelines;
 }
@@ -196,6 +198,7 @@ export function createControllerSession(options: ControllerSessionOptions): Stud
     if (providers) {
         session.estimate = (question) => priceOnRegistry(providers, question);
         session.voices = () => voicesOnRegistry(providers);
+        session.models = async (capability) => (await providers.route(capability)?.models?.(capability)) ?? [];
     }
     const jobs = options.aiJobs;
     if (jobs) session.aiJobs = async () => jobs.list();
