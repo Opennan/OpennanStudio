@@ -324,8 +324,8 @@ describe("prices", () => {
         const models = async (category: string) => (await fetch(`${fake.url}/v1/models?category=${category}`).then((r) => r.json()) as { data: Array<Record<string, unknown>> }).data;
         expect((await models("image"))[0]).toMatchObject({ id: "nano-banana-2", price: { from_usd: 0.039, per_input_image_usd: 0.002, unit: "image" } });
         const video = await models("video");
-        // Story film's models (seedance-2-mini, kling-o3) follow the two older ones.
-        expect(video.map((m) => m.id)).toEqual(["kling-3", "seedance-2", "seedance-2-mini", "kling-o3"]);
+        // Story film's models (seedance-2-mini, seedance-2-5, kling-o3) follow the two older ones.
+        expect(video.map((m) => m.id)).toEqual(["kling-3", "seedance-2", "seedance-2-mini", "seedance-2-5", "kling-o3"]);
         expect(video[0]).toMatchObject({
             id: "kling-3", durations: [5, 10],
             price: { matrix: [{ quality: "720p", duration: 5, ours_usd: 0.4, ours_usd_per_second: 0.08, audio: false }, { quality: "1080p", duration: 5, ours_usd: 0.7, ours_usd_per_second: 0.14, audio: false }] },

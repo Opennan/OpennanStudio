@@ -72,12 +72,13 @@ describe("story film tools", () => {
 
             const refused = await call("story_film_animate", { accept_max_usd: 0.1 });
             expect(refused.isError).toBe(true);
-            expect(textOf(refused)).toMatch(/estimated at ≈ \$0\.52\d?, more than accept_max_usd \$0\.1\. Nothing was sent\./);
+            expect(textOf(refused)).toMatch(/estimated at ≈ \$6\.1\d+, more than accept_max_usd \$0\.1\. Nothing was sent\./);
             const animated = await call("story_film_animate");
             expect(animated.isError).toBe(false);
             expect(posts("/v1/videos/generations")).toEqual([
-                expect.objectContaining({ model: "seedance-2-mini", quality: "720p", duration: 5, generate_audio: false, aspect_ratio: "16:9" }),
-                expect.objectContaining({ model: "seedance-2-mini" }),
+                // No model asked for: the best one the provider sells.
+                expect.objectContaining({ model: "seedance-2-5", quality: "720p", duration: 5, generate_audio: false, aspect_ratio: "16:9" }),
+                expect.objectContaining({ model: "seedance-2-5" }),
             ]);
             expect((await call("story_film_music")).isError).toBe(false);
             expect(posts("/v1/music/generations")[0]).toMatchObject({ duration: 10, instrumental: true });

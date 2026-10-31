@@ -412,6 +412,12 @@ const MINI_MATRIX = [
     { quality: "720p", duration: 5, ours_usd: 0.26, ours_usd_per_second: 0.052, audio: false },
     { quality: "1080p", duration: 5, ours_usd: 0.6, ours_usd_per_second: 0.12, audio: false },
 ];
+// Seedance 2.5 as /v1 sells it (per 5 s, no sound): story film's default video model.
+const SEEDANCE_25_MATRIX = [
+    { quality: "480p", duration: 5, ours_usd: 1.43325, ours_usd_per_second: 0.28665, audio: false },
+    { quality: "720p", duration: 5, ours_usd: 3.0745, ours_usd_per_second: 0.6149, audio: false },
+    { quality: "1080p", duration: 5, ours_usd: 7.566, ours_usd_per_second: 1.5132, audio: false },
+];
 const MODELS: Record<string, Array<Record<string, unknown>>> = {
     image: [
         { id: "nano-banana-2", name: "Nano Banana 2", price: { from_usd: 0.039, per_input_image_usd: 0.002, unit: "image" } },
@@ -422,6 +428,7 @@ const MODELS: Record<string, Array<Record<string, unknown>>> = {
         { id: "kling-3", name: "Kling 3", durations: [5, 10], price: { from_usd: 0.4, matrix: VIDEO_MATRIX } },
         { id: "seedance-2", name: "Seedance 2", durations: [5, 10], price: { from_usd: 0.5, matrix: [{ quality: "720p", duration: 5, ours_usd: 0.5, ours_usd_per_second: 0.1, audio: false }] } },
         { id: "seedance-2-mini", name: "Seedance 2 Mini", durations: [4, 5, 6, 8, 10, 12, 15], qualities: ["720p", "1080p"], price: { from_usd: 0.26, matrix: MINI_MATRIX } },
+        { id: "seedance-2-5", name: "Seedance 2.5", durations: [4, 5, 6, 8, 10, 12, 15], qualities: ["480p", "720p", "1080p"], price: { from_usd: 1.43325, matrix: SEEDANCE_25_MATRIX } },
         { id: "kling-o3", name: "Kling O3", durations: [5, 10], qualities: ["720p", "1080p"], price: { from_usd: 0.6, matrix: [{ quality: "720p", duration: 5, ours_usd: 0.6, ours_usd_per_second: 0.12, audio: false }, { quality: "1080p", duration: 5, ours_usd: 0.9, ours_usd_per_second: 0.18, audio: false }] } },
     ],
     text: [

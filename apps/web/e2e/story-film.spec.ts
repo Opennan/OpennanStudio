@@ -88,11 +88,11 @@ test("writes, draws, animates, scores and lays out a story film; a second pass p
     await expect(page.getByTestId("story-film-flag-s01")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Animate", exact: true }).click();
-    await expect(page.getByTestId("story-film-model")).toHaveValue("seedance-2-mini", { timeout: 20_000 });
+    await expect(page.getByTestId("story-film-model")).toHaveValue("seedance-2-5", { timeout: 20_000 });
     await runStep(page, "story-film-run-animate", ["story-film-clip-s01", "story-film-clip-s02"]);
     expect((await posts("/v1/videos/generations")).map((r) => r.body)).toEqual([
-        expect.objectContaining({ model: "seedance-2-mini", quality: "720p", duration: 5, generate_audio: false }),
-        expect.objectContaining({ model: "seedance-2-mini" }),
+        expect.objectContaining({ model: "seedance-2-5", quality: "720p", duration: 5, generate_audio: false }),
+        expect.objectContaining({ model: "seedance-2-5" }),
     ]);
 
     await page.getByRole("button", { name: "Music", exact: true }).click();

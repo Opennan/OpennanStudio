@@ -42,8 +42,12 @@ app's built-in server). The story is stored on the project, so agents and the ed
    `preview_timeline_frame` or the editor shows them). Fix the text and redo one with `ids` + `redo`; redoing a
    keyframe marks the next shot's keyframe and its own clip as "changed".
 4. **Animate** (`story_film_animate`): image-to-video from each keyframe, 5 s, 16:9, 720p, no sound.
-   Default model `seedance-2-mini` (best at following the action and keeping the style, about 1/5 the price of the
-   full model); `kling-o3` is close in quality and dearer. Use only models the provider lists. Clips run two at a
+   Default model `seedance-2-5` (rigid objects, believable physics, stable characters; about $3.07 per 5 s at 720p).
+   When the provider does not list it, `seedance-2-mini` (about $0.26 per 5 s; cheap, but objects can morph and
+   physics can break). Use only models the provider lists.
+   **Watch every clip before the reel**: hands keep holding what they hold, objects stay one shape, rain and cloth fall
+   the right way, each action makes sense. Redo a clip that fails (`ids` + `redo`), with the action written more
+   plainly in its motion text. Clips run two at a
    time; a call may stop at the 10-minute tool limit - call it again, finished clips are skipped.
 5. **Music** (`story_film_music`): one instrumental bed the length of the film.
 6. **Reel** (`story_film_assemble`): 1080x1920 black canvas, the film 1080x608 at y = 656 (centred), the title bold
@@ -83,7 +87,7 @@ story_film_assemble
 Every paid tool answers its price with `estimate_only: true` and runs nothing; pass `accept_max_usd` so a higher
 estimate stops before anything is sent. A re-run makes only what is missing and never pays twice. Tell the person the
 total before animating: a 12-shot film is under $1 for sheets and keyframes (the cast check adds a small look per
-shot) and about $3 of clips at `seedance-2-mini` 720p (about $12 at the full model).
+shot) and about $37 of clips at `seedance-2-5` 720p (about $3 at `seedance-2-mini`).
 
 ## Copying a video safely
 
