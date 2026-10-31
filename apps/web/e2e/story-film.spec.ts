@@ -2,7 +2,8 @@
 // it; the draft is edited and saved) → cast sheets → keyframes → clips → music → "Put on timeline" (9:16, the film on
 // V1, the title, the music). The cast check looks at each keyframe: a miss is redrawn with the look restated, and a
 // shot still off after its redraw says "Check this shot". A second pass pays for nothing; one keyframe is redrawn on its
-// own. Copying a video from Media sends its frames on one contact sheet with an original cast.
+// own. Copying a video from Media sends its frames on one contact sheet with an original cast. A copy that keeps the
+// original motion cuts the video into its shots and remakes each one with its clip as the reference video.
 import { expect, test, type Page } from "@playwright/test";
 import { FAKE_OPENNAN, fakeState } from "./fixtures/fake-opennan";
 import { importFixtures, signInOpenNan } from "./ai-helpers";
@@ -162,4 +163,70 @@ test("copies a video from Media: its frames on one contact sheet, an original ca
     await expect(page.getByRole("dialog", { name: "Story film" })).toHaveCount(0);
     await page.getByTestId("editor-library").getByRole("tab", { name: "Media" }).click();
     await expect(page.getByTestId("media-item").filter({ hasText: "story-frames" })).toHaveCount(1);
+});
+
+test("remakes a copied video shot by shot: its shots cut out, each sent as the reference video of its clip", async ({ page }) => {
+    await createProject(page, "Remake a video");
+    await signInOpenNan(page);
+    // 4 s of a test card, then 4 s of gradients: one cut, two real shots.
+    await importFixtures(page, ["two-shots.webm"]);
+    await openStoryFilm(page);
+    await page.getByRole("radio", { name: "Copy a video" }).click();
+    const keepMotion = page.getByTestId("story-film-keep-motion");
+    // On by default: the default video model takes reference videos.
+    await expect(keepMotion).toBeChecked({ timeout: 20_000 });
+    await expect(page.getByText("Only copy or remake a video you have the rights to.")).toBeVisible();
+    const copy = page.getByTestId("story-film-copy");
+    await expect(copy).toHaveText(/^≈ \$\d+\.\d+ · Read the video$/, { timeout: 20_000 });
+    const chatsBefore = (await posts("/v1/chat/completions")).length;
+    await queueReply(JSON.stringify({ ...STORY, title: "Second Take" }));
+    await copy.click();
+    await expect(page.getByTestId("story-film-title")).toHaveValue("Second Take", { timeout: 90_000 });
+    // The story writer saw a sheet of each shot and was told the real shots.
+    const chat = (await posts("/v1/chat/completions"))[chatsBefore]!;
+    expect(JSON.stringify(chat.body)).toMatch(/exactly 2 shots \(cut to cut\)/);
+    const stored = JSON.parse((await snapshot(page)).project!.storyFilmJson!) as {
+        source: Record<string, unknown>; settings: Record<string, unknown>; shots: Array<{ seconds: number; source?: { start: number; end: number; clip?: string } }>;
+    };
+    expect(stored.source).toMatchObject({ kind: "copy", cast: "original", keepMotion: true, mediaUrl: expect.any(String) });
+    expect(stored.settings).toMatchObject({ videoModel: "seedance-2-5", videoReference: { minSeconds: 2 } });
+    expect(stored.shots).toHaveLength(2);
+    for (const shot of stored.shots) {
+        expect(shot.source?.clip).toEqual(expect.any(String));
+        expect(shot.source!.end - shot.source!.start).toBeGreaterThan(3.5);
+        expect(shot.source!.end - shot.source!.start).toBeLessThan(4.5);
+    }
+
+    await page.getByRole("button", { name: "Cast", exact: true }).click();
+    await runStep(page, "story-film-run-cast", ["story-film-item-theo", "story-film-item-mae"]);
+    await page.getByRole("button", { name: "Shots", exact: true }).click();
+    await page.getByTestId("story-film-cast-check").uncheck();
+    await runStep(page, "story-film-run-frames", ["story-film-item-s01", "story-film-item-s02"]);
+
+    await page.getByRole("button", { name: "Animate", exact: true }).click();
+    await expect(page.getByTestId("story-film-animate-intro")).toContainText("Each shot is remade from its original shot", { timeout: 20_000 });
+    await expect(page.getByTestId("story-film-animate-keep-motion")).toBeChecked();
+    await expect(page.getByTestId("story-film-clip-s01")).toHaveAttribute("data-remake", "true");
+    // The original shot sits beside its clip, for the review.
+    await expect(page.getByTestId("story-film-original-s01").locator("video")).toHaveCount(1);
+    const videosBefore = (await posts("/v1/videos/generations")).length;
+    const uploadsBefore = (await fakeState()).uploads.length;
+    await runStep(page, "story-film-run-animate", ["story-film-clip-s01", "story-film-clip-s02"]);
+    // Priced with the reference seconds.
+    const quoted = (await fakeState()).requests.filter((r) => r.path === "/v1/quotes").map((r) => r.body as Record<string, unknown>);
+    expect(quoted.some((b) => Array.isArray(b.reference_videos) && b.reference_mode === "reference" && typeof b.seconds === "number")).toBe(true);
+    const videos = (await posts("/v1/videos/generations")).slice(videosBefore).map((r) => r.body as Record<string, unknown>);
+    expect(videos).toHaveLength(2);
+    for (const body of videos) {
+        expect(body).toMatchObject({ model: "seedance-2-5", quality: "720p", reference_mode: "reference", generate_audio: false, aspect_ratio: "16:9" });
+        expect(body.reference_videos).toEqual([expect.stringMatching(/\/files\/uploads\/temp\/.+\.mp4$/)]);
+        expect(body).not.toHaveProperty("image");
+        // The cast's sheets (shot 1: Theo and Mae; shot 2: Mae), then the shot's keyframe (clips run two at a time).
+        expect(body.reference_images).toHaveLength(String(body.prompt).includes("Theo") ? 3 : 2);
+        expect(String(body.prompt)).toMatch(/^Recreate @Video1 exactly: same motion, timing, blocking and camera move/);
+    }
+    // The reference went up as an MP4 large enough for the model (a 360p source is scaled up).
+    expect((await fakeState()).uploads.slice(uploadsBefore).filter((u) => u.contentType === "video/mp4").length).toBe(2);
+    // A second pass pays for nothing: the clip is part of what made each one.
+    await expect(page.getByTestId("story-film-run-animate")).toHaveText("Everything is made", { timeout: 20_000 });
 });
