@@ -44,7 +44,8 @@ shot, in any art style, from a story you write or the beats of a video you copy.
 Open it from the AI library's Story film tile: Story, Cast, Shots, Animate,
 Music, then one click lays it out as a 9:16 reel with the title above the film.
 A cast check looks at every keyframe and redraws one whose character drifted
-from their sheet. Agents use the `story_film_*` MCP tools; the guide is
+from their sheet. Copying a video can also remake it shot by shot: each real shot's
+motion, blocking and camera kept, with your new cast and style. Agents use the `story_film_*` MCP tools; the guide is
 [`skills/story-film/SKILL.md`](skills/story-film/SKILL.md).
 
 ## Run locally

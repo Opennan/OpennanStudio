@@ -20,6 +20,9 @@ app's built-in server). The story is stored on the project, so agents and the ed
   stops a step; closing the window cancels what runs. What was made stays on the story and is never paid for twice.
 - Shots has **Check characters match (+~$x per shot)**, on by default (see the cast check below). A flagged shot is
   ringed and says **Check this shot** with what differs.
+- Copy a video has **Keep the original motion (remake each shot)**, on by default when the video model takes reference
+  videos (see "Remake from your video" below). Animate then says each shot is remade from its original shot, shows that
+  shot under each clip, and its price counts the reference seconds.
 
 ## The recipe (what makes the characters stay the same)
 
@@ -45,6 +48,8 @@ app's built-in server). The story is stored on the project, so agents and the ed
    Default model `seedance-2-5` (rigid objects, believable physics, stable characters; about $3.07 per 5 s at 720p).
    When the provider does not list it, `seedance-2-mini` (about $0.26 per 5 s; cheap, but objects can morph and
    physics can break). Use only models the provider lists.
+   A story copied with "keep the original motion" is **remade** instead, shot by shot, from the video's real shots
+   (below): the motion is the real shot's, so its physics hold by construction.
    **Watch every clip before the reel**: hands keep holding what they hold, objects stay one shape, rain and cloth fall
    the right way, each action makes sense. Redo a clip that fails (`ids` + `redo`), with the action written more
    plainly in its motion text. Clips run two at a
@@ -71,11 +76,46 @@ app's built-in server). The story is stored on the project, so agents and the ed
 - `story_film_frames` answers `redrawn` and `flagged` (shot ids with what differs); `story_film_get` progress lists
   `flagged` for frames.
 
+## Remake from your video
+
+When the video is copied with keep motion (`story_film_copy { keep_motion: true }`, the default when the video model
+takes reference videos; the editor's checkbox), each shot is remade from the real one instead of animated from a drawn
+keyframe:
+
+1. **Shots**: Studio finds the video's cuts and makes shots of 2 to 15 s (a piece under 2 s joins its shorter neighbour,
+   a piece over 15 s is split evenly; at most 40 shots). Each shot is cut out as a project video (`story-shot-01.mp4`,
+   ...). The contact sheet shows a few frames of every shot, labelled S1, S2, ..., and the story writer writes exactly
+   one story shot per real shot. Each story shot keeps `source: { start, end, clip }` and its seconds (the real
+   shot's, rounded, 4 at least).
+2. **Cast and keyframes** as usual: the sheets give the new cast, the keyframe gives the look of the shot.
+3. **Animate** (`story_film_animate`) sends, per shot: the shot's clip as the reference video `@Video1` (mode
+   `reference`), the cast's sheets then the shot's keyframe as `@Image1..n` (9 at most), and a prompt such as "Recreate
+   @Video1 exactly: same motion, timing, blocking and camera move. Replace the people with @Image1 (Theo: ...) and
+   @Image2 (Mae: ...). ... Render as ...". The clip's length is the model's length nearest the real shot's; on the reel
+   each shot runs as long as its real shot.
+4. **Review each clip beside its original shot** (the Animate step shows both; `story_film_get` lists the clips and each
+   shot's `source.clip`): the same action and camera, the new cast on model, the look of the keyframe. Fix the text and
+   redo a clip with `ids` + `redo`.
+
+- **Limits** (the model publishes them; Studio checks them before anything is uploaded and says what is wrong): each
+  reference 2-30 s and 30 s in all, MP4 or MOV, sides 300-6000 px, at least 409,600 pixels a frame (a smaller video is
+  scaled up, for example 640x360 to 854x480), 24-60 fps. A real shot out of the limits is blocked with the reason; a
+  prepared clip longer than the length it was priced at is never sent.
+- **Cost**: the reference seconds are billed with the output seconds. With `seedance-2-5` at 720p a 5 s shot with a
+  5 s reference is about $3.69 (about $3.07 from a keyframe). The estimate counts each clip's length with a small
+  margin, rounded up to whole seconds, so it is never under what the run costs.
+- **Other models**: a model that takes no reference videos (such as `seedance-2-mini`) animates from the keyframes, as
+  does `keep_motion: false` (on `story_film_copy` or `story_film_animate`). The shots keep their place in the video.
+- **Hosts**: the editor finds shots and cuts clips in the page, and `mcp serve --ffmpeg` with ffmpeg. The desktop app's
+  built-in MCP server cannot sample frames or find shots yet: make the sheet yourself, pass `sheet_image_url`, `media_url`
+  (the project video) and `shots: [{ start, end }]` (from `ffmpeg -i video.mp4 -vf "select='gt(scene,0.3)',showinfo"
+  -f null -`, then 2-15 s pieces); each shot is then cut from the project video when it is animated.
+
 ## Tool order
 
 ```
 story_film_create { story }            # or { text: "the story in your words" } to have the story writer draft it
-  or story_film_copy { media_url | video_url | sheet_image_url }
+  or story_film_copy { media_url | video_url | sheet_image_url, keep_motion? }
 story_film_get                         # read the draft back, fix it, story_film_create { story } again (files of kept ids stay)
 story_film_cast    { estimate_only: true }  -> then without it (accept_max_usd: the price you agreed)
 story_film_frames  { estimate_only: true }  -> review each keyframe (flagged first), redo bad ones with ids + redo
@@ -91,9 +131,11 @@ shot) and about $37 of clips at `seedance-2-5` 720p (about $3 at `seedance-2-min
 
 ## Copying a video safely
 
-- `story_film_copy` samples 16 frames of the video onto one contact sheet and the story writer retells it: same beats,
-  order, pacing and feel. **By default the cast and title are original** (new character designs, names and title):
-  safe to publish. Use `cast: "keep"` only when the video is the person's own.
+- `story_film_copy` finds the video's shots, samples a few frames of each onto one contact sheet, and the story writer
+  retells it: same beats, order, pacing and feel, one story shot per real shot. **By default the cast and title are
+  original** (new character designs, names and title): only the beats and the motion are copied, so it is safe to
+  publish. Use `cast: "keep"` only when the video is the person's own.
+- **Only copy or remake a video the person has the rights to.**
 - `video_url` takes video-site links (Instagram, TikTok, YouTube...), downloaded into the project for free.
   `media_url` takes a project video. Sampling needs the editor or `mcp serve --ffmpeg`; elsewhere (the desktop app's
   built-in server too) make the sheet yourself and pass `sheet_image_url`:
@@ -103,6 +145,6 @@ shot) and about $37 of clips at `seedance-2-5` 720p (about $3 at `seedance-2-min
 ## Checks before you call it done
 
 - Every sheet and keyframe looked at; the same face, hair and clothes in every shot; no shot left flagged.
-- Every motion matches its keyframe.
+- Every motion matches its keyframe; a remade clip matches its original shot's action and camera.
 - `story_film_get` shows nothing missing and nothing "changed since made" you did not mean to keep.
 - After `story_film_assemble`, look at a frame (`preview_timeline_frame`) and export (`assemble_video`).
