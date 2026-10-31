@@ -49,11 +49,11 @@ export interface StudioHost {
      */
     storySheet?(mediaUrl: string, frames: number, signal?: AbortSignal, times?: readonly number[]): Promise<{ url: string; frames: number; everySeconds: number; durationSeconds: number }>;
     /**
-     * Story film's "Remake from your video": the video's shots (2-15 s each, in order) and, with `cut`, each one cut out
-     * as its own project video (the reference a remake sends). Absent: the copy samples frames only and shots animate
-     * from their keyframes.
+     * Story film's copy: the video's shots (2-15 s each, in order), each one's first frame as a project image (its
+     * keyframe is redrawn from it) and, with `cut`, each one cut out as its own project video (the reference a remake
+     * sends). Absent: the copy samples frames only.
      */
-    storyShots?(mediaUrl: string, cut: boolean, signal?: AbortSignal): Promise<{ durationSeconds: number; shots: Array<{ start: number; end: number; clip?: string }>; truncated: boolean }>;
+    storyShots?(mediaUrl: string, cut: boolean, signal?: AbortSignal): Promise<{ durationSeconds: number; shots: Array<{ start: number; end: number; clip?: string; frame?: string }>; truncated: boolean }>;
 }
 
 /** The OpenNan project pipeline a priced step runs (the route's tool id, as POST /v1/quotes names it). */

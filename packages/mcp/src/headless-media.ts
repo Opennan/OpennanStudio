@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chooseWorkingEncoder, createSourcePolicy, probeFile, runProcess } from "@opennan/export/node";
 import { CapabilityUnavailableError, JobFailedError, type MediaPreparer, type MediaPreparePurpose, type PreparedMedia } from "@opennan/provider-sdk";
-import { SCENE_SCORE_CUTS, findCuts, splitShots, type ShotRange } from "@opennan/story-film";
+import { SCENE_SCORE_CUTS, findCuts, firstFrameTime, splitShots, type ShotRange } from "@opennan/story-film";
 import {
     LOCAL_MEDIA_URL_PREFIX, detectBeats, detectSilences, type AnalysisJob, type AnalysisJobOutcome, type BeatOptions, type MediaAnalyzerHost, type SilenceOptions,
 } from "@opennan/timeline-core";
@@ -241,8 +241,10 @@ export function createStorySheetMaker(options: StorySheetOptions) {
 }
 
 export interface StoryShotsOptions extends StorySheetOptions {
-    /** Cuts a shot out (the headless MediaPreparer: an H.264 MP4 of the range). */
+    /** Cuts a shot out (the headless MediaPreparer: an H.264 MP4 of the range) and takes its first frame (a PNG). */
     prepare: MediaPreparer;
+    /** Stores a shot's first frame in the project's media and answers its URL. */
+    saveImage(file: Blob, name: string): Promise<string>;
 }
 
 /** The scene score of every frame, from ffmpeg's metadata print (each frame's pts_time line, then its score line). */
@@ -279,11 +281,12 @@ export async function findSceneCuts(ffmpegPath: string, file: string, signal?: A
 
 /**
  * Story film's "Remake from your video" on `mcp serve --ffmpeg`: the video's cuts (findSceneCuts), made into
- * shots of 2-15 s by @opennan/story-film, and (with `cut`) each shot cut out as its own project video.
+ * shots of 2-15 s by @opennan/story-film, each shot's first frame saved as a project image (its keyframe is redrawn from
+ * it) and (with `cut`) each shot cut out as its own project video.
  */
 export function createStoryShotsMaker(options: StoryShotsOptions) {
     const run = options.run ?? runProcess;
-    return async (mediaUrl: string, cut: boolean, signal?: AbortSignal): Promise<{ durationSeconds: number; shots: Array<ShotRange & { clip?: string }>; truncated: boolean }> => {
+    return async (mediaUrl: string, cut: boolean, signal?: AbortSignal): Promise<{ durationSeconds: number; shots: Array<ShotRange & { clip?: string; frame?: string }>; truncated: boolean }> => {
         const file = projectMediaPath(options.mediaDir, mediaUrl);
         if (!file) throw new Error(ONLY_PROJECT_MEDIA);
         const info = await probeFile(options.ffmpeg.ffprobePath, file, signal, INPUT_GUARDS).catch(() => null);
@@ -291,13 +294,17 @@ export function createStoryShotsMaker(options: StoryShotsOptions) {
         if (!duration || !(duration > 0) || !info?.hasVideo) throw new Error("The video's length could not be read.");
         const cuts = await findSceneCuts(options.ffmpeg.ffmpegPath, file, signal, run);
         const split = splitShots(cuts, duration);
-        const shots: Array<ShotRange & { clip?: string }> = split.shots.map((shot) => ({ ...shot }));
-        if (cut) {
-            for (const [index, shot] of shots.entries()) {
-                const prepared = await options.prepare({ kind: "media", source: { mediaUrl, startSeconds: shot.start, endSeconds: shot.end } }, { output: "video", maxBytes: 1024 * 1024 * 1024, contentTypes: ["video/mp4"] }, signal ?? new AbortController().signal);
-                const data = prepared.data instanceof Blob ? prepared.data : new Blob([prepared.data as Uint8Array<ArrayBuffer>], { type: prepared.contentType });
-                shot.clip = await options.save(data, `story-shot-${String(index + 1).padStart(2, "0")}.mp4`);
-            }
+        const shots: Array<ShotRange & { clip?: string; frame?: string }> = split.shots.map((shot) => ({ ...shot }));
+        const stop = signal ?? new AbortController().signal;
+        const blob = (prepared: PreparedMedia) => (prepared.data instanceof Blob ? prepared.data : new Blob([prepared.data as Uint8Array<ArrayBuffer>], { type: prepared.contentType }));
+        for (const [index, shot] of shots.entries()) {
+            const name = `story-shot-${String(index + 1).padStart(2, "0")}`;
+            // Its first frame: the copied keyframe is redrawn from it (the same framing).
+            const still = await options.prepare({ kind: "media", source: { mediaUrl, startSeconds: firstFrameTime(shot) } }, { output: "image", maxBytes: 20 * 1024 * 1024, contentTypes: ["image/png"] }, stop);
+            shot.frame = await options.saveImage(blob(still), `${name}.png`);
+            if (!cut) continue;
+            const prepared = await options.prepare({ kind: "media", source: { mediaUrl, startSeconds: shot.start, endSeconds: shot.end } }, { output: "video", maxBytes: 1024 * 1024 * 1024, contentTypes: ["video/mp4"] }, stop);
+            shot.clip = await options.save(blob(prepared), `${name}.mp4`);
         }
         return { durationSeconds: duration, shots, truncated: split.truncated };
     };

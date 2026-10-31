@@ -5,7 +5,7 @@
 // it lands, so a call that times out or fails part way keeps what it paid for and the next call skips it.
 import {
     copyDraftRequest, estimateStep, keepsMotion, mergeStory, parseDraftReply, parseStoryFilm, readStoryJson, reelInputOf, runStep, sameVideoModel, shotSheetTimes, storyItems, storyJson,
-    storyProgress, videoModelChoices, withAssembled, withShotSources, withVideoModel, writeDraftRequest, type DraftRequest, type ShotRange, type StepEstimate, type StoryFilm,
+    storyProgress, videoModelChoices, withAssembled, withCopyChoices, withShotSources, withVideoModel, writeDraftRequest, type DraftRequest, type ShotRange, type StepEstimate, type StoryFilm,
     type StoryFilmHost, type StoryMedium, type StoryRunResult, type StorySource, type StoryStep,
 } from "@opennan/story-film";
 import type { ProviderModel } from "@opennan/provider-sdk";
@@ -207,9 +207,15 @@ function shotsArg(value: unknown): ShotRange[] | null | string {
     return shots;
 }
 
+/** What story_film_copy says when the person has not confirmed the rights to the video. */
+export const COPY_RIGHTS_NEEDED = "story_film_copy needs rights_confirmed: true: the person must own the video or have the rights to remake it. Ask them, and pass it only when they say so. Nothing was sent.";
+
 const storyFilmCopy: ToolHandler = async (args, context) => {
     const { session } = context;
-    const cast = args.cast === "keep" ? "keep" : "original";
+    if (args.rights_confirmed !== true) return failure(COPY_RIGHTS_NEEDED);
+    // A close copy by default: the video's characters (drawn in the chosen style) and title; "original" for new ones.
+    const cast = args.cast === "original" ? "original" : "keep";
+    const choices = { cast, ...(str(args.title) ? { title: str(args.title) } : {}), ...(str(args.style) ? { style: str(args.style) } : {}) } as const;
     let mediaUrl = str(args.media_url);
     const link = str(args.video_url);
     // "Keep the original motion" (a remake of each shot): on by default when the video model takes reference videos.
@@ -217,7 +223,7 @@ const storyFilmCopy: ToolHandler = async (args, context) => {
     const videoModel = videoModels[0] ?? null;
     const keepMotion = typeof args.keep_motion === "boolean" ? args.keep_motion : Boolean(videoModel?.referenceVideos);
     let sheet: { image: unknown; frames: number; everySeconds: number; durationSeconds: number } | null = null;
-    let shots: Array<ShotRange & { clip?: string }> | null = null;
+    let shots: Array<ShotRange & { clip?: string; frame?: string }> | null = null;
     let shotNote = "";
     const sheetUrl = str(args.sheet_image_url);
     if (sheetUrl) {
@@ -270,21 +276,22 @@ const storyFilmCopy: ToolHandler = async (args, context) => {
     const request = copyDraftRequest({
         sheet: sheet.image, frames: sheet.frames, everySeconds: sheet.everySeconds, durationSeconds: sheet.durationSeconds, cast,
         ...(str(args.notes) ? { notes: str(args.notes) } : {}), ...(table ? { shots: table } : {}),
+        ...(choices.title ? { title: choices.title } : {}), ...(choices.style ? { style: choices.style } : {}),
     });
     const source: StorySource = { kind: "copy", cast, keepMotion: keepMotion && shots !== null, ...(mediaUrl ? { mediaUrl } : {}), ...(link ? { link } : {}) };
     const remakeNote = !keepMotion ? "Shots animate from their keyframes (keep_motion off)."
         : !shots ? "This host cannot find the video's shots, so shots animate from their keyframes: pass shots [{ start, end }] with sheet_image_url to remake each one."
             : !videoModel?.referenceVideos ? "The video model does not take reference videos, so shots animate from their keyframes."
-                : `Each story shot is placed on one of the video's ${shots.length} real shots and is remade from it at story_film_animate (same motion, blocking and camera; its seconds are billed with the clip).${shotNote}`;
+                : `Each story shot is placed on one of the video's ${shots.length} real shots and is remade from it at story_film_animate (a shot of ${videoModel.referenceVideos.editMinSeconds ?? 0} s or more is restyled as it is, keeping its framing; a shorter one copies its motion; its seconds are billed with the clip).${shotNote}`;
     const finish = shots
         ? {
             place: (story: StoryFilm) => {
-                const placed = withShotSources({ ...story, source }, shots!);
+                const placed = withShotSources(withCopyChoices({ ...story, source }, choices), shots!);
                 return videoModel ? withVideoModel(placed, videoModel) : placed;
             },
-            note: remakeNote,
+            note: `${remakeNote} Each keyframe is redrawn from its shot's first frame (the same framing).`,
         }
-        : { place: (story: StoryFilm) => story, note: remakeNote };
+        : { place: (story: StoryFilm) => withCopyChoices(story, choices), note: remakeNote };
     return runDraft("story_film_copy", request, source, args, context, finish);
 };
 

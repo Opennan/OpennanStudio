@@ -123,7 +123,7 @@ export async function openHeadlessProject(options: HeadlessOptions): Promise<Hea
     };
     const storySheet = options.ffmpeg ? createStorySheetMaker({ mediaDir, ffmpeg: options.ffmpeg, save: saveMedia("image") }) : undefined;
     const storyShots = options.ffmpeg
-        ? createStoryShotsMaker({ mediaDir, ffmpeg: options.ffmpeg, save: saveMedia("video"), prepare: createHeadlessMediaPreparer({ mediaDir, ffmpeg: options.ffmpeg }) })
+        ? createStoryShotsMaker({ mediaDir, ffmpeg: options.ffmpeg, save: saveMedia("video"), saveImage: saveMedia("image"), prepare: createHeadlessMediaPreparer({ mediaDir, ffmpeg: options.ffmpeg }) })
         : undefined;
     const host: StudioHost = { readFile, ...(storySheet ? { storySheet } : {}), ...(storyShots ? { storyShots } : {}), ...options.host };
     const session = createControllerSession({ controller, store, backend, host, exporter, aiJobs, ...(options.providers ? { providers: options.providers } : {}) });

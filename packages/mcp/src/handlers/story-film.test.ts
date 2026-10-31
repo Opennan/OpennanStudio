@@ -160,14 +160,29 @@ describe("story film tools", () => {
             expect(textOf(drafted)).toMatch(/drafted the story film .* Review and edit it/);
             expect(posts("/v1/chat/completions")[0]).toMatchObject({ model: "text-fast" });
 
+            // Copying needs the person's word that they have the rights to the video: nothing is sent without it.
+            const sheetArgs = { sheet_image_url: "https://cdn.example.com/sheet.jpg", frames: 16, duration_seconds: 48 };
+            const refused = await call("story_film_copy", sheetArgs);
+            expect(refused.isError).toBe(true);
+            expect(textOf(refused)).toMatch(/needs rights_confirmed: true: the person must own the video or have the rights to remake it/);
+            expect(posts("/v1/chat/completions")).toHaveLength(1);
+            expect((await call("story_film_copy", { ...sheetArgs, rights_confirmed: "yes" })).isError).toBe(true);
+
+            // A close copy by default: the video's characters and title, the style the person chose.
             fake.queueChatReply(JSON.stringify({ ...STORY, title: "Umbrella Day" }));
-            const copied = await call("story_film_copy", { sheet_image_url: "https://cdn.example.com/sheet.jpg", frames: 16, duration_seconds: 48 });
+            const copied = await call("story_film_copy", { ...sheetArgs, rights_confirmed: true, title: "Romance of an Umbrella", style: "warm gouache, soft light" });
             expect(copied.isError).toBe(false);
             const chat = posts("/v1/chat/completions")[1]!;
             expect(chat.model).toBe("text-vision");
-            expect(JSON.stringify(chat.messages)).toMatch(/ORIGINAL cast[\s\S]*image_url/);
-            const story = (await call("story_film_get")).structuredContent!.story as { title: string; source: unknown };
-            expect(story).toMatchObject({ title: "Umbrella Day", source: { kind: "copy", cast: "original" } });
+            expect(JSON.stringify(chat.messages)).toMatch(/Copy it closely[\s\S]*Keep the video's characters[\s\S]*Keep the video's title: \\"Romance of an Umbrella\\"[\s\S]*warm gouache[\s\S]*image_url/);
+            const story = (await call("story_film_get")).structuredContent!.story as { title: string; style: string; source: unknown };
+            expect(story).toMatchObject({ title: "Romance of an Umbrella", style: "warm gouache, soft light", source: { kind: "copy", cast: "keep" } });
+
+            // New characters and a new title only when asked.
+            fake.queueChatReply(JSON.stringify({ ...STORY, title: "Umbrella Day" }));
+            expect((await call("story_film_copy", { ...sheetArgs, rights_confirmed: true, cast: "original" })).isError).toBe(false);
+            expect(JSON.stringify(posts("/v1/chat/completions")[2]!.messages)).toMatch(/Make NEW characters/);
+            expect((await call("story_film_get")).structuredContent!.story).toMatchObject({ title: "Umbrella Day", source: { kind: "copy", cast: "original" } });
 
             fake.queueChatReply("I cannot help with that.");
             const bad = await call("story_film_create", { text: "x" });
@@ -189,16 +204,16 @@ describe("story film tools", () => {
         const { call, close } = await studio(host);
         try {
             fake.queueChatReply(JSON.stringify(STORY));
-            const copied = await call("story_film_copy", { video_url: "https://www.instagram.com/reel/abc/", cast: "keep" });
+            const copied = await call("story_film_copy", { video_url: "https://www.instagram.com/reel/abc/", cast: "keep", rights_confirmed: true });
             expect(copied.isError).toBe(false);
             expect(sampled[0]).toMatch(/^opennan-local:\/\/media\//);
-            expect(JSON.stringify(posts("/v1/chat/completions")[0]!.messages)).toMatch(/person's own video/);
+            expect(JSON.stringify(posts("/v1/chat/completions")[0]!.messages)).toMatch(/Keep the video's characters/);
         } finally {
             await close();
         }
         const bare = await studio();
         try {
-            const result = await bare.call("story_film_copy", { media_url: "opennan-local://media/v" });
+            const result = await bare.call("story_film_copy", { media_url: "opennan-local://media/v", rights_confirmed: true });
             expect(result.structuredContent).toMatchObject({ unavailable: true });
             expect(textOf(result)).toMatch(/sheet_image_url/);
         } finally {
@@ -211,7 +226,7 @@ describe("story film tools", () => {
         const host: StudioHost = {
             storyShots: async (_mediaUrl, cut) => ({
                 durationSeconds: 9.6, truncated: false,
-                shots: [{ start: 0, end: 4.6, ...(cut ? { clip: "opennan-local://media/shot-1" } : {}) }, { start: 4.6, end: 9.6 }],
+                shots: [{ start: 0, end: 4.6, frame: "opennan-local://media/frame-1", ...(cut ? { clip: "opennan-local://media/shot-1" } : {}) }, { start: 4.6, end: 9.6, frame: "opennan-local://media/frame-2" }],
             }),
             storySheet: async (_mediaUrl, frames, _signal, times) => {
                 asked.push({ cut: false, ...(times ? { times } : {}) });
@@ -221,19 +236,29 @@ describe("story film tools", () => {
         const { call, close } = await studio(host);
         try {
             fake.queueChatReply(JSON.stringify(STORY));
-            const copied = await call("story_film_copy", { media_url: "opennan-local://media/source" });
+            const copied = await call("story_film_copy", { media_url: "opennan-local://media/source", rights_confirmed: true });
             expect(copied.isError).toBe(false);
             expect(textOf(copied)).toMatch(/placed on one of the video's 2 real shots and is remade from it at story_film_animate/);
             // The sheet shows frames of each shot, and the story writer is told the real shots.
             expect(asked[0]!.times).toHaveLength(6);
             expect(JSON.stringify(posts("/v1/chat/completions")[0]!.messages)).toMatch(/exactly 2 shots \(cut to cut\)/);
             const story = (await call("story_film_get")).structuredContent!.story as { source: unknown; shots: Array<{ seconds: number; source?: unknown }>; settings: Record<string, unknown> };
-            expect(story.source).toMatchObject({ kind: "copy", cast: "original", keepMotion: true, mediaUrl: "opennan-local://media/source" });
-            expect(story.shots.map((s) => [s.seconds, s.source])).toEqual([[5, { start: 0, end: 4.6, clip: "opennan-local://media/shot-1" }], [5, { start: 4.6, end: 9.6 }]]);
+            expect(story.source).toMatchObject({ kind: "copy", cast: "keep", keepMotion: true, mediaUrl: "opennan-local://media/source" });
+            expect(story.shots.map((s) => [s.seconds, s.source])).toEqual([
+                [5, { start: 0, end: 4.6, clip: "opennan-local://media/shot-1", frame: "opennan-local://media/frame-1" }], [5, { start: 4.6, end: 9.6, frame: "opennan-local://media/frame-2" }],
+            ]);
             expect(story.settings).toMatchObject({ videoModel: "seedance-2-5", videoReference: { minSeconds: 2, maxSeconds: 30 } });
 
             await call("story_film_cast");
+            const imagesBefore = posts("/v1/images/generations").length;
             await call("story_film_frames", { cast_check: 0 });
+            // Each keyframe is redrawn from its shot's first frame (an image edit: the frame, then the cast's sheets).
+            const keyframes = posts("/v1/images/generations").slice(imagesBefore);
+            expect(keyframes).toHaveLength(2);
+            for (const body of keyframes) {
+                expect(body.image).toEqual(expect.stringMatching(/\/files\/uploads\/temp\//));
+                expect(String(body.prompt)).toMatch(/^Redraw reference image 1 exactly: the same composition, camera angle, framing, poses/);
+            }
             const priced = await call("story_film_animate", { estimate_only: true });
             expect(textOf(priced)).toMatch(/2 shots \(s01, s02\) are remade from the original shot/);
             const animated = await call("story_film_animate");
@@ -241,13 +266,14 @@ describe("story film tools", () => {
             const videos = posts("/v1/videos/generations");
             expect(videos).toHaveLength(2);
             for (const body of videos) {
-                expect(body).toMatchObject({ model: "seedance-2-5", reference_mode: "reference", duration: 5, quality: "720p", generate_audio: false });
+                // Both shots are long enough to edit: restyled as they are, framing kept.
+                expect(body).toMatchObject({ model: "seedance-2-5", reference_mode: "editing", quality: "720p", generate_audio: false });
                 expect(body.reference_videos).toEqual([expect.stringMatching(/\/files\/uploads\/temp\/.*\.mp4$/)]);
                 expect(body).not.toHaveProperty("image");
                 expect(body.reference_images).toHaveLength(3);
-                expect(String(body.prompt)).toMatch(/^Recreate @Video1 exactly/);
+                expect(String(body.prompt)).toMatch(/^Turn @Video1 into a hand-drawn animated short film/);
             }
-            // Billed with the reference seconds: (5 + 5) × $0.36894, twice.
+            // An edit is billed as long as its video: (5 + 5) × $0.36894 for each (4.6 s and 5 s, rounded up).
             expect((animated.structuredContent as { costUsd: number }).costUsd).toBeCloseTo(2 * 3.6894, 6);
             // keep_motion false animates from the keyframes instead (a new request: the clips are changed since made).
             const keyframed = await call("story_film_animate", { keep_motion: false, estimate_only: true });

@@ -204,7 +204,7 @@ describe("story film shots (remake from your video)", () => {
             return `opennan-local://media/${name}`;
         };
         const prepare = createHeadlessMediaPreparer({ mediaDir, ffmpeg });
-        const shots = createStoryShotsMaker({ mediaDir, ffmpeg, save, prepare });
+        const shots = createStoryShotsMaker({ mediaDir, ffmpeg, save, saveImage: save, prepare });
         const found = await shots("opennan-local://media/two-shots", true);
         expect(found.truncated).toBe(false);
         expect(found.durationSeconds).toBeCloseTo(8, 1);
@@ -212,9 +212,11 @@ describe("story film shots (remake from your video)", () => {
         expect(found.shots[0]!.start).toBe(0);
         expect(found.shots[0]!.end).toBeCloseTo(4, 1);
         expect(found.shots.map((s) => s.clip)).toEqual(["opennan-local://media/story-shot-01.mp4", "opennan-local://media/story-shot-02.mp4"]);
-        expect(saved.map((s) => s.type)).toEqual(["video/mp4", "video/mp4"]);
+        // Each shot's first frame too (its keyframe is redrawn from it).
+        expect(found.shots.map((s) => s.frame)).toEqual(["opennan-local://media/story-shot-01.png", "opennan-local://media/story-shot-02.png"]);
+        expect(saved.map((s) => s.type)).toEqual(["image/png", "video/mp4", "image/png", "video/mp4"]);
         const uncut = await shots("opennan-local://media/two-shots", false);
-        expect(uncut.shots.every((s) => s.clip === undefined)).toBe(true);
+        expect(uncut.shots.every((s) => s.clip === undefined && s.frame !== undefined)).toBe(true);
         const sheet = await createStorySheetMaker({ mediaDir, ffmpeg, save })("opennan-local://media/two-shots", 16, undefined, [1, 2, 3, 5, 6, 7]);
         expect(sheet.frames).toBe(6);
         // A small picture is scaled up to a reference video's minimum pixels.
