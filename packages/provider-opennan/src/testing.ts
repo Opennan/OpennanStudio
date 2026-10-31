@@ -234,7 +234,8 @@ export function fakeReferencePrice(model: Record<string, unknown>, body: Record<
     const seconds = Math.ceil(asked - 1e-9);
     const rate = SEEDANCE_25_REFERENCE_RATES[quality];
     if (rate === undefined) return { error: `${String(model.id)} does not offer ${quality} with reference videos.` };
-    return { price: round6(rate * (duration + seconds)), seconds, count: videos.length, mode };
+    // An edit's output is as long as its videos, whatever duration says (the server's rule).
+    return { price: round6(rate * ((mode === "editing" ? seconds : duration) + seconds)), seconds, count: videos.length, mode };
 }
 
 /** An MP4's length (its mvhd box) and picture size (the first video tkhd box), read the way the server's probe reads them. */
@@ -1177,6 +1178,11 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
                         total = facts.seconds === undefined ? Number.NaN : total + facts.seconds;
                     }
                     if (Number.isFinite(total) && total > limits.max_total_seconds) return refuse(400, "invalid_request_error", "reference videos must total 2-30 seconds", "input_invalid");
+                    const first = typeof links[0] === "string" ? cloudServer.bytesAt(links[0]) : undefined;
+                    const firstSeconds = first ? fakeMp4Facts(first).seconds : undefined;
+                    if (body.reference_mode === "editing" && firstSeconds !== undefined && firstSeconds < limits.edit_min_seconds) {
+                        return refuse(400, "invalid_request_error", `An edit needs a first video of at least ${limits.edit_min_seconds} seconds.`, "input_invalid");
+                    }
                     if (Number.isFinite(total) && total > 0) measured = Math.max(limits.min_seconds, total);
                 }
                 const quoted = fakeQuote({ ...quoteFieldsOf(category, model, body), ...(measured !== undefined ? { seconds: measured } : {}) });

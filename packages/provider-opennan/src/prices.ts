@@ -273,7 +273,9 @@ export async function priceRun(catalog: OpenNanCatalog, request: PriceRequest, q
                     if (!limits) return { kind: "unavailable", reason: `${chosen.label} does not take reference videos.` };
                     const billed = referenceBilledSeconds(units.referenceSeconds ?? referenceSecondsOf(input), limits);
                     const rows = (chosen.price as { reference_videos?: ReferenceVideoPriceRow[] } | undefined)?.reference_videos;
-                    const local = fallbackOf(seconds === undefined ? null : estimateReferenceVideoCost(rows, seconds, billed, tier.quality), "This model has no price for reference videos at that quality.");
+                    // An edit is as long as its video, and billed so: its output seconds are the reference seconds.
+                    const output = input.referenceMode === "editing" ? billed : seconds;
+                    const local = fallbackOf(output === undefined ? null : estimateReferenceVideoCost(rows, output, billed, tier.quality), "This model has no price for reference videos at that quality.");
                     return withQuote(quotes, quoteBody(capability, input, { ...units, referenceSeconds: billed }, chosen.id), local);
                 }
                 return quoted(fallbackOf(seconds === undefined ? null : estimateVideoModelCost(chosen.price as VideoModelPrice, seconds, tier), "This model has no price for that length and quality."));

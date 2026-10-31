@@ -144,6 +144,30 @@ describe("remake prices", () => {
     });
 });
 
+describe("an edit (reference_mode editing)", () => {
+    it("is priced as long as its video, never under the quote, and refused locally under the edit minimum", async () => {
+        const p = await provider();
+        const seven = remake({ referenceMode: "editing", durationSeconds: 4, referenceVideos: [{ mediaUrl: "opennan-local://media/source", startSeconds: 0, endSeconds: 6.6 }] });
+        // Quoted at 7 billed seconds (6.6 s with the decode margin): (7 + 7) × $0.36894.
+        expect(await p.price!({ capability: "video.image-to-video", input: seven, units: {} })).toMatchObject({ kind: "estimate", estimate: { usd: 5.16516, source: "quote" } });
+        await fetch(`${fake.url}/__test/quotes?status=404`);
+        const local = await (await provider()).price!({ capability: "video.image-to-video", input: seven, units: {} });
+        expect(local).toMatchObject({ kind: "estimate", estimate: { source: "estimate" } });
+        expect(local.kind === "estimate" && local.estimate.usd).toBeGreaterThanOrEqual(5.16516);
+        const short = preparer(3.5);
+        await expect((await provider(short.prepare)).run!({ capability: "video.image-to-video", input: remake({ referenceMode: "editing", referenceVideos: [{ mediaUrl: "opennan-local://media/source", startSeconds: 0, endSeconds: 3.5 }] }) }).result())
+            .rejects.toThrow(/An edit needs a first video of 4 s at least/);
+    });
+
+    it("sends reference_mode editing and settles as long as the video", async () => {
+        const { prepare } = preparer(6.2);
+        const output = await (await provider(prepare)).run!({ capability: "video.image-to-video", input: remake({ referenceMode: "editing", referenceVideos: [{ mediaUrl: "opennan-local://media/source", startSeconds: 1, endSeconds: 7.2 }] }) }).result();
+        expect(posts("/v1/videos/generations")[0]!.body).toMatchObject({ reference_mode: "editing" });
+        // 6.2 s measured → 7 billed seconds, twice.
+        expect(output.costUsd).toBe(5.16516);
+    });
+});
+
 describe("the fake server mirrors the live API", () => {
     it("prices, refuses and measures like /v1", () => {
         const quote = (extra: Record<string, unknown>) => fakeQuote({ model: "seedance-2-5", quality: "720p", duration: 5, generate_audio: false, ...extra });
@@ -156,5 +180,9 @@ describe("the fake server mirrors the live API", () => {
         expect(quote({ reference_videos: ["https://x/a.mp4"], image: "https://x/a.png" }).status).toBe(400);
         expect(fakeQuote({ model: "seedance-2-mini", duration: 5, reference_videos: ["https://x/a.mp4"] }).body).toMatchObject({ error: { message: expect.stringMatching(/^reference_videos.*not a field of seedance-2-mini/) } });
         expect(fakeMp4Facts(Buffer.from(mp4(4.6, 1280, 720)))).toEqual({ seconds: 4.6, width: 1280, height: 720 });
+        // An edit is billed as long as its video, whatever duration says (live: 5 s $3.6894, 7 s $5.16516, unmeasured $22.1364).
+        expect(quote({ reference_videos: ["https://x/a.mp4"], reference_mode: "editing", seconds: 5 }).body.price_usd).toBe(3.6894);
+        expect(quote({ duration: 4, reference_videos: ["https://x/a.mp4"], reference_mode: "editing", seconds: 7 }).body.price_usd).toBe(5.16516);
+        expect(quote({ reference_videos: ["https://x/a.mp4"], reference_mode: "editing" }).body.price_usd).toBe(22.1364);
     });
 });
