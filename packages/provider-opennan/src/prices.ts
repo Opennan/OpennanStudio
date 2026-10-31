@@ -5,13 +5,14 @@
 // server's own quote (POST /v1/quotes, quotes.ts) whenever it answers; the tools list still decides status and
 // limits; without a quote (an older server, 429, 503) the local estimate answers, never under.
 import {
-    captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateStemsCost, estimateTextCost, estimateToolCost, estimateVideoModelCost, estimateVoiceCost, isOverLimit,
+    captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateReferenceVideoCost, referenceBilledSeconds, type ReferenceVideoPriceRow, estimateStemsCost, estimateTextCost, estimateToolCost, estimateVideoModelCost, estimateVoiceCost, isOverLimit,
     promptTokenBound, type CostEstimate, type ImageModelPrice, type TextModelPrice, type OverLimit, type PriceAnswer, type PriceRequest, type PriceUnits, type ProviderCapability, type ProviderModel,
     type ProviderVoice, type StemsModelPrice, type ToolPriceBlock, type VideoModelPrice, type VoiceModelPrice, quotedEstimate,
 } from "@opennan/provider-sdk";
 import type { OpenNanApi } from "./api";
 import { TIER_NOT_OFFERED_MESSAGE } from "./errors";
 import { quoteBody, type QuoteClient } from "./quotes";
+import { parseReferenceLimits, referenceSecondsOf } from "./references";
 
 /** The output cap a text call sends when the input names none. */
 export const DEFAULT_TEXT_MAX_TOKENS = 8_000;
@@ -54,6 +55,8 @@ interface ModelRow {
     qualities?: unknown;
     sizes?: unknown;
     vision?: unknown;
+    inputs?: unknown;
+    reference_videos?: unknown;
 }
 
 interface Cached<T> {
@@ -119,6 +122,10 @@ export function createOpenNanCatalog(api: OpenNanApi, options: { now?(): number;
                 const qualities = category === "image" ? row.sizes : row.qualities;
                 if (Array.isArray(qualities) && qualities.length > 0 && qualities.every((q) => typeof q === "string")) model.qualities = [...(qualities as string[])];
                 if (row.vision === true) model.vision = true;
+                // A video model that takes reference videos lists the input and publishes their limits.
+                const takesVideos = !Array.isArray(row.inputs) || row.inputs.includes("reference_videos");
+                const limits = category === "video" && takesVideos ? parseReferenceLimits(row.reference_videos) : undefined;
+                if (limits) model.referenceVideos = limits;
                 return model;
             });
         },
@@ -259,6 +266,18 @@ export async function priceRun(catalog: OpenNanCatalog, request: PriceRequest, q
             case "video.image-to-video": {
                 const seconds = positive(input.durationSeconds) ?? units.seconds ?? chosen.durations?.[0];
                 const tier = { ...(typeof input.quality === "string" ? { quality: input.quality } : {}), ...(typeof input.generateAudio === "boolean" ? { audio: input.generateAudio } : {}) };
+                if (Array.isArray(input.referenceVideos) && input.referenceVideos.length > 0) {
+                    // A remake bills the reference seconds with the output's: the references' known length with the
+                    // decode margin, rounded up (unknown: the most the model takes, which the server holds).
+                    const limits = chosen.referenceVideos;
+                    if (!limits) return { kind: "unavailable", reason: `${chosen.label} does not take reference videos.` };
+                    const billed = referenceBilledSeconds(units.referenceSeconds ?? referenceSecondsOf(input), limits);
+                    const rows = (chosen.price as { reference_videos?: ReferenceVideoPriceRow[] } | undefined)?.reference_videos;
+                    // An edit is as long as its video, and billed so: its output seconds are the reference seconds.
+                    const output = input.referenceMode === "editing" ? billed : seconds;
+                    const local = fallbackOf(output === undefined ? null : estimateReferenceVideoCost(rows, output, billed, tier.quality), "This model has no price for reference videos at that quality.");
+                    return withQuote(quotes, quoteBody(capability, input, { ...units, referenceSeconds: billed }, chosen.id), local);
+                }
                 return quoted(fallbackOf(seconds === undefined ? null : estimateVideoModelCost(chosen.price as VideoModelPrice, seconds, tier), "This model has no price for that length and quality."));
             }
             case "text.generate":

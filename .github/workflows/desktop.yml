@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         # node-gyp 11 supports VS 2022; windows-latest now uses VS 2026.
-        os: [macos-14, windows-2022, ubuntu-latest]
+        os: [macos-15, windows-2022, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"

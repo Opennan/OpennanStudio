@@ -188,6 +188,7 @@ export interface FakeQuoteAnswer {
 
 const QUOTE_FIELDS = {
     video: ["prompt", "image", "end_image", "reference_images", "duration", "quality", "aspect_ratio", "generate_audio", "negative_prompt"],
+    videoReference: ["prompt", "image", "end_image", "reference_images", "reference_videos", "reference_mode", "seconds", "duration", "quality", "aspect_ratio", "generate_audio", "negative_prompt"],
     image: ["prompt", "image", "images", "quality", "size", "aspect_ratio"],
     voice: ["input", "characters"],
     music: ["duration"],
@@ -213,6 +214,76 @@ function videoPrice(model: Record<string, unknown>, quality: string | undefined,
     return { price: exact ? exact.ours_usd : rows[0]!.ours_usd_per_second * length, quality: chosen, duration: length };
 }
 
+/**
+ * The price of a call with reference videos, as the server works it out: output seconds plus the references' seconds
+ * (rounded up to whole seconds; a quote without `seconds` is the 30-second worst case) at the quality's per-second
+ * price. Its refusals use the server's words.
+ */
+export function fakeReferencePrice(model: Record<string, unknown>, body: Record<string, unknown>, quality: string, duration: number): { price: number; seconds: number; count: number; mode: string } | { error: string } {
+    const limits = model.reference_videos as typeof FAKE_REFERENCE_VIDEOS | undefined;
+    if (!limits) return { error: `${String(model.id)} does not take reference_videos.` };
+    const videos = body.reference_videos;
+    if (!Array.isArray(videos) || videos.length === 0) return { error: body.seconds !== undefined ? "reference video seconds need reference_videos" : "reference_mode needs reference_videos" };
+    if (videos.length > limits.max_count) return { error: `reference_videos: at most ${limits.max_count}.` };
+    if (!videos.every((v) => typeof v === "string" && /^(https:\/\/|http:\/\/127\.0\.0\.1[:/])/.test(v))) return { error: "reference_videos: send public https links." };
+    if (body.image !== undefined || body.end_image !== undefined) return { error: "reference_videos can't be sent with image / end_image; send reference_images instead" };
+    const mode = body.reference_mode === undefined ? "reference" : body.reference_mode;
+    if (typeof mode !== "string" || !(limits.modes as readonly string[]).includes(mode)) return { error: `reference_mode: one of ${limits.modes.join(", ")}.` };
+    const asked = body.seconds === undefined ? limits.max_total_seconds : body.seconds;
+    if (typeof asked !== "number" || !Number.isFinite(asked) || asked < limits.min_seconds || asked > limits.max_total_seconds) return { error: "reference videos must total 2-30 seconds" };
+    const seconds = Math.ceil(asked - 1e-9);
+    const rate = SEEDANCE_25_REFERENCE_RATES[quality];
+    if (rate === undefined) return { error: `${String(model.id)} does not offer ${quality} with reference videos.` };
+    // An edit's output is as long as its videos, whatever duration says (the server's rule).
+    return { price: round6(rate * ((mode === "editing" ? seconds : duration) + seconds)), seconds, count: videos.length, mode };
+}
+
+/** An MP4's length (its mvhd box) and picture size (the first video tkhd box), read the way the server's probe reads them. */
+export function fakeMp4Facts(bytes: Buffer): { seconds?: number; width?: number; height?: number } {
+    const facts: { seconds?: number; width?: number; height?: number } = {};
+    const mvhd = bytes.indexOf("mvhd", 0, "ascii");
+    if (mvhd >= 4) {
+        const version = bytes[mvhd + 4];
+        const at = mvhd + 4 + 4 + (version === 1 ? 16 : 8);
+        if (at + (version === 1 ? 12 : 8) <= bytes.length) {
+            const timescale = bytes.readUInt32BE(at);
+            const duration = version === 1 ? Number(bytes.readBigUInt64BE(at + 4)) : bytes.readUInt32BE(at + 4);
+            if (timescale > 0) facts.seconds = duration / timescale;
+        }
+    }
+    for (let from = 0; ;) {
+        const tkhd = bytes.indexOf("tkhd", from, "ascii");
+        if (tkhd < 4) break;
+        const version = bytes[tkhd + 4];
+        const end = tkhd + 4 + (version === 1 ? 96 : 84);
+        if (end > bytes.length) break;
+        const width = bytes.readUInt32BE(end - 8) / 65536;
+        const height = bytes.readUInt32BE(end - 4) / 65536;
+        if (width > 0 && height > 0) {
+            facts.width = Math.round(width);
+            facts.height = Math.round(height);
+            break;
+        }
+        from = tkhd + 4;
+    }
+    return facts;
+}
+
+/** Tests: a minimal MP4 (an mvhd box with the length, a tkhd box with the picture size), what fakeMp4Facts reads. */
+export function fakeMp4(seconds: number, width: number, height: number): Uint8Array {
+    const mvhd = Buffer.alloc(8 + 100);
+    mvhd.writeUInt32BE(mvhd.length, 0);
+    mvhd.write("mvhd", 4, "ascii");
+    mvhd.writeUInt32BE(1000, 8 + 12);
+    mvhd.writeUInt32BE(Math.round(seconds * 1000), 8 + 16);
+    const tkhd = Buffer.alloc(8 + 84);
+    tkhd.writeUInt32BE(tkhd.length, 0);
+    tkhd.write("tkhd", 4, "ascii");
+    tkhd.writeUInt32BE(width * 65536, 8 + 76);
+    tkhd.writeUInt32BE(height * 65536, 8 + 80);
+    return new Uint8Array(Buffer.concat([Buffer.from("\0\0\0\x10ftypisom\0\0\0\0", "binary"), mvhd, tkhd]));
+}
+
 /** POST /v1/quotes, worked out by the server's rules on the fake's catalog (no HTTP: tests call it too). */
 export function fakeQuote(body: Record<string, unknown>): FakeQuoteAnswer {
     const invalid = (message: string, code?: string) => quoteError(400, "invalid_request_error", message, code);
@@ -228,11 +299,20 @@ export function fakeQuote(body: Record<string, unknown>): FakeQuoteAnswer {
         const find = (category: string) => (MODELS[category] ?? []).find((m) => m.id === id);
         const video = find("video");
         if (video) {
-            const refused = only(QUOTE_FIELDS.video, id);
+            const takesVideos = Boolean(video.reference_videos);
+            const refused = only(takesVideos ? QUOTE_FIELDS.videoReference : QUOTE_FIELDS.video, id);
             if (refused) return refused;
             const priced = videoPrice(video, typeof body.quality === "string" ? body.quality : undefined, typeof body.duration === "number" ? body.duration : undefined);
             if ("notOffered" in priced) return invalid(priced.notOffered, "tier_not_offered");
-            return quoteAnswer({ model: id }, priced.price, priced.price, { quality: priced.quality, duration: priced.duration, generate_audio: body.generate_audio === true });
+            const audio = body.generate_audio === true;
+            if (body.reference_videos !== undefined || body.seconds !== undefined || body.reference_mode !== undefined) {
+                const reference = fakeReferencePrice(video, body, priced.quality, priced.duration);
+                if ("error" in reference) return invalid(reference.error);
+                return quoteAnswer({ model: id }, reference.price, reference.price, {
+                    quality: priced.quality, duration: priced.duration, generate_audio: audio, reference_videos: reference.count, reference_mode: reference.mode, reference_video_seconds: reference.seconds,
+                });
+            }
+            return quoteAnswer({ model: id }, priced.price, priced.price, { quality: priced.quality, duration: priced.duration, generate_audio: audio });
         }
         const image = find("image");
         if (image) {
@@ -388,7 +468,7 @@ function typeOf(status: number): string {
 
 /** The fields of a generation body a quote prices (the quote of exactly the call). */
 function quoteFieldsOf(category: string, model: string, body: Record<string, unknown>): Record<string, unknown> {
-    const fields = category === "video" ? QUOTE_FIELDS.video : category === "image" ? QUOTE_FIELDS.image : QUOTE_FIELDS.music;
+    const fields = category === "video" ? QUOTE_FIELDS.videoReference : category === "image" ? QUOTE_FIELDS.image : QUOTE_FIELDS.music;
     const picked: Record<string, unknown> = { model };
     for (const name of fields) if (body[name] !== undefined && body[name] !== null && name !== "prompt") picked[name] = body[name];
     return picked;
@@ -418,6 +498,17 @@ const SEEDANCE_25_MATRIX = [
     { quality: "720p", duration: 5, ours_usd: 3.0745, ours_usd_per_second: 0.6149, audio: false },
     { quality: "1080p", duration: 5, ours_usd: 7.566, ours_usd_per_second: 1.5132, audio: false },
 ];
+/** Seedance 2.5's reference videos as /v1 publishes them (GET /v1/models `reference_videos`, 2026-10-31). */
+export const FAKE_REFERENCE_VIDEOS = Object.freeze({
+    max_count: 3, min_seconds: 2.0, max_seconds: 30.0, max_total_seconds: 30.0, max_mb: 60, formats: ["mp4", "mov"],
+    min_side: 300, max_side: 6000, min_pixels: 409600, min_fps: 24.0, max_fps: 60.0, modes: ["reference", "editing", "extension"],
+    billed_on: "reference video seconds + output seconds", edit_min_seconds: 4.0,
+});
+/** Per second of output plus reference with reference videos, per quality (the live rows: usd ÷ (4 + reference seconds)). */
+const SEEDANCE_25_REFERENCE_RATES: Record<string, number> = { "480p": 0.17199, "720p": 0.36894, "1080p": 0.90792 };
+const SEEDANCE_25_REFERENCE_ROWS = Object.entries(SEEDANCE_25_REFERENCE_RATES).flatMap(([quality, rate]) => [2, 5, 10, 15, 30].map((seconds) => ({
+    quality, duration: 4, reference_video_seconds: seconds, usd: Math.round(rate * (4 + seconds) * 1e6) / 1e6,
+})));
 const MODELS: Record<string, Array<Record<string, unknown>>> = {
     image: [
         { id: "nano-banana-2", name: "Nano Banana 2", price: { from_usd: 0.039, per_input_image_usd: 0.002, unit: "image" } },
@@ -428,7 +519,11 @@ const MODELS: Record<string, Array<Record<string, unknown>>> = {
         { id: "kling-3", name: "Kling 3", durations: [5, 10], price: { from_usd: 0.4, matrix: VIDEO_MATRIX } },
         { id: "seedance-2", name: "Seedance 2", durations: [5, 10], price: { from_usd: 0.5, matrix: [{ quality: "720p", duration: 5, ours_usd: 0.5, ours_usd_per_second: 0.1, audio: false }] } },
         { id: "seedance-2-mini", name: "Seedance 2 Mini", durations: [4, 5, 6, 8, 10, 12, 15], qualities: ["720p", "1080p"], price: { from_usd: 0.26, matrix: MINI_MATRIX } },
-        { id: "seedance-2-5", name: "Seedance 2.5", durations: [4, 5, 6, 8, 10, 12, 15], qualities: ["480p", "720p", "1080p"], price: { from_usd: 1.43325, matrix: SEEDANCE_25_MATRIX } },
+        {
+            id: "seedance-2-5", name: "Seedance 2.5", durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], qualities: ["480p", "720p", "1080p"],
+            inputs: ["text", "image", "start_end", "reference_images", "reference_videos"], reference_videos: FAKE_REFERENCE_VIDEOS,
+            price: { from_usd: 1.43325, matrix: SEEDANCE_25_MATRIX, reference_videos: SEEDANCE_25_REFERENCE_ROWS },
+        },
         { id: "kling-o3", name: "Kling O3", durations: [5, 10], qualities: ["720p", "1080p"], price: { from_usd: 0.6, matrix: [{ quality: "720p", duration: 5, ours_usd: 0.6, ours_usd_per_second: 0.12, audio: false }, { quality: "1080p", duration: 5, ours_usd: 0.9, ours_usd_per_second: 0.18, audio: false }] } },
     ],
     text: [
@@ -1060,7 +1155,38 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
                 // Settles at its quote (the same function, as on the server); a tier the fake does not sell is refused.
                 const category = kind === "image" ? "image" : kind === "video" ? "video" : "music";
                 const model = typeof body.model === "string" ? body.model : (MODELS[category]?.[0]?.id as string);
-                const quoted = fakeQuote(quoteFieldsOf(category, model, body));
+                // Reference videos: the server measures each file it fetches (length, picture) and refuses one out of
+                // the model's limits before anything is charged; the call settles on the seconds it measured.
+                let measured: number | undefined;
+                if (kind === "video" && body.reference_videos !== undefined) {
+                    if (body.seconds !== undefined) return refuse(400, "invalid_request_error", "seconds: not a field of a generation (the server measures the reference videos).");
+                    const row = (MODELS.video ?? []).find((m) => m.id === model);
+                    const limits = row?.reference_videos as typeof FAKE_REFERENCE_VIDEOS | undefined;
+                    if (!limits) return refuse(400, "invalid_request_error", `reference_videos: not a field of ${model}.`);
+                    const links = Array.isArray(body.reference_videos) ? body.reference_videos : [];
+                    let total = 0;
+                    for (const link of links) {
+                        const bytes = typeof link === "string" ? cloudServer.bytesAt(link) : undefined;
+                        if (!bytes) continue;
+                        const facts = fakeMp4Facts(bytes);
+                        if (facts.seconds !== undefined && (facts.seconds < limits.min_seconds || facts.seconds > limits.max_seconds)) {
+                            return refuse(400, "invalid_request_error", `Each reference video must be ${limits.min_seconds}-${limits.max_seconds} seconds.`, "input_invalid");
+                        }
+                        if (facts.width && facts.height && (facts.width * facts.height < limits.min_pixels || Math.min(facts.width, facts.height) < limits.min_side || Math.max(facts.width, facts.height) > limits.max_side)) {
+                            return refuse(400, "invalid_request_error", `A reference video's picture is ${facts.width}x${facts.height}: it needs ${limits.min_pixels} pixels a frame and sides of ${limits.min_side}-${limits.max_side} px.`, "input_invalid");
+                        }
+                        total = facts.seconds === undefined ? Number.NaN : total + facts.seconds;
+                    }
+                    if (Number.isFinite(total) && total > limits.max_total_seconds) return refuse(400, "invalid_request_error", "reference videos must total 2-30 seconds", "input_invalid");
+                    const first = typeof links[0] === "string" ? cloudServer.bytesAt(links[0]) : undefined;
+                    const firstSeconds = first ? fakeMp4Facts(first).seconds : undefined;
+                    if (body.reference_mode === "editing" && firstSeconds !== undefined && firstSeconds < limits.edit_min_seconds) {
+                        return refuse(400, "invalid_request_error", `An edit needs a first video of at least ${limits.edit_min_seconds} seconds.`, "input_invalid");
+                    }
+                    if (Number.isFinite(total) && total > 0) measured = Math.max(limits.min_seconds, total);
+                }
+                const quoted = fakeQuote({ ...quoteFieldsOf(category, model, body), ...(measured !== undefined ? { seconds: measured } : {}) });
+                if (quoted.status === 400 && kind === "video" && body.reference_videos !== undefined) return send(400, quoted.body);
                 if (quoted.status === 400 && (quoted.body.error as { code?: string }).code === "tier_not_offered") return send(400, quoted.body);
                 const price = quoted.status === 200 ? (quoted.body.price_usd as number) : kind === "image" ? 0.04 : 0.5;
                 const task: Task = { id: `task_${++serial}`, kind, step: 0, cancelled: false, price, queuedSteps: taskSteps };

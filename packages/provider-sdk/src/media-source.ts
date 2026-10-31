@@ -25,6 +25,13 @@ export interface MediaPreparePurpose {
     maxSeconds?: number;
     /** Content types the destination accepts, preferred first. */
     contentTypes: readonly string[];
+    /**
+     * Video: the smallest picture the destination takes, in pixels per frame. A smaller source is scaled up (its shape
+     * kept, sides even) until it has at least this many; a source that has them is never resized.
+     */
+    minPixels?: number;
+    /** Video: the frame rates the destination takes; a source outside them is re-timed to the nearest one (when the preparer can). */
+    frameRate?: { min: number; max: number };
 }
 
 export interface PreparedMedia {
@@ -36,6 +43,8 @@ export interface PreparedMedia {
     durationSeconds?: number;
     width?: number;
     height?: number;
+    /** Video: frames per second of the prepared file, when the preparer knows it. */
+    frameRate?: number;
 }
 
 export type MediaPreparer = (input: MediaPrepareInput, purpose: MediaPreparePurpose, signal: AbortSignal) => Promise<PreparedMedia>;
@@ -57,4 +66,20 @@ export function parseMediaSourceRef(value: unknown): MediaSourceRef | string {
     }
     if (ref.startSeconds !== undefined && ref.endSeconds !== undefined && ref.endSeconds <= ref.startSeconds) return "endSeconds must come after startSeconds";
     return ref;
+}
+
+/**
+ * The picture size a preparer encodes for `purpose.minPixels`: the source's, or (when it has fewer pixels) scaled up
+ * with its shape kept, each side even, until it has at least that many.
+ */
+export function minPixelsSize(width: number, height: number, minPixels: number | undefined): { width: number; height: number } {
+    if (!minPixels || !(width > 0) || !(height > 0) || width * height >= minPixels) return { width, height };
+    const scale = Math.sqrt(minPixels / (width * height));
+    let w = Math.ceil((width * scale) / 2) * 2;
+    let h = Math.ceil((height * scale) / 2) * 2;
+    while (w * h < minPixels) {
+        w += 2;
+        h = Math.ceil((w * height) / width / 2) * 2;
+    }
+    return { width: w, height: h };
 }

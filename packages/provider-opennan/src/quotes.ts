@@ -17,6 +17,8 @@ export const QUOTE_UNSUPPORTED_MS = 10 * 60_000;
 export const QUOTE_RATE_LIMIT_MS = 60_000;
 /** What an image input is in a quote body: the server prices that one is there, it never fetches it. */
 export const QUOTE_IMAGE_PLACEHOLDER = "https://opennan.com/studio/quote-input.png";
+/** What a reference video is in a quote body (counted, never fetched). */
+export const QUOTE_VIDEO_PLACEHOLDER = "https://opennan.com/studio/quote-input.mp4";
 
 /** The per-unit tools: their GET /v1/tools id and longest input (the most seconds its quote takes). */
 const UNIT_TOOLS: Partial<Record<ProviderCapability, { tool: string; maxSeconds: number }>> = {
@@ -70,8 +72,16 @@ export function quoteBody(capability: ProviderCapability, input: Record<string, 
             const body: Record<string, unknown> = { model };
             if (duration !== undefined) body.duration = duration;
             if (typeof input.aspectRatio === "string") body.aspect_ratio = input.aspectRatio;
-            if (capability === "video.image-to-video" || present(input.image)) body.image = QUOTE_IMAGE_PLACEHOLDER;
-            if (present(input.endImage)) body.end_image = QUOTE_IMAGE_PLACEHOLDER;
+            const videos = Array.isArray(input.referenceVideos) ? input.referenceVideos : [];
+            if (videos.length > 0) {
+                // A remake: the references (counted, never fetched) and the seconds they bill; no first frame.
+                body.reference_videos = videos.map(() => QUOTE_VIDEO_PLACEHOLDER);
+                body.reference_mode = typeof input.referenceMode === "string" ? input.referenceMode : "reference";
+                if (finite(units.referenceSeconds) && units.referenceSeconds > 0) body.seconds = Math.ceil(units.referenceSeconds - 1e-9);
+            } else {
+                if (capability === "video.image-to-video" || present(input.image)) body.image = QUOTE_IMAGE_PLACEHOLDER;
+                if (present(input.endImage)) body.end_image = QUOTE_IMAGE_PLACEHOLDER;
+            }
             if (Array.isArray(input.referenceImages) && input.referenceImages.length > 0) body.reference_images = input.referenceImages.map(() => QUOTE_IMAGE_PLACEHOLDER);
             if (typeof input.quality === "string") body.quality = input.quality;
             if (typeof input.generateAudio === "boolean") body.generate_audio = input.generateAudio;

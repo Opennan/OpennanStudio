@@ -47,7 +47,13 @@ export interface StudioHost {
      * Story film's copy step: `frames` frames of a project video, evenly spaced, on one contact sheet image saved to the
      * project's media (story_film_copy sends it to the story writer). Absent: the agent passes its own sheet.
      */
-    storySheet?(mediaUrl: string, frames: number, signal?: AbortSignal): Promise<{ url: string; frames: number; everySeconds: number; durationSeconds: number }>;
+    storySheet?(mediaUrl: string, frames: number, signal?: AbortSignal, times?: readonly number[]): Promise<{ url: string; frames: number; everySeconds: number; durationSeconds: number }>;
+    /**
+     * Story film's copy: the video's shots (2-15 s each, in order), each one's first frame as a project image (its
+     * keyframe is redrawn from it) and, with `cut`, each one cut out as its own project video (the reference a remake
+     * sends). Absent: the copy samples frames only.
+     */
+    storyShots?(mediaUrl: string, cut: boolean, signal?: AbortSignal): Promise<{ durationSeconds: number; shots: Array<{ start: number; end: number; clip?: string; frame?: string }>; truncated: boolean }>;
 }
 
 /** The OpenNan project pipeline a priced step runs (the route's tool id, as POST /v1/quotes names it). */

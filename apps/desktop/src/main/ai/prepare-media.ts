@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { mixTimelineAudio, type EncoderChoice, type ExportInput, type ExportRunner, type MediaInfo } from "@opennan/export";
 import { chooseWorkingEncoder, createNodeRunner, createSourcePolicy, probeFile, runProcess, type NodeRunnerOptions, type SourcePolicy } from "@opennan/export/node";
-import type { MediaPrepareInput, MediaPreparePurpose, MediaPreparer, MediaSourceRef, PreparedMedia } from "@opennan/provider-sdk";
+import { minPixelsSize, type MediaPrepareInput, type MediaPreparePurpose, type MediaPreparer, type MediaSourceRef, type PreparedMedia } from "@opennan/provider-sdk";
 import type { ControllerSnapshot } from "@opennan/timeline-core";
 import { SnapshotSchema } from "../../shared/ipc";
 import { localMediaId } from "../../shared/media-policy";
@@ -261,13 +261,17 @@ export function createDesktopMediaPreparer(options: DesktopMediaPreparerOptions)
         // The source's own pixel size is reported (the preparer never resizes; odd sizes lose at most one pixel).
         const info = await probe(file, signal);
         const range = preparedRange(source, source.endSeconds === undefined && info && info.durationSeconds > 0 ? info.durationSeconds : null, purpose.maxSeconds);
-        const size = info && info.width > 0 && info.height > 0 ? { width: info.width, height: info.height } : {};
+        const own = info && info.width > 0 && info.height > 0 ? { width: info.width, height: info.height } : null;
+        // Scaled up only to the destination's smallest picture (a reference video's minimum pixels).
+        const scaled = own ? minPixelsSize(own.width, own.height, purpose.minPixels) : null;
+        const resize = own && scaled && (scaled.width !== own.width || scaled.height !== own.height) ? [`scale=${scaled.width}:${scaled.height}`] : [];
+        const size = scaled ?? {};
         const choice = await encoder();
         const contentType = choice.container === "webm" ? "video/webm" : "video/mp4";
         if (!purpose.contentTypes.includes(contentType)) throw new Error(`This tool does not take ${contentType}, the only video this build's encoder (${choice.name}) makes.`);
         return inTemp(async (dir) => {
             const output = path.join(dir, choice.container === "webm" ? "video.webm" : "video.mp4");
-            await ffmpegRun(videoArgs({ input: file, inputGuards: policy.inputGuards, range, encoder: choice, keepAudio: purpose.keepAudio === true, output }), signal);
+            await ffmpegRun(videoArgs({ input: file, inputGuards: policy.inputGuards, range, encoder: choice, keepAudio: purpose.keepAudio === true, output, ...(resize.length > 0 ? { filters: resize } : {}) }), signal);
             return { path: output, contentType, filename: path.basename(output), ...(await measured(output, range, signal, purpose.maxBytes)), ...size };
         });
     }

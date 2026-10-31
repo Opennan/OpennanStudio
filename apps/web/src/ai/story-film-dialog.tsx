@@ -10,9 +10,9 @@ import {
     LAYOUT_PRESETS,
 } from "@opennan/timeline-core";
 import {
-    STORY_DEFAULTS, STORY_LIMITS, STORY_MEDIUMS, blankStory, copyDraftRequest, draftTextModel, isFlagged, isStale, mergeStory, parseStoryFilm, readStoryJson, storyItems,
-    videoModelChoices, writeDraftRequest, type DraftRequest, type ItemUpdate, type StepEstimate, type StepOptions, type StoryFilm, type StoryItem, type StoryMedium,
-    type StoryStep,
+    STORY_DEFAULTS, STORY_LIMITS, STORY_MEDIUMS, blankStory, copyDraftRequest, draftTextModel, isFlagged, isStale, mergeStory, parseStoryFilm, readStoryJson, sameVideoModel,
+    shotSheetTimes, storyItems, videoModelChoices, withCopyChoices, withShotSources, withVideoModel, writeDraftRequest, type DraftRequest, type ItemUpdate, type ShotRange, type StepEstimate,
+    type StepOptions, type StoryFilm, type StoryItem, type StoryMedium, type StoryStep,
 } from "@opennan/story-film";
 import { useEditorStore, useTimelineController, useTimelineMedia, useTimelineMessages } from "@opennan/timeline-react";
 import { useAccount } from "../account/account-context";
@@ -22,6 +22,7 @@ import { AlertIcon, CheckIcon } from "../ui/icons";
 import { accountHold } from "./hold-check";
 import { LIBRARY_CHANGED_EVENT } from "./import-generated";
 import { StoryFilmSession, type StoryFilmState } from "./story-film-host";
+import { createStoryShots, type StoryShots } from "./story-shots";
 import { createStorySheet } from "./story-sheet";
 import "./story-film.css";
 
@@ -83,6 +84,7 @@ export function StoryFilmDialog({ projectId, onClose }: { projectId: string; onC
     }), [controller, providers, requireOpenNan, account]);
     useEffect(() => () => session.dispose(), [session]);
     const sheet = useMemo(() => createStorySheet({ backend, projectId, resolveMediaUrl: (url) => media.resolveMediaUrl(url) }), [backend, projectId, media]);
+    const shots = useMemo(() => createStoryShots({ backend, projectId, resolveMediaUrl: (url) => media.resolveMediaUrl(url) }), [backend, projectId, media]);
     const story = useStory();
     const state = useSessionState(session);
     const [step, setStep] = useState<WizardStep>("story");
@@ -117,7 +119,7 @@ export function StoryFilmDialog({ projectId, onClose }: { projectId: string; onC
                         {state.error.startsWith("Not enough credits") && <button type="button" className="button ghost small" onClick={() => account.openConsole("billing")}>{t("buyCredits")}</button>}
                     </div>
                 )}
-                {step === "story" && <StoryStepView session={session} story={story} sheet={sheet} state={state} onNext={() => setStep("cast")} />}
+                {step === "story" && <StoryStepView session={session} story={story} sheet={sheet} shots={shots} state={state} onNext={() => setStep("cast")} />}
                 {story && step === "cast" && <ItemsStep session={session} story={story} state={state} step="cast" intro={t("castIntro")} />}
                 {story && step === "shots" && (
                     <ItemsStep session={session} story={story} state={state} step="frames" intro={t("shotsIntro")} castCheck={castCheck} onCastCheck={setCastCheck} />
@@ -138,8 +140,8 @@ export function StoryFilmDialog({ projectId, onClose }: { projectId: string; onC
 
 // ── Story ────────────────────────────────────────────────────────────────────
 
-function StoryStepView({ session, story, sheet, state, onNext }: {
-    session: StoryFilmSession; story: StoryFilm | null; sheet: ReturnType<typeof createStorySheet>; state: StoryFilmState; onNext(): void;
+function StoryStepView({ session, story, sheet, shots, state, onNext }: {
+    session: StoryFilmSession; story: StoryFilm | null; sheet: ReturnType<typeof createStorySheet>; shots: StoryShots; state: StoryFilmState; onNext(): void;
 }) {
     const t = useTimelineMessages("storyFilm") as T;
     const [mode, setMode] = useState<"write" | "copy" | "edit">(story ? "edit" : "write");
@@ -171,7 +173,7 @@ function StoryStepView({ session, story, sheet, state, onNext }: {
                 ))}
             </div>
             {mode === "write" && <WriteForm session={session} state={state} onDrafted={() => setMode("edit")} />}
-            {mode === "copy" && <CopyForm session={session} sheet={sheet} state={state} onDrafted={() => setMode("edit")} />}
+            {mode === "copy" && <CopyForm session={session} sheet={sheet} shots={shots} state={state} onDrafted={() => setMode("edit")} />}
             {state.draftErrors.length > 0 && (
                 <div className="story-film-error" role="alert"><AlertIcon /> <span>{t("draftProblems")} {state.draftErrors.slice(0, 4).join("; ")}</span></div>
             )}
@@ -271,7 +273,28 @@ function MediumField({ value, onChange }: { value: StoryMedium; onChange(medium:
     );
 }
 
-function CopyForm({ session, sheet, state, onDrafted }: { session: StoryFilmSession; sheet: ReturnType<typeof createStorySheet>; state: StoryFilmState; onDrafted(): void }) {
+/** The video model a new story animates with (the first choice the provider lists), for the copy's "keep the original motion". */
+function useDefaultVideoModel(session: StoryFilmSession): ProviderModel | null {
+    const [model, setModel] = useState<ProviderModel | null>(null);
+    useEffect(() => {
+        let live = true;
+        void session.models("video.image-to-video").then((list) => live && setModel(videoModelChoices(list)[0] ?? null));
+        return () => {
+            live = false;
+        };
+    }, [session]);
+    return model;
+}
+
+/** A video's name in Media as a title: no extension, words for underscores and dashes ("Romance_of_an_Umbrella.webm"). */
+export function videoTitle(name: string): string {
+    return name.replace(/\.[A-Za-z0-9]{2,5}$/, "").replace(/[_]+/g, " ").replace(/\s+/g, " ").trim().slice(0, STORY_LIMITS.title);
+}
+
+/** The copy prompt's shot table priced at its longest (a story's most shots), so the price is never under the call sent. */
+const WORST_SHOTS = Array.from({ length: STORY_LIMITS.shots }, (_, i) => ({ start: i * 15, end: i * 15 + 14.99, firstFrame: i + 1, lastFrame: i + 1 }));
+
+function CopyForm({ session, sheet, shots, state, onDrafted }: { session: StoryFilmSession; sheet: ReturnType<typeof createStorySheet>; shots: StoryShots; state: StoryFilmState; onDrafted(): void }) {
     const t = useTimelineMessages("storyFilm") as T;
     const { backend } = useStudioRuntime();
     const projectId = useEditorStore((s) => s.projectMeta?.id ?? null);
@@ -279,11 +302,20 @@ function CopyForm({ session, sheet, state, onDrafted }: { session: StoryFilmSess
     const [videos, setVideos] = useState<Array<{ url: string; name: string }>>([]);
     const [chosen, setChosen] = useState("");
     const [link, setLink] = useState("");
-    const [cast, setCast] = useState<"original" | "keep">("original");
+    // A close copy by default: the video's characters, drawn in the chosen style; new characters are the choice.
+    const [cast, setCast] = useState<"original" | "keep">("keep");
+    const [rights, setRights] = useState(false);
+    const [style, setStyle] = useState("");
+    const [title, setTitle] = useState<string | null>(null);
     const [notes, setNotes] = useState("");
     const [stage, setStage] = useState<string | null>(null);
     const [models, setModels] = useState<ProviderModel[]>([]);
     const [refresh, setRefresh] = useState(0);
+    const videoModel = useDefaultVideoModel(session);
+    const takesReferences = Boolean(videoModel?.referenceVideos);
+    const [keepMotionChoice, setKeepMotion] = useState<boolean | null>(null);
+    // On by default when the video model takes reference videos.
+    const keepMotion = (keepMotionChoice ?? takesReferences) && takesReferences;
     const upload = useRef<HTMLInputElement>(null);
     useEffect(() => void session.models("text.generate").then(setModels), [session]);
     useEffect(() => {
@@ -299,27 +331,60 @@ function CopyForm({ session, sheet, state, onDrafted }: { session: StoryFilmSess
             live = false;
         };
     }, [backend, projectId, refresh]);
+    // The video's own title (its name in Media) unless the person types one; none for a link.
+    const videoName = source === "media" ? (videos.find((v) => v.url === chosen)?.name ?? "") : "";
+    const titleText = title ?? videoTitle(videoName);
+    const choices = { cast, ...(titleText.trim() ? { title: titleText.trim() } : {}), ...(style.trim() ? { style: style.trim() } : {}) };
     // Priced as the call that will be sent: one contact sheet of the video's frames.
     const model = draftTextModel(models, true);
     const placeholder = useMemo(() => {
-        const draft = copyDraftRequest({ sheet: "https://opennan.com/studio/quote-input.png", frames: 16, everySeconds: 4, durationSeconds: 64, cast, ...(notes.trim() ? { notes } : {}) });
+        const draft = copyDraftRequest({
+            sheet: "https://opennan.com/studio/quote-input.png", frames: STORY_LIMITS.shots, everySeconds: 4, durationSeconds: 600, cast, shots: WORST_SHOTS,
+            title: "x".repeat(STORY_LIMITS.title), ...(style.trim() ? { style } : {}), ...(notes.trim() ? { notes } : {}),
+        });
         return model ? { ...draft, input: { ...draft.input, model } as DraftRequest["input"] } : draft;
-    }, [cast, notes, model]);
+    }, [cast, notes, model, style]);
     const price = useDraftPrice(session, placeholder);
-    const ready = source === "media" ? Boolean(chosen) : source === "link" ? /^https:\/\/\S+$/.test(link.trim()) : false;
-    const run = () => session.draft(placeholder, { kind: "copy", cast, ...(source === "link" ? { link: link.trim() } : {}) }, price.hold, async (signal) => {
-        let mediaUrl = chosen;
-        if (source === "link") {
-            setStage(t("copyDownloading"));
-            mediaUrl = await session.fetchLink(link.trim(), signal);
-        }
-        setStage(t("copySampling"));
-        const made = await sheet(mediaUrl, signal);
-        setStage(null);
-        if (!made) throw new Error(t("copyNoFrames"));
-        const request = copyDraftRequest({ sheet: { mediaUrl: made.url }, frames: made.frames, everySeconds: made.everySeconds, durationSeconds: made.durationSeconds, cast, ...(notes.trim() ? { notes } : {}) });
-        return model ? { ...request, input: { ...request.input, model } as DraftRequest["input"] } : request;
-    }).finally(() => setStage(null)).then((ok) => ok && onDrafted());
+    const ready = rights && (source === "media" ? Boolean(chosen) : source === "link" ? /^https:\/\/\S+$/.test(link.trim()) : false);
+    const run = () => {
+        // What the copy found, for placing the draft's shots on the real ones once it is written.
+        let found: { mediaUrl: string; shots: Array<ShotRange & { clip?: string; frame?: string }> } | null = null;
+        const progress = (words: string) => {
+            setStage(words);
+            session.stage(words);
+        };
+        return session.draft(placeholder, { kind: "copy", cast, keepMotion, ...(source === "link" ? { link: link.trim() } : {}) }, price.hold, async (signal) => {
+            let mediaUrl = chosen;
+            if (source === "link") {
+                progress(t("copyDownloading"));
+                mediaUrl = await session.fetchLink(link.trim(), signal);
+            }
+            progress(t("copyFindingShots"));
+            const cuts = await shots.find(mediaUrl, signal);
+            if (!cuts || cuts.shots.length === 0) throw new Error(t("copyNoFrames"));
+            // Each shot's first frame (its keyframe keeps the original framing), then its clip when keeping the motion.
+            const stills = await shots.frames(mediaUrl, cuts.shots, signal);
+            let clips: string[] = [];
+            if (keepMotion) clips = await shots.cut(mediaUrl, cuts.shots, signal, (i) => progress(t("copyCutting", { n: i + 1, count: cuts.shots.length })));
+            found = { mediaUrl, shots: cuts.shots.map((shot, i) => ({ ...shot, ...(stills[i] ? { frame: stills[i] } : {}), ...(clips[i] ? { clip: clips[i] } : {}) })) };
+            progress(t("copySampling"));
+            const frames = shotSheetTimes(cuts.shots);
+            const made = await sheet(mediaUrl, signal, frames);
+            setStage(null);
+            if (!made) throw new Error(t("copyNoFrames"));
+            const table = cuts.shots.map((shot, i) => ({ ...shot, firstFrame: frames.findIndex((f) => f.shot === i) + 1, lastFrame: frames.map((f) => f.shot).lastIndexOf(i) + 1 }));
+            const request = copyDraftRequest({
+                sheet: { mediaUrl: made.url }, frames: made.frames, everySeconds: made.everySeconds, durationSeconds: made.durationSeconds, cast, shots: table, ...(notes.trim() ? { notes } : {}),
+                ...(choices.title ? { title: choices.title } : {}), ...(choices.style ? { style: choices.style } : {}),
+            });
+            return model ? { ...request, input: { ...request.input, model } as DraftRequest["input"] } : request;
+        }, (drafted) => {
+            const chosenStory = withCopyChoices(drafted, choices);
+            if (!found) return chosenStory;
+            const placed = withShotSources({ ...chosenStory, source: { kind: "copy", cast, keepMotion, mediaUrl: found.mediaUrl, ...(source === "link" ? { link: link.trim() } : {}) } }, found.shots);
+            return videoModel ? withVideoModel(placed, videoModel) : placed;
+        }).finally(() => setStage(null)).then((ok) => ok && onDrafted());
+    };
     const fromFile = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         event.target.value = "";
@@ -359,11 +424,30 @@ function CopyForm({ session, sheet, state, onDrafted }: { session: StoryFilmSess
                     <input className="text-input" value={link} placeholder={t("copyLinkPlaceholder")} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => e.stopPropagation()} data-testid="story-film-link" />
                 </label>
             )}
+            <div className="story-film-fields">
+                <label className="field story-film-field">
+                    <span>{t("copyTitle")}</span>
+                    <input className="text-input" value={titleText} maxLength={STORY_LIMITS.title} placeholder={t("copyTitlePlaceholder")} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.stopPropagation()} data-testid="story-film-copy-title" />
+                </label>
+                <label className="field story-film-field">
+                    <span>{t("copyStyle")}</span>
+                    <input className="text-input" value={style} maxLength={STORY_LIMITS.style} placeholder={t("copyStylePlaceholder")} onChange={(e) => setStyle(e.target.value)} onKeyDown={(e) => e.stopPropagation()} data-testid="story-film-copy-style" />
+                </label>
+            </div>
             <fieldset className="story-film-fieldset">
                 <legend className="muted">{t("copyCast")}</legend>
-                <label className="story-film-check"><input type="radio" name="story-copy-cast" checked={cast === "original"} onChange={() => setCast("original")} /> {t("copyOriginal")}</label>
                 <label className="story-film-check"><input type="radio" name="story-copy-cast" checked={cast === "keep"} onChange={() => setCast("keep")} /> {t("copyKeep")}</label>
+                <label className="story-film-check"><input type="radio" name="story-copy-cast" checked={cast === "original"} onChange={() => setCast("original")} /> {t("copyOriginal")}</label>
             </fieldset>
+            <fieldset className="story-film-fieldset">
+                <label className="story-film-check">
+                    <input type="checkbox" checked={keepMotion} disabled={!takesReferences} onChange={(e) => setKeepMotion(e.target.checked)} data-testid="story-film-keep-motion" /> {t("copyKeepMotion")}
+                </label>
+                <p className="muted small">{takesReferences || !videoModel ? t("copyKeepMotionHint") : t("copyKeepMotionUnavailable")}</p>
+            </fieldset>
+            <label className="story-film-check story-film-rights">
+                <input type="checkbox" checked={rights} onChange={(e) => setRights(e.target.checked)} data-testid="story-film-rights" /> {t("copyRights")}
+            </label>
             <label className="field story-film-field">
                 <span>{t("copyNotes")}</span>
                 <input className="text-input" value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
@@ -652,17 +736,40 @@ function AnimateStep({ session, story, state }: { session: StoryFilmSession; sto
     const chosen = models.find((m) => m.id === model);
     const qualities = chosen?.qualities?.length ? chosen.qualities : [STORY_DEFAULTS.quality];
     const quality = story.settings?.quality && qualities.includes(story.settings.quality) ? story.settings.quality : qualities.includes(STORY_DEFAULTS.quality) ? STORY_DEFAULTS.quality : qualities[0]!;
-    // A listed model that is not the stored one (the default is not sold here): the first choice.
+    // A listed model that is not the stored one (the default is not sold here): the first choice. The stored model's
+    // facts (its lengths, its reference video limits) follow its listing.
     useEffect(() => {
-        if (models.length > 0 && !chosen) void session.save({ ...story, settings: { ...story.settings, videoModel: models[0]!.id } });
+        if (models.length === 0) return;
+        const current = session.story() ?? story;
+        if (!chosen) void session.save(withVideoModel(current, models[0]!));
+        else if (!sameVideoModel(current, chosen)) void session.save(withVideoModel(current, chosen));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [models, chosen]);
-    const setting = (patch: { videoModel?: string; quality?: string }) => void session.save({ ...(session.story() ?? story), settings: { ...story.settings, videoModel: model, quality, ...patch } });
+    const setting = (patch: { videoModel?: string; quality?: string }) => {
+        const current = session.story() ?? story;
+        const next = models.find((m) => m.id === (patch.videoModel ?? model)) ?? { id: patch.videoModel ?? model };
+        void session.save(withVideoModel(current, next, patch.quality ?? quality));
+    };
+    const copied = story.source?.kind === "copy" && story.shots.some((s) => s.source);
+    const keepMotion = story.source?.kind === "copy" && story.source.keepMotion === true;
+    const setKeepMotion = (on: boolean) => {
+        const current = session.story() ?? story;
+        if (current.source?.kind === "copy") void session.save({ ...current, source: { ...current.source, keepMotion: on } });
+    };
     const items = storyItems(story, "animate");
+    const remaking = items.some((i) => i.remake);
     const verb = t("verbAnimate");
     return (
         <section className="story-film-body">
-            <p className="muted story-film-intro">{t("animateIntro")}</p>
+            <p className="muted story-film-intro" data-testid="story-film-animate-intro">{t(remaking ? "animateRemakeIntro" : "animateIntro")}</p>
+            {copied && (
+                <div className="story-film-castcheck">
+                    <label className="story-film-check">
+                        <input type="checkbox" checked={keepMotion} disabled={Boolean(state.running)} onChange={(e) => setKeepMotion(e.target.checked)} data-testid="story-film-animate-keep-motion" /> {t("animateKeepMotion")}
+                    </label>
+                    {keepMotion && chosen && !chosen.referenceVideos && <p className="muted small">{t("animateNoReference", { model: chosen.label })}</p>}
+                </div>
+            )}
             <div className="story-film-fields">
                 <label className="field story-film-field">
                     <span>{t("videoModel")}</span>
@@ -681,12 +788,24 @@ function AnimateStep({ session, story, state }: { session: StoryFilmSession; sto
             <ul className="story-film-grid">
                 {items.map((item) => {
                     const update = state.items[item.id];
+                    const real = item.remake ? story.shots.find((s) => s.id === item.id)?.source : undefined;
                     return (
-                        <li key={item.id} className="story-film-card story-film-item" data-testid={`story-film-clip-${item.id}`} data-state={update?.status ?? (item.asset ? "done" : "missing")}>
+                        <li
+                            key={item.id} className="story-film-card story-film-item" data-testid={`story-film-clip-${item.id}`} data-state={update?.status ?? (item.asset ? "done" : "missing")}
+                            data-remake={item.remake || undefined}
+                        >
                             <div className="story-film-frame">
                                 {item.asset ? <MediaView url={item.asset.url} kind="video" /> : story.shots.find((s) => s.id === item.id)?.keyframe ? <MediaView url={story.shots.find((s) => s.id === item.id)!.keyframe!.url} kind="image" /> : null}
                             </div>
                             <div className="story-film-card-head"><span className="story-film-card-label">{item.label}</span><span className="story-film-card-state">{statusText(t, item, update)}</span></div>
+                            {real && (
+                                // The original shot this clip remakes: watch it beside the result (and before paying).
+                                <div className="story-film-original" data-testid={`story-film-original-${item.id}`}>
+                                    <span className="muted small">{t("originalShot", { seconds: Math.round((real.end - real.start) * 10) / 10 })}</span>
+                                    <MediaView url={real.clip ?? `${story.source?.kind === "copy" ? story.source.mediaUrl ?? "" : ""}#t=${real.start},${real.end}`} kind="video" />
+                                </div>
+                            )}
+                            {item.blocked && !item.asset && update?.status !== "running" && <p className="muted small">{item.blocked}</p>}
                             {update?.status === "running" && <div className="story-film-progress"><span style={{ width: `${Math.round((update.progress ?? 0.05) * 100)}%` }} /></div>}
                             {update?.status === "failed" && update.error && <p className="story-film-error"><AlertIcon /> {update.error}</p>}
                             <div className="story-film-actions"><RedoButton session={session} story={story} step="animate" item={item} state={state} label={verb} /></div>

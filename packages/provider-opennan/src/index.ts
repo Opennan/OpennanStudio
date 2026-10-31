@@ -22,9 +22,13 @@ export {
 } from "./provider";
 export { uploadMedia, isAllowedUploadUrl, DEFAULT_UPLOAD_HOSTS, SINGLE_PUT_MAX_BYTES, UPLOAD_SCOPE_MESSAGE, UPLOAD_CONTENT_TYPES, type UploadedMedia, type UploadCache, type UploadOptions } from "./uploads";
 export {
-    createQuoteClient, quoteBody, canonicalBody, QUOTE_PATH, QUOTE_CACHE_MS, QUOTE_UNSUPPORTED_MS, QUOTE_IMAGE_PLACEHOLDER, type QuoteClient, type QuoteResult, type QuoteClientOptions,
+    createQuoteClient, quoteBody, canonicalBody, QUOTE_PATH, QUOTE_CACHE_MS, QUOTE_UNSUPPORTED_MS, QUOTE_IMAGE_PLACEHOLDER, QUOTE_VIDEO_PLACEHOLDER, type QuoteClient, type QuoteResult, type QuoteClientOptions,
 } from "./quotes";
 export { createOpenNanCatalog, priceRun, textTokens, OPENNAN_TOOLS, CATALOG_CACHE_MS, PRICES_UNAVAILABLE, DEFAULT_TEXT_MAX_TOKENS, type OpenNanCatalog, type ToolRow } from "./prices";
 export { MAX_TEXT_IMAGES, MAX_TEXT_MAX_TOKENS, MAX_TEXT_PROMPT } from "./text";
 export { MEDIA_PURPOSES, MEDIA_TOOL_CAPABILITIES, PREPARE_MEDIA_UNAVAILABLE, PRICE_UNKNOWN_MESSAGE, PriceChangedError, transcriptOf, transcribeLanguage } from "./tools";
+export {
+    REFERENCE_ASPECT, longerThanPriced, parseReferenceLimits, parseReferenceVideos, preparedReferenceProblem, referenceLengthProblem, referencePurpose, referenceSecondsOf,
+    type ReferenceVideoInput,
+} from "./references";
 export { stageLabel, STAGE_LABELS, CANCEL_TOO_LATE_MESSAGE, cancelRetryDelayMs } from "./tasks";

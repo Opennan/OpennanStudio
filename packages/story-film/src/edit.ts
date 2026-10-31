@@ -14,7 +14,8 @@ export function mergeStory(previous: StoryFilm | null, next: StoryFilm): StoryFi
         const old = previous.shots.find((p) => p.id === s.id);
         if (!old) return s;
         const keyframe = !s.keyframe && old.keyframe ? { keyframe: old.keyframe, ...(old.check ? { check: old.check } : {}) } : {};
-        return { ...s, ...keyframe, ...(!s.clip && old.clip ? { clip: old.clip } : {}) };
+        // A shot's place in the copied video stays with its id (the editor does not show it).
+        return { ...s, ...keyframe, ...(!s.clip && old.clip ? { clip: old.clip } : {}), ...(!s.source && old.source ? { source: old.source } : {}) };
     });
     const merged: StoryFilm = { ...next, characters, shots };
     if (!merged.musicAsset && previous.musicAsset) merged.musicAsset = previous.musicAsset;

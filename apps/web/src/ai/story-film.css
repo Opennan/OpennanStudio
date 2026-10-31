@@ -88,3 +88,6 @@
 .story-film-flag { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; color: var(--on-foreground); }
 .story-film-flag svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--on-destructive-text); }
 .story-film-flag strong { font-weight: 600; color: var(--on-foreground-strong); }
+/* Remake: the original shot under the result, small, for the clip review. */
+.story-film-original { display: flex; flex-direction: column; gap: 4px; }
+.story-film-original .story-film-media { aspect-ratio: 16 / 9; height: auto; border-radius: var(--on-radius-sm); }

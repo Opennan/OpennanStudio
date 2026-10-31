@@ -2,7 +2,7 @@
 import { reelInputOf, withAssembled } from "./assemble";
 import { mergeStory, storyProgress, withNewerAssets } from "./edit";
 import { castCheckRequest, parseCastCheck } from "./check";
-import { copyDraftRequest, jsonObjectOf, parseDraftReply, writeDraftRequest } from "./draft";
+import { copyDraftRequest, withCopyChoices, jsonObjectOf, parseDraftReply, writeDraftRequest } from "./draft";
 import { keyframePrompt, motionPrompt, sheetPrompt } from "./recipe";
 import type { StoryFilm } from "./types";
 import { rainCheck } from "./test-story";
@@ -92,13 +92,28 @@ describe("drafts", () => {
         expect(request.input.images).toBeUndefined();
     });
 
-    it("copies a video with an original cast by default, and keeps it only when asked", () => {
+    it("copies a video closely by default: the same shots, beats, characters and title, in the style chosen; new characters only when asked", () => {
         const sheet = { mediaUrl: "opennan-local://media/sheet.jpg" };
-        const original = copyDraftRequest({ sheet, frames: 16, everySeconds: 3.75, durationSeconds: 60, cast: "original" });
-        expect(original.input.images).toEqual([sheet]);
-        expect(original.input.prompt).toMatch(/ORIGINAL cast: new character designs and new names[\s\S]*a new title/);
-        expect(original.input.prompt).toMatch(/16 frames .* one every 3\.8 seconds of a 60-second video/);
-        expect(copyDraftRequest({ sheet, frames: 16, everySeconds: 4, durationSeconds: 64, cast: "keep" }).input.prompt).toMatch(/person's own video/);
+        const shots = [{ start: 0, end: 4.6, firstFrame: 1, lastFrame: 2 }, { start: 4.6, end: 9.2, firstFrame: 3, lastFrame: 4 }];
+        const close = copyDraftRequest({ sheet, frames: 4, everySeconds: 0, durationSeconds: 9.2, cast: "keep", shots, title: "Romance of an Umbrella", style: "warm gouache, soft light" });
+        expect(close.input.images).toEqual([sheet]);
+        const prompt = close.input.prompt;
+        expect(prompt).toMatch(/Copy it closely\. Write exactly 2 story shots, in this order, one for each real shot: never invent, merge, reorder or drop a beat or a shot\./);
+        expect(prompt).toMatch(/"frame" describes exactly what the shot's first moment shows: who is in it, where, the framing \(wide, medium or close-up\), the camera angle/);
+        expect(prompt).toMatch(/"motion" describes exactly what happens in the shot: the action, who moves where, and the camera move/);
+        expect(prompt).toMatch(/Keep the video's characters: the same people in the same roles/);
+        expect(prompt).toMatch(/Keep the video's title: "Romance of an Umbrella"\./);
+        expect(prompt).toMatch(/Art style \(the person's choice\): warm gouache, soft light\./);
+        expect(prompt).not.toMatch(/NEW characters/);
+        const fresh = copyDraftRequest({ sheet, frames: 16, everySeconds: 3.75, durationSeconds: 60, cast: "original", title: "Ignored" });
+        expect(fresh.input.prompt).toMatch(/Make NEW characters: new designs and new names that play the same roles, and a new title/);
+        expect(fresh.input.prompt).not.toMatch(/Keep the video's title/);
+        expect(fresh.input.prompt).toMatch(/16 frames .* one every 3\.8 seconds of a 60-second video/);
+        expect(fresh.input.prompt).toMatch(/Describe the reference's look in "style"/);
+        // The person's title and style win over the draft's; new characters get the draft's title.
+        const draft = { title: "The Umbrella", style: "pencil" };
+        expect(withCopyChoices(draft, { cast: "keep", title: "Romance of an Umbrella", style: "warm gouache" })).toEqual({ title: "Romance of an Umbrella", style: "warm gouache" });
+        expect(withCopyChoices(draft, { cast: "original", title: "Romance of an Umbrella" })).toEqual(draft);
     });
 
     it("reads a reply's story out of code fences and words, without assets or costs", () => {

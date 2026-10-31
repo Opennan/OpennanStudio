@@ -57,9 +57,39 @@ export interface ProviderModel {
     qualities?: string[];
     /** A text model that can look at images. */
     vision?: boolean;
+    /** A video model that takes reference videos (its motion, blocking and camera copied into the result), with its limits. */
+    referenceVideos?: ReferenceVideoLimits;
     sizeBytes?: number;
     installed?: boolean;
     default?: boolean;
+}
+
+/**
+ * What a video model takes as reference videos (GET /v1/models `reference_videos`). A reference shot outside these
+ * limits is refused before anything is uploaded or paid.
+ */
+export interface ReferenceVideoLimits {
+    /** Most reference videos one call takes. */
+    max: number;
+    /** Each video's length, in seconds. */
+    minSeconds: number;
+    maxSeconds: number;
+    /** The references' total length, in seconds. */
+    totalSeconds: number;
+    /** How the references are used ("reference": copy the motion; "editing", "extension"). */
+    modes: string[];
+    /** Containers taken ("mp4", "mov"). */
+    formats?: string[];
+    maxMb?: number;
+    /** Each side of the picture, in pixels. */
+    minSide?: number;
+    maxSide?: number;
+    /** Pixels in one frame at least (width × height). */
+    minPixels?: number;
+    minFps?: number;
+    maxFps?: number;
+    /** An edit's first video is at least this long. */
+    editMinSeconds?: number;
 }
 
 export interface AudioProvider {

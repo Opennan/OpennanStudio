@@ -4,9 +4,11 @@
 // accept_max_usd refuses), makes only what is missing (ids + redo remake one), and stores every result on the story as
 // it lands, so a call that times out or fails part way keeps what it paid for and the next call skips it.
 import {
-    copyDraftRequest, defaultVideoModel, estimateStep, mergeStory, parseDraftReply, parseStoryFilm, readStoryJson, reelInputOf, runStep, storyJson, storyProgress, withAssembled,
-    writeDraftRequest, type DraftRequest, type StepEstimate, type StoryFilm, type StoryFilmHost, type StoryMedium, type StoryRunResult, type StoryStep,
+    copyDraftRequest, estimateStep, keepsMotion, mergeStory, parseDraftReply, parseStoryFilm, readStoryJson, reelInputOf, runStep, sameVideoModel, shotSheetTimes, storyItems, storyJson,
+    storyProgress, videoModelChoices, withAssembled, withCopyChoices, withShotSources, withVideoModel, writeDraftRequest, type DraftRequest, type ShotRange, type StepEstimate, type StoryFilm,
+    type StoryFilmHost, type StoryMedium, type StoryRunResult, type StorySource, type StoryStep,
 } from "@opennan/story-film";
+import type { ProviderModel } from "@opennan/provider-sdk";
 import { applyReelLayout, type CommandResult } from "@opennan/timeline-core";
 import type { Args } from "../args";
 import { failure, success, unavailable, type ToolOutcome } from "../outcome";
@@ -56,8 +58,9 @@ function runResult(result: CommandResult): StoryRunResult {
 
 function summaryText(story: StoryFilm): string {
     const progress = storyProgress(story);
+    const remake = keepsMotion(story) ? ` Keeps the original motion: ${story.shots.filter((s) => s.source).length} shots placed on the video's real shots.` : "";
     const parts = progress.map((p) => `${p.step} ${p.made}/${p.total}${p.changed.length ? ` (${p.changed.length} changed since made: ${p.changed.join(", ")})` : ""}`);
-    return `"${story.title}": ${plural(story.characters.length, "character")}, ${plural(story.shots.length, "shot")}. Made: ${parts.join("; ")}. Spent ${formatUsd(story.spentUsd ?? 0)}.`;
+    return `"${story.title}": ${plural(story.characters.length, "character")}, ${plural(story.shots.length, "shot")}. Made: ${parts.join("; ")}. Spent ${formatUsd(story.spentUsd ?? 0)}.${remake}`;
 }
 
 function storyData(story: StoryFilm): Record<string, unknown> {
@@ -85,13 +88,20 @@ function stepTool(tool: string, step: StoryStep): ToolHandler {
     return async (args, context) => {
         let story = await readStory(context.session);
         if (!story) return failure(NO_STORY);
-        // No model asked for or chosen yet: the best one the provider sells (seedance-2-5, else seedance-2-mini, ...).
-        const listed = step === "animate" && !str(args.model) && !story.settings?.videoModel && context.session.models
-            ? defaultVideoModel(await context.session.models("video.image-to-video")) : null;
-        const model = str(args.model) ?? listed ?? undefined;
-        if (step === "animate" && (model || str(args.quality))) {
-            story = { ...story, settings: { ...story.settings, ...(model ? { videoModel: model } : {}), ...(str(args.quality) ? { quality: str(args.quality) } : {}) } };
-            await saveStory(context.session, story);
+        if (step === "animate") {
+            // The model asked for, else the one chosen before, else the best one the provider sells (seedance-2-5,
+            // else seedance-2-mini, ...), with what a remake needs to know of it (its lengths, its reference limits).
+            const list = context.session.models ? videoModelChoices(await context.session.models("video.image-to-video")) : [];
+            const id = str(args.model) ?? story.settings?.videoModel ?? list[0]?.id;
+            const model: Pick<ProviderModel, "id" | "durations" | "referenceVideos"> | undefined = list.find((m) => m.id === id) ?? (id ? { id } : undefined);
+            let next = story;
+            if (model && (list.length > 0 || str(args.model)) && !sameVideoModel(next, model)) next = withVideoModel(next, model);
+            if (str(args.quality)) next = { ...next, settings: { ...next.settings, quality: str(args.quality) } };
+            if (typeof args.keep_motion === "boolean" && next.source?.kind === "copy") next = { ...next, source: { ...next.source, keepMotion: args.keep_motion } };
+            if (next !== story) {
+                story = next;
+                await saveStory(context.session, story);
+            }
         }
         const ids = Array.isArray(args.ids) ? (args.ids as unknown[]).filter((id): id is string => typeof id === "string") : undefined;
         const redo = args.redo === true;
@@ -104,8 +114,10 @@ function stepTool(tool: string, step: StoryStep): ToolHandler {
         const refused = priceGate(tool, estimate, args);
         if (refused) return refused;
         const count = estimate?.items.length;
+        const remade = step === "animate" ? storyItems(story, "animate").filter((i) => i.remake && (!ids || ids.includes(i.id))).map((i) => i.id) : [];
+        const remakeText = remade.length > 0 ? ` ${plural(remade.length, "shot")} (${remade.join(", ")}) ${remade.length === 1 ? "is" : "are"} remade from the original shot (its clip is the reference video; its seconds are billed with the clip).` : "";
         if (args.estimate_only === true) {
-            return success(`${tool} would make ${plural(count ?? 0, STEP_WORDS[step])}, estimated ${estimate?.label ?? "(no price from this host)"}. Nothing was sent.`, { estimate: estimate?.label ?? null, estimateUsd: estimate?.usd ?? null, items: estimate?.items.map((i) => i.id) ?? [] });
+            return success(`${tool} would make ${plural(count ?? 0, STEP_WORDS[step])}, estimated ${estimate?.label ?? "(no price from this host)"}.${remakeText} Nothing was sent.`, { estimate: estimate?.label ?? null, estimateUsd: estimate?.usd ?? null, items: estimate?.items.map((i) => i.id) ?? [], ...(step === "animate" ? { remade } : {}) });
         }
         const outcome = await runStep(host, story, step, { ...options, signal: context.signal, onStory: (s) => saveStory(context.session, s) });
         const made = outcome.made.length;
@@ -113,6 +125,7 @@ function stepTool(tool: string, step: StoryStep): ToolHandler {
         const flagged = outcome.flagged.map((f) => `${f.id} (${f.unread ? "the check could not tell" : f.misses.map((m) => `${m.id}${m.reason ? `: ${m.reason}` : ""}`).join("; ")})`).join(", ");
         const text = [
             `${tool} made ${plural(made, STEP_WORDS[step])}${made ? ` (${outcome.made.join(", ")})` : ""}, charged ${formatUsd(outcome.spentUsd)}${estimate ? `; estimated ${estimate.label}` : ""}.`,
+            remakeText ? `${remakeText} Watch each clip beside its original shot before the reel.` : "",
             outcome.redrawn.length ? ` Redrawn after the cast check: ${outcome.redrawn.join(", ")}.` : "",
             flagged ? ` Check these shots (a character still looks off their sheet): ${flagged}. Look at them, fix the text if needed, and redo with ids + redo.` : "",
             failed ? ` Not made: ${failed}. Nothing was retried; call the tool again to retry.` : "",
@@ -121,14 +134,17 @@ function stepTool(tool: string, step: StoryStep): ToolHandler {
         ].join("");
         const data = {
             ...storyData(outcome.story), made: outcome.made, failed: outcome.failed, cancelled: outcome.cancelled, costUsd: outcome.spentUsd, estimate: estimate?.label ?? null,
-            ...(step === "frames" ? { redrawn: outcome.redrawn, flagged: outcome.flagged } : {}),
+            ...(step === "frames" ? { redrawn: outcome.redrawn, flagged: outcome.flagged } : {}), ...(step === "animate" ? { remade } : {}),
         };
         return made > 0 || outcome.failed.length === 0 ? success(text, data) : failure(text, data);
     };
 }
 
 /** Runs a draft through the story writer (priced first) and stores it as the project's story film. */
-async function runDraft(tool: string, request: DraftRequest, source: Parameters<typeof parseDraftReply>[1], args: Args, context: ToolContext): Promise<ToolOutcome> {
+async function runDraft(
+    tool: string, request: DraftRequest, source: Parameters<typeof parseDraftReply>[1], args: Args, context: ToolContext,
+    finish?: { place(story: StoryFilm): StoryFilm; note: string },
+): Promise<ToolOutcome> {
     const { session } = context;
     const reply = session.estimate ? await session.estimate({ capability: request.capability, input: request.input, units: {} }) : null;
     if (reply?.kind === "unavailable") return unavailable(reply.reason, request.capability);
@@ -151,9 +167,10 @@ async function runDraft(tool: string, request: DraftRequest, source: Parameters<
     if (!parsed.ok) return failure(`${tool}: the draft did not read as a story film (${parsed.errors.slice(0, 5).join("; ")}). Charged ${formatUsd(cost)}. Fix it and send it with story_film_create { story }.`, { reply: text.slice(0, 20_000), errors: parsed.errors });
     // A new draft replaces the story (its ids name other shots): nothing is carried over but what it cost.
     const previous = await readStory(session);
-    const story: StoryFilm = { ...parsed.story, spentUsd: Math.round(((previous?.spentUsd ?? 0) + cost) * 1e6) / 1e6 };
+    const placed = finish ? finish.place(parsed.story) : parsed.story;
+    const story: StoryFilm = { ...placed, spentUsd: Math.round(((previous?.spentUsd ?? 0) + cost) * 1e6) / 1e6 };
     await saveStory(session, story);
-    return success(`${tool} drafted the story film (charged ${formatUsd(cost)}${label ? `; estimated ${label}` : ""}). Review and edit it (story_film_create { story }) before drawing. ${summaryText(story)}`, storyData(story));
+    return success(`${tool} drafted the story film (charged ${formatUsd(cost)}${label ? `; estimated ${label}` : ""}).${finish ? ` ${finish.note}` : ""} Review and edit it (story_film_create { story }) before drawing. ${summaryText(story)}`, storyData(story));
 }
 
 const storyFilmCreate: ToolHandler = async (args, context) => {
@@ -176,18 +193,47 @@ const storyFilmCreate: ToolHandler = async (args, context) => {
 
 const SHEET_FRAMES = 16;
 
+/** Shots an agent passes with its own sheet ([{ start, end }] seconds of the video), in order, or null. */
+function shotsArg(value: unknown): ShotRange[] | null | string {
+    if (value === undefined || value === null) return null;
+    if (!Array.isArray(value) || value.length === 0 || value.length > 40) return "shots must list 1 to 40 { start, end } ranges of the video, in order.";
+    const shots: ShotRange[] = [];
+    for (const raw of value as Args[]) {
+        const start = num(raw?.start);
+        const end = num(raw?.end);
+        if (start === undefined || end === undefined || start < 0 || end <= start || (shots.length > 0 && start < shots[shots.length - 1]!.end - 1e-6)) return "each shot needs start and end seconds, end after start, in order without overlaps.";
+        shots.push({ start, end });
+    }
+    return shots;
+}
+
+/** What story_film_copy says when the person has not confirmed the rights to the video. */
+export const COPY_RIGHTS_NEEDED = "story_film_copy needs rights_confirmed: true: the person must own the video or have the rights to remake it. Ask them, and pass it only when they say so. Nothing was sent.";
+
 const storyFilmCopy: ToolHandler = async (args, context) => {
     const { session } = context;
-    const cast = args.cast === "keep" ? "keep" : "original";
+    if (args.rights_confirmed !== true) return failure(COPY_RIGHTS_NEEDED);
+    // A close copy by default: the video's characters (drawn in the chosen style) and title; "original" for new ones.
+    const cast = args.cast === "original" ? "original" : "keep";
+    const choices = { cast, ...(str(args.title) ? { title: str(args.title) } : {}), ...(str(args.style) ? { style: str(args.style) } : {}) } as const;
     let mediaUrl = str(args.media_url);
     const link = str(args.video_url);
+    // "Keep the original motion" (a remake of each shot): on by default when the video model takes reference videos.
+    const videoModels = session.models ? videoModelChoices(await session.models("video.image-to-video")) : [];
+    const videoModel = videoModels[0] ?? null;
+    const keepMotion = typeof args.keep_motion === "boolean" ? args.keep_motion : Boolean(videoModel?.referenceVideos);
     let sheet: { image: unknown; frames: number; everySeconds: number; durationSeconds: number } | null = null;
+    let shots: Array<ShotRange & { clip?: string; frame?: string }> | null = null;
+    let shotNote = "";
     const sheetUrl = str(args.sheet_image_url);
     if (sheetUrl) {
         const frames = Math.max(1, Math.round(num(args.frames) ?? SHEET_FRAMES));
         const duration = num(args.duration_seconds) ?? 0;
         const every = num(args.every_seconds) ?? (duration > 0 ? duration / frames : 0);
         sheet = { image: sheetUrl.startsWith("https://") ? sheetUrl : { mediaUrl: sheetUrl }, frames, everySeconds: every, durationSeconds: duration || every * frames };
+        const given = shotsArg(args.shots);
+        if (typeof given === "string") return failure(`story_film_copy: ${given}`);
+        if (given) shots = given;
     } else {
         if (!mediaUrl && link) {
             if (args.estimate_only === true) return success("story_film_copy would download the video (free), sample its frames, and ask the story writer for a draft. Call it without estimate_only, or pass sheet_image_url to price the draft first.");
@@ -204,18 +250,49 @@ const storyFilmCopy: ToolHandler = async (args, context) => {
         if (!session.host.storySheet) {
             return unavailable(`Sampling a video's frames needs the editor or mcp serve --ffmpeg. The video is in the project at ${mediaUrl}: make a 4x4 contact sheet of its frames (ffmpeg -i video -vf "fps=16/DURATION,scale=480:-2,tile=4x4" -frames:v 1 sheet.jpg), then call story_film_copy with sheet_image_url.`);
         }
+        let times: number[] | undefined;
+        if (session.host.storyShots) {
+            try {
+                // The real shots, and (keeping the motion, on a real run) each one cut out as a project video.
+                const found = await session.host.storyShots(mediaUrl, keepMotion && args.estimate_only !== true, context.signal);
+                shots = found.shots;
+                if (found.truncated) shotNote = ` The video has more shots than a story holds: only the first ${shots.length} were kept.`;
+                times = shotSheetTimes(shots).map((f) => f.time);
+            } catch (error) {
+                return failure(`story_film_copy could not find the video's shots: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
         try {
-            const made = await session.host.storySheet(mediaUrl, SHEET_FRAMES, context.signal);
+            const made = await session.host.storySheet(mediaUrl, SHEET_FRAMES, context.signal, times);
             sheet = { image: { mediaUrl: made.url }, frames: made.frames, everySeconds: made.everySeconds, durationSeconds: made.durationSeconds };
         } catch (error) {
             return failure(`story_film_copy could not sample the video's frames: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
+    const frames = shots ? shotSheetTimes(shots) : [];
+    const table = shots && frames.length === sheet.frames
+        ? shots.map((shot, i) => ({ start: shot.start, end: shot.end, firstFrame: frames.findIndex((f) => f.shot === i) + 1, lastFrame: frames.map((f) => f.shot).lastIndexOf(i) + 1 }))
+        : shots?.map((shot) => ({ start: shot.start, end: shot.end, firstFrame: 1, lastFrame: sheet!.frames }));
     const request = copyDraftRequest({
         sheet: sheet.image, frames: sheet.frames, everySeconds: sheet.everySeconds, durationSeconds: sheet.durationSeconds, cast,
-        ...(str(args.notes) ? { notes: str(args.notes) } : {}),
+        ...(str(args.notes) ? { notes: str(args.notes) } : {}), ...(table ? { shots: table } : {}),
+        ...(choices.title ? { title: choices.title } : {}), ...(choices.style ? { style: choices.style } : {}),
     });
-    return runDraft("story_film_copy", request, { kind: "copy", cast, ...(mediaUrl ? { mediaUrl } : {}), ...(link ? { link } : {}) }, args, context);
+    const source: StorySource = { kind: "copy", cast, keepMotion: keepMotion && shots !== null, ...(mediaUrl ? { mediaUrl } : {}), ...(link ? { link } : {}) };
+    const remakeNote = !keepMotion ? "Shots animate from their keyframes (keep_motion off)."
+        : !shots ? "This host cannot find the video's shots, so shots animate from their keyframes: pass shots [{ start, end }] with sheet_image_url to remake each one."
+            : !videoModel?.referenceVideos ? "The video model does not take reference videos, so shots animate from their keyframes."
+                : `Each story shot is placed on one of the video's ${shots.length} real shots and is remade from it at story_film_animate (a shot of ${videoModel.referenceVideos.editMinSeconds ?? 0} s or more is restyled as it is, keeping its framing; a shorter one copies its motion; its seconds are billed with the clip).${shotNote}`;
+    const finish = shots
+        ? {
+            place: (story: StoryFilm) => {
+                const placed = withShotSources(withCopyChoices({ ...story, source }, choices), shots!);
+                return videoModel ? withVideoModel(placed, videoModel) : placed;
+            },
+            note: `${remakeNote} Each keyframe is redrawn from its shot's first frame (the same framing).`,
+        }
+        : { place: (story: StoryFilm) => withCopyChoices(story, choices), note: remakeNote };
+    return runDraft("story_film_copy", request, source, args, context, finish);
 };
 
 const storyFilmAssemble: ToolHandler = async (_args, { session }) => {

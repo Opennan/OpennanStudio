@@ -191,7 +191,11 @@ export class StoryFilmSession {
      * Drafts the story with the story writer and stores it (it replaces the story: a new draft's shots are other
      * shots). The draft's problems, when it does not read as a story, are kept for the person to see.
      */
-    async draft(request: DraftRequest, source: Parameters<typeof parseDraftReply>[1], holdUsd: number, before?: (signal: AbortSignal) => Promise<DraftRequest | null>): Promise<boolean> {
+    async draft(
+        request: DraftRequest, source: Parameters<typeof parseDraftReply>[1], holdUsd: number, before?: (signal: AbortSignal) => Promise<DraftRequest | null>,
+        /** The parsed draft before it is stored (a copy places its shots on the video's real shots). */
+        finish?: (story: StoryFilm) => StoryFilm,
+    ): Promise<boolean> {
         if (this.stateValue.running) return false;
         if (!(await this.ready("text.generate", "Story writer", holdUsd))) return false;
         const abort = new AbortController();
@@ -212,7 +216,8 @@ export class StoryFilmSession {
                 return false;
             }
             const spent = (this.story()?.spentUsd ?? 0) + (ran.costUsd ?? 0);
-            await this.save({ ...parsed.story, ...(spent > 0 ? { spentUsd: Math.round(spent * 1e6) / 1e6 } : {}) });
+            const drafted = finish ? finish(parsed.story) : parsed.story;
+            await this.save({ ...drafted, ...(spent > 0 ? { spentUsd: Math.round(spent * 1e6) / 1e6 } : {}) });
             return true;
         } catch (error) {
             this.set({ error: errorText(error) });
@@ -222,6 +227,11 @@ export class StoryFilmSession {
             this.set({ running: null });
             this.options.refreshAccount?.();
         }
+    }
+
+    /** Sets the stage words of the running step (the copy's "Finding the shots", "Cutting shot 2 of 9"). */
+    stage(label: string): void {
+        if (this.stateValue.running) this.set({ running: { ...this.stateValue.running, label } });
     }
 
     /** Runs one capability for the wizard (the link download) under the running state. */
