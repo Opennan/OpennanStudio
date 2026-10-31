@@ -1,7 +1,8 @@
 // Story film's "Remake from your video" in the page: the copied video's shots are found here (frames decoded small with
 // mediabunny, each compared with the one before; @opennan/story-film turns the differences into cuts and shots of
-// 2-15 s), and each shot is cut out as its own project video, the clip a remake sends as its reference.
-import { findCuts, splitShots, type ShotRange } from "@opennan/story-film";
+// 2-15 s); each shot's first frame is saved as a project image (its keyframe is redrawn from it, keeping the framing)
+// and each shot can be cut out as its own project video, the clip a remake sends as its reference.
+import { findCuts, firstFrameTime, splitShots, type ShotRange } from "@opennan/story-film";
 import type { MediaLibraryBackend, TimelineBackend } from "@opennan/timeline-core";
 import { LIBRARY_CHANGED_EVENT } from "./import-generated";
 
@@ -82,6 +83,39 @@ export function createStoryShots(options: StoryShotsOptions) {
     }
 
     /**
+     * Each shot's first frame (two frames in) as a project image ("story-shot-01.jpg"), in order: the copied keyframe is
+     * redrawn from it, so it keeps the original framing. At most 1920 px wide.
+     */
+    async function frames(mediaUrl: string, shots: readonly ShotRange[], signal?: AbortSignal): Promise<string[]> {
+        const mb = await load();
+        const input = new mb.Input({ source: new mb.UrlSource(options.resolveMediaUrl(mediaUrl)), formats: mb.ALL_FORMATS });
+        try {
+            const track = await input.getPrimaryVideoTrack();
+            if (!track || !(await track.canDecode())) throw new Error("This browser cannot read this video's frames.");
+            const width = Math.min(track.displayWidth, 1920);
+            const sink = new mb.CanvasSink(track, { width, poolSize: 1 });
+            const urls: string[] = [];
+            for (const [index, shot] of shots.entries()) {
+                if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+                const wrapped = await sink.getCanvas(firstFrameTime(shot));
+                if (!wrapped) throw new Error(`Shot ${index + 1}'s first frame could not be read.`);
+                const frame = wrapped.canvas as OffscreenCanvas;
+                const still = new OffscreenCanvas(frame.width, frame.height);
+                still.getContext("2d")!.drawImage(frame, 0, 0);
+                const blob = await still.convertToBlob({ type: "image/jpeg", quality: 0.92 });
+                const file = new File([blob], `story-shot-${String(index + 1).padStart(2, "0")}.jpg`, { type: "image/jpeg" });
+                const uploaded = await options.backend.uploadFile(options.projectId, file, "image");
+                await options.backend.saveToLibrary(options.projectId, uploaded);
+                urls.push(uploaded.url);
+            }
+            window.dispatchEvent(new CustomEvent(LIBRARY_CHANGED_EVENT, { detail: { projectId: options.projectId } }));
+            return urls;
+        } finally {
+            input.dispose?.();
+        }
+    }
+
+    /**
      * Each shot cut out of the video as its own project video ("story-shot-01.mp4"), in order: H.264 MP4 where the
      * browser encodes it (else VP9 WebM; the remake prepares an MP4 again when it sends one), no sound.
      */
@@ -123,7 +157,7 @@ export function createStoryShots(options: StoryShotsOptions) {
         return urls;
     }
 
-    return { find, cut };
+    return { find, frames, cut };
 }
 
 export type StoryShots = ReturnType<typeof createStoryShots>;

@@ -2,8 +2,9 @@
 // it; the draft is edited and saved) → cast sheets → keyframes → clips → music → "Put on timeline" (9:16, the film on
 // V1, the title, the music). The cast check looks at each keyframe: a miss is redrawn with the look restated, and a
 // shot still off after its redraw says "Check this shot". A second pass pays for nothing; one keyframe is redrawn on its
-// own. Copying a video from Media sends its frames on one contact sheet with an original cast. A copy that keeps the
-// original motion cuts the video into its shots and remakes each one with its clip as the reference video.
+// own. Copying a video from Media needs its rights confirmed and copies it closely (its shots on one sheet, the same
+// characters and title); a copy that keeps the original motion redraws each keyframe from its shot's first frame and
+// edits each shot (its clip as the reference video, restyled as it is).
 import { expect, test, type Page } from "@playwright/test";
 import { FAKE_OPENNAN, fakeState } from "./fixtures/fake-opennan";
 import { importFixtures, signInOpenNan } from "./ai-helpers";
@@ -141,67 +142,92 @@ test("writes, draws, animates, scores and lays out a story film; a second pass p
     expect(await posts("/v1/chat/completions")).toHaveLength(chats);
 });
 
-test("copies a video from Media: its frames on one contact sheet, an original cast by default", async ({ page }) => {
+test("copies a video from Media closely: only once its rights are confirmed, its shots on one sheet, the same characters and title", async ({ page }) => {
     await createProject(page, "Copy a video");
     await signInOpenNan(page);
     await importFixtures(page, ["clip-360p.webm"]);
     await openStoryFilm(page);
     await page.getByRole("radio", { name: "Copy a video" }).click();
-    await expect(page.getByLabel("New cast and title (keeps the beats)")).toBeChecked();
+    // A close copy by default: the video's characters, its title (its name in Media); new characters are the choice.
+    await expect(page.getByLabel("Keep the characters (drawn in your style)")).toBeChecked();
+    await expect(page.getByLabel("New characters and a new title (same roles)")).not.toBeChecked();
+    await expect(page.getByTestId("story-film-copy-title")).toHaveValue("clip-360p");
     const copy = page.getByTestId("story-film-copy");
     await expect(copy).toHaveText(/^≈ \$\d+\.\d+ · Read the video$/, { timeout: 20_000 });
+    // Nothing runs until the person says they have the rights to the video.
+    await expect(copy).toBeDisabled();
+    await page.getByTestId("story-film-rights").check();
+    await expect(copy).toBeEnabled();
+    await page.getByTestId("story-film-copy-style").fill("warm gouache, soft light");
     await queueReply(JSON.stringify({ ...STORY, title: "Umbrella Day" }));
     const chatsBefore = (await posts("/v1/chat/completions")).length;
     await copy.click();
-    await expect(page.getByTestId("story-film-title")).toHaveValue("Umbrella Day", { timeout: 60_000 });
+    await expect(page.getByTestId("story-film-editor")).toBeVisible({ timeout: 60_000 });
+    // The video's title is kept over the draft's; the style is the person's.
+    await expect(page.getByTestId("story-film-title")).toHaveValue("clip-360p");
+    expect(JSON.parse((await snapshot(page)).project!.storyFilmJson!)).toMatchObject({ style: "warm gouache, soft light", source: { kind: "copy", cast: "keep" } });
     const chat = (await posts("/v1/chat/completions"))[chatsBefore]!;
     expect((chat.body as { model: string }).model).toBe("text-vision");
-    expect(JSON.stringify(chat.body)).toMatch(/ORIGINAL cast/);
+    expect(JSON.stringify(chat.body)).toMatch(/Copy it closely/);
+    expect(JSON.stringify(chat.body)).toMatch(/Keep the video's characters/);
     expect(JSON.stringify(chat.body)).toMatch(/image_url/);
-    // The contact sheet is in Media (behind the window: close it, open Media).
+    // The contact sheet and the shot's first frame are in Media (behind the window: close it, open Media).
     await page.getByRole("dialog", { name: "Story film" }).getByRole("button", { name: "Close", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Story film" })).toHaveCount(0);
     await page.getByTestId("editor-library").getByRole("tab", { name: "Media" }).click();
     await expect(page.getByTestId("media-item").filter({ hasText: "story-frames" })).toHaveCount(1);
+    await expect(page.getByTestId("media-item").filter({ hasText: "story-shot-01.jpg" })).toHaveCount(1);
 });
 
 test("remakes a copied video shot by shot: its shots cut out, each sent as the reference video of its clip", async ({ page }) => {
     await createProject(page, "Remake a video");
     await signInOpenNan(page);
-    // 4 s of a test card, then 4 s of gradients: one cut, two real shots.
+    // 5 s of a test card, then 5 s of gradients: one cut, two real shots.
     await importFixtures(page, ["two-shots.webm"]);
     await openStoryFilm(page);
     await page.getByRole("radio", { name: "Copy a video" }).click();
     const keepMotion = page.getByTestId("story-film-keep-motion");
     // On by default: the default video model takes reference videos.
     await expect(keepMotion).toBeChecked({ timeout: 20_000 });
-    await expect(page.getByText("Only copy or remake a video you have the rights to.")).toBeVisible();
     const copy = page.getByTestId("story-film-copy");
     await expect(copy).toHaveText(/^≈ \$\d+\.\d+ · Read the video$/, { timeout: 20_000 });
+    await expect(copy).toBeDisabled();
+    await page.getByTestId("story-film-rights").check();
+    await page.getByTestId("story-film-copy-title").fill("Second Take");
     const chatsBefore = (await posts("/v1/chat/completions")).length;
-    await queueReply(JSON.stringify({ ...STORY, title: "Second Take" }));
+    await queueReply(JSON.stringify({ ...STORY, title: "The Writer's Title" }));
     await copy.click();
+    // The title the person typed wins over the draft's.
     await expect(page.getByTestId("story-film-title")).toHaveValue("Second Take", { timeout: 90_000 });
     // The story writer saw a sheet of each shot and was told the real shots.
     const chat = (await posts("/v1/chat/completions"))[chatsBefore]!;
     expect(JSON.stringify(chat.body)).toMatch(/exactly 2 shots \(cut to cut\)/);
     const stored = JSON.parse((await snapshot(page)).project!.storyFilmJson!) as {
-        source: Record<string, unknown>; settings: Record<string, unknown>; shots: Array<{ seconds: number; source?: { start: number; end: number; clip?: string } }>;
+        source: Record<string, unknown>; settings: Record<string, unknown>; shots: Array<{ seconds: number; source?: { start: number; end: number; clip?: string; frame?: string } }>;
     };
-    expect(stored.source).toMatchObject({ kind: "copy", cast: "original", keepMotion: true, mediaUrl: expect.any(String) });
+    expect(stored.source).toMatchObject({ kind: "copy", cast: "keep", keepMotion: true, mediaUrl: expect.any(String) });
     expect(stored.settings).toMatchObject({ videoModel: "seedance-2-5", videoReference: { minSeconds: 2 } });
     expect(stored.shots).toHaveLength(2);
     for (const shot of stored.shots) {
         expect(shot.source?.clip).toEqual(expect.any(String));
-        expect(shot.source!.end - shot.source!.start).toBeGreaterThan(3.5);
-        expect(shot.source!.end - shot.source!.start).toBeLessThan(4.5);
+        expect(shot.source?.frame).toEqual(expect.any(String));
+        expect(shot.source!.end - shot.source!.start).toBeGreaterThan(4.5);
+        expect(shot.source!.end - shot.source!.start).toBeLessThan(5.5);
     }
 
     await page.getByRole("button", { name: "Cast", exact: true }).click();
     await runStep(page, "story-film-run-cast", ["story-film-item-theo", "story-film-item-mae"]);
     await page.getByRole("button", { name: "Shots", exact: true }).click();
     await page.getByTestId("story-film-cast-check").uncheck();
+    const imagesBefore = (await posts("/v1/images/generations")).length;
     await runStep(page, "story-film-run-frames", ["story-film-item-s01", "story-film-item-s02"]);
+    // Each keyframe is redrawn from its shot's own first frame (an image edit), keeping the original framing.
+    const keyframes = (await posts("/v1/images/generations")).slice(imagesBefore).map((r) => r.body as Record<string, unknown>);
+    expect(keyframes).toHaveLength(2);
+    for (const body of keyframes) {
+        expect(body.image).toEqual(expect.stringMatching(/\/files\/uploads\/temp\/.+\.jpe?g$/));
+        expect(String(body.prompt)).toMatch(/^Redraw reference image 1 exactly: the same composition, camera angle, framing, poses/);
+    }
 
     await page.getByRole("button", { name: "Animate", exact: true }).click();
     await expect(page.getByTestId("story-film-animate-intro")).toContainText("Each shot is remade from its original shot", { timeout: 20_000 });
@@ -214,16 +240,17 @@ test("remakes a copied video shot by shot: its shots cut out, each sent as the r
     await runStep(page, "story-film-run-animate", ["story-film-clip-s01", "story-film-clip-s02"]);
     // Priced with the reference seconds.
     const quoted = (await fakeState()).requests.filter((r) => r.path === "/v1/quotes").map((r) => r.body as Record<string, unknown>);
-    expect(quoted.some((b) => Array.isArray(b.reference_videos) && b.reference_mode === "reference" && typeof b.seconds === "number")).toBe(true);
+    expect(quoted.some((b) => Array.isArray(b.reference_videos) && b.reference_mode === "editing" && typeof b.seconds === "number")).toBe(true);
     const videos = (await posts("/v1/videos/generations")).slice(videosBefore).map((r) => r.body as Record<string, unknown>);
     expect(videos).toHaveLength(2);
     for (const body of videos) {
-        expect(body).toMatchObject({ model: "seedance-2-5", quality: "720p", reference_mode: "reference", generate_audio: false, aspect_ratio: "16:9" });
+        // 5 s shots: edited (restyled as they are, framing kept), not just their motion copied.
+        expect(body).toMatchObject({ model: "seedance-2-5", quality: "720p", reference_mode: "editing", generate_audio: false, aspect_ratio: "16:9" });
         expect(body.reference_videos).toEqual([expect.stringMatching(/\/files\/uploads\/temp\/.+\.mp4$/)]);
         expect(body).not.toHaveProperty("image");
         // The cast's sheets (shot 1: Theo and Mae; shot 2: Mae), then the shot's keyframe (clips run two at a time).
         expect(body.reference_images).toHaveLength(String(body.prompt).includes("Theo") ? 3 : 2);
-        expect(String(body.prompt)).toMatch(/^Recreate @Video1 exactly: same motion, timing, blocking and camera move/);
+        expect(String(body.prompt)).toMatch(/^Turn @Video1 into a hand-drawn animated short film: .*Keep every movement, the timing, the framing and the camera of @Video1 exactly\./);
     }
     // The reference went up as an MP4 large enough for the model (a 360p source is scaled up).
     expect((await fakeState()).uploads.slice(uploadsBefore).filter((u) => u.contentType === "video/mp4").length).toBe(2);

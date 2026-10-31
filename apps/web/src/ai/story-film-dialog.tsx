@@ -11,7 +11,7 @@ import {
 } from "@opennan/timeline-core";
 import {
     STORY_DEFAULTS, STORY_LIMITS, STORY_MEDIUMS, blankStory, copyDraftRequest, draftTextModel, isFlagged, isStale, mergeStory, parseStoryFilm, readStoryJson, sameVideoModel,
-    shotSheetTimes, storyItems, videoModelChoices, withShotSources, withVideoModel, writeDraftRequest, type DraftRequest, type ItemUpdate, type ShotRange, type StepEstimate,
+    shotSheetTimes, storyItems, videoModelChoices, withCopyChoices, withShotSources, withVideoModel, writeDraftRequest, type DraftRequest, type ItemUpdate, type ShotRange, type StepEstimate,
     type StepOptions, type StoryFilm, type StoryItem, type StoryMedium, type StoryStep,
 } from "@opennan/story-film";
 import { useEditorStore, useTimelineController, useTimelineMedia, useTimelineMessages } from "@opennan/timeline-react";
@@ -286,6 +286,11 @@ function useDefaultVideoModel(session: StoryFilmSession): ProviderModel | null {
     return model;
 }
 
+/** A video's name in Media as a title: no extension, words for underscores and dashes ("Romance_of_an_Umbrella.webm"). */
+export function videoTitle(name: string): string {
+    return name.replace(/\.[A-Za-z0-9]{2,5}$/, "").replace(/[_]+/g, " ").replace(/\s+/g, " ").trim().slice(0, STORY_LIMITS.title);
+}
+
 /** The copy prompt's shot table priced at its longest (a story's most shots), so the price is never under the call sent. */
 const WORST_SHOTS = Array.from({ length: STORY_LIMITS.shots }, (_, i) => ({ start: i * 15, end: i * 15 + 14.99, firstFrame: i + 1, lastFrame: i + 1 }));
 
@@ -297,7 +302,11 @@ function CopyForm({ session, sheet, shots, state, onDrafted }: { session: StoryF
     const [videos, setVideos] = useState<Array<{ url: string; name: string }>>([]);
     const [chosen, setChosen] = useState("");
     const [link, setLink] = useState("");
-    const [cast, setCast] = useState<"original" | "keep">("original");
+    // A close copy by default: the video's characters, drawn in the chosen style; new characters are the choice.
+    const [cast, setCast] = useState<"original" | "keep">("keep");
+    const [rights, setRights] = useState(false);
+    const [style, setStyle] = useState("");
+    const [title, setTitle] = useState<string | null>(null);
     const [notes, setNotes] = useState("");
     const [stage, setStage] = useState<string | null>(null);
     const [models, setModels] = useState<ProviderModel[]>([]);
@@ -322,17 +331,24 @@ function CopyForm({ session, sheet, shots, state, onDrafted }: { session: StoryF
             live = false;
         };
     }, [backend, projectId, refresh]);
+    // The video's own title (its name in Media) unless the person types one; none for a link.
+    const videoName = source === "media" ? (videos.find((v) => v.url === chosen)?.name ?? "") : "";
+    const titleText = title ?? videoTitle(videoName);
+    const choices = { cast, ...(titleText.trim() ? { title: titleText.trim() } : {}), ...(style.trim() ? { style: style.trim() } : {}) };
     // Priced as the call that will be sent: one contact sheet of the video's frames.
     const model = draftTextModel(models, true);
     const placeholder = useMemo(() => {
-        const draft = copyDraftRequest({ sheet: "https://opennan.com/studio/quote-input.png", frames: STORY_LIMITS.shots, everySeconds: 4, durationSeconds: 600, cast, shots: WORST_SHOTS, ...(notes.trim() ? { notes } : {}) });
+        const draft = copyDraftRequest({
+            sheet: "https://opennan.com/studio/quote-input.png", frames: STORY_LIMITS.shots, everySeconds: 4, durationSeconds: 600, cast, shots: WORST_SHOTS,
+            title: "x".repeat(STORY_LIMITS.title), ...(style.trim() ? { style } : {}), ...(notes.trim() ? { notes } : {}),
+        });
         return model ? { ...draft, input: { ...draft.input, model } as DraftRequest["input"] } : draft;
-    }, [cast, notes, model]);
+    }, [cast, notes, model, style]);
     const price = useDraftPrice(session, placeholder);
-    const ready = source === "media" ? Boolean(chosen) : source === "link" ? /^https:\/\/\S+$/.test(link.trim()) : false;
+    const ready = rights && (source === "media" ? Boolean(chosen) : source === "link" ? /^https:\/\/\S+$/.test(link.trim()) : false);
     const run = () => {
         // What the copy found, for placing the draft's shots on the real ones once it is written.
-        let found: { mediaUrl: string; shots: Array<ShotRange & { clip?: string }> } | null = null;
+        let found: { mediaUrl: string; shots: Array<ShotRange & { clip?: string; frame?: string }> } | null = null;
         const progress = (words: string) => {
             setStage(words);
             session.stage(words);
@@ -346,9 +362,11 @@ function CopyForm({ session, sheet, shots, state, onDrafted }: { session: StoryF
             progress(t("copyFindingShots"));
             const cuts = await shots.find(mediaUrl, signal);
             if (!cuts || cuts.shots.length === 0) throw new Error(t("copyNoFrames"));
+            // Each shot's first frame (its keyframe keeps the original framing), then its clip when keeping the motion.
+            const stills = await shots.frames(mediaUrl, cuts.shots, signal);
             let clips: string[] = [];
             if (keepMotion) clips = await shots.cut(mediaUrl, cuts.shots, signal, (i) => progress(t("copyCutting", { n: i + 1, count: cuts.shots.length })));
-            found = { mediaUrl, shots: cuts.shots.map((shot, i) => ({ ...shot, ...(clips[i] ? { clip: clips[i] } : {}) })) };
+            found = { mediaUrl, shots: cuts.shots.map((shot, i) => ({ ...shot, ...(stills[i] ? { frame: stills[i] } : {}), ...(clips[i] ? { clip: clips[i] } : {}) })) };
             progress(t("copySampling"));
             const frames = shotSheetTimes(cuts.shots);
             const made = await sheet(mediaUrl, signal, frames);
@@ -357,11 +375,13 @@ function CopyForm({ session, sheet, shots, state, onDrafted }: { session: StoryF
             const table = cuts.shots.map((shot, i) => ({ ...shot, firstFrame: frames.findIndex((f) => f.shot === i) + 1, lastFrame: frames.map((f) => f.shot).lastIndexOf(i) + 1 }));
             const request = copyDraftRequest({
                 sheet: { mediaUrl: made.url }, frames: made.frames, everySeconds: made.everySeconds, durationSeconds: made.durationSeconds, cast, shots: table, ...(notes.trim() ? { notes } : {}),
+                ...(choices.title ? { title: choices.title } : {}), ...(choices.style ? { style: choices.style } : {}),
             });
             return model ? { ...request, input: { ...request.input, model } as DraftRequest["input"] } : request;
         }, (drafted) => {
-            if (!found) return drafted;
-            const placed = withShotSources({ ...drafted, source: { kind: "copy", cast, keepMotion, mediaUrl: found.mediaUrl, ...(source === "link" ? { link: link.trim() } : {}) } }, found.shots);
+            const chosenStory = withCopyChoices(drafted, choices);
+            if (!found) return chosenStory;
+            const placed = withShotSources({ ...chosenStory, source: { kind: "copy", cast, keepMotion, mediaUrl: found.mediaUrl, ...(source === "link" ? { link: link.trim() } : {}) } }, found.shots);
             return videoModel ? withVideoModel(placed, videoModel) : placed;
         }).finally(() => setStage(null)).then((ok) => ok && onDrafted());
     };
@@ -404,10 +424,20 @@ function CopyForm({ session, sheet, shots, state, onDrafted }: { session: StoryF
                     <input className="text-input" value={link} placeholder={t("copyLinkPlaceholder")} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => e.stopPropagation()} data-testid="story-film-link" />
                 </label>
             )}
+            <div className="story-film-fields">
+                <label className="field story-film-field">
+                    <span>{t("copyTitle")}</span>
+                    <input className="text-input" value={titleText} maxLength={STORY_LIMITS.title} placeholder={t("copyTitlePlaceholder")} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.stopPropagation()} data-testid="story-film-copy-title" />
+                </label>
+                <label className="field story-film-field">
+                    <span>{t("copyStyle")}</span>
+                    <input className="text-input" value={style} maxLength={STORY_LIMITS.style} placeholder={t("copyStylePlaceholder")} onChange={(e) => setStyle(e.target.value)} onKeyDown={(e) => e.stopPropagation()} data-testid="story-film-copy-style" />
+                </label>
+            </div>
             <fieldset className="story-film-fieldset">
                 <legend className="muted">{t("copyCast")}</legend>
-                <label className="story-film-check"><input type="radio" name="story-copy-cast" checked={cast === "original"} onChange={() => setCast("original")} /> {t("copyOriginal")}</label>
                 <label className="story-film-check"><input type="radio" name="story-copy-cast" checked={cast === "keep"} onChange={() => setCast("keep")} /> {t("copyKeep")}</label>
+                <label className="story-film-check"><input type="radio" name="story-copy-cast" checked={cast === "original"} onChange={() => setCast("original")} /> {t("copyOriginal")}</label>
             </fieldset>
             <fieldset className="story-film-fieldset">
                 <label className="story-film-check">
@@ -415,7 +445,9 @@ function CopyForm({ session, sheet, shots, state, onDrafted }: { session: StoryF
                 </label>
                 <p className="muted small">{takesReferences || !videoModel ? t("copyKeepMotionHint") : t("copyKeepMotionUnavailable")}</p>
             </fieldset>
-            <p className="muted small">{t("copyRights")}</p>
+            <label className="story-film-check story-film-rights">
+                <input type="checkbox" checked={rights} onChange={(e) => setRights(e.target.checked)} data-testid="story-film-rights" /> {t("copyRights")}
+            </label>
             <label className="field story-film-field">
                 <span>{t("copyNotes")}</span>
                 <input className="text-input" value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
