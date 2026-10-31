@@ -3,7 +3,7 @@
 import type { PriceAnswer, PriceUnits } from "@opennan/provider-sdk";
 import { storyProgress } from "./edit";
 import {
-    estimateCastCheck, estimateStep, isFlagged, isStale, itemsToRun, runStep, storyItem, storyItems, videoModelChoices, type StoryFilmHost, type StoryRunResult,
+    estimateCastCheck, estimateStep, isFlagged, defaultVideoModel, isStale, itemsToRun, runStep, storyItem, storyItems, videoModelChoices, type StoryFilmHost, type StoryRunResult,
 } from "./pipeline";
 import { rainCheck } from "./test-story";
 import type { StoryFilm } from "./types";
@@ -100,7 +100,7 @@ describe("runStep", () => {
         expect(drawn[1]!.input.description).toMatch(/Match the art style, line weight and colour palette of the last reference image/);
     });
 
-    it("animates each keyframe as the first frame, 5 s 16:9 720p without sound, on seedance-2-mini", async () => {
+    it("animates each keyframe as the first frame, 5 s 16:9 720p without sound, on seedance-2-5 by default", async () => {
         const { host, sent } = fakeHost();
         let story = (await runStep(host, rainCheck(), "cast")).story;
         story = (await runStep(host, story, "frames")).story;
@@ -111,7 +111,7 @@ describe("runStep", () => {
             capability: "video.image-to-video",
             input: {
                 description: expect.stringMatching(/Keep the exact hand-drawn 2D animation style/), image: { mediaUrl: story.shots[0]!.keyframe!.url },
-                durationSeconds: 5, aspectRatio: "16:9", model: "seedance-2-mini", quality: "720p", generateAudio: false,
+                durationSeconds: 5, aspectRatio: "16:9", model: "seedance-2-5", quality: "720p", generateAudio: false,
             },
         });
         expect(out.story.shots[0]!.clip).toMatchObject({ durationSeconds: 5, costUsd: 0.26 });
@@ -356,5 +356,12 @@ describe("videoModelChoices", () => {
         const models = [{ id: "kling-3", label: "Kling 3" }, { id: "kling-o3", label: "Kling O3" }, { id: "seedance-2-mini", label: "Seedance 2 Mini" }];
         expect(videoModelChoices(models).map((m) => m.id)).toEqual(["seedance-2-mini", "kling-o3", "kling-3"]);
         expect(videoModelChoices([{ id: "seedance-2", label: "S2" }]).map((m) => m.id)).toEqual(["seedance-2"]);
+    });
+
+    it("defaults to seedance-2-5 when it is listed, else seedance-2-mini", () => {
+        const mini = { id: "seedance-2-mini", label: "Seedance 2 Mini" };
+        const full = { id: "seedance-2-5", label: "Seedance 2.5" };
+        expect(defaultVideoModel([mini, full])).toBe("seedance-2-5");
+        expect(defaultVideoModel([mini])).toBe("seedance-2-mini");
     });
 });

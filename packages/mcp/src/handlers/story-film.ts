@@ -4,7 +4,7 @@
 // accept_max_usd refuses), makes only what is missing (ids + redo remake one), and stores every result on the story as
 // it lands, so a call that times out or fails part way keeps what it paid for and the next call skips it.
 import {
-    copyDraftRequest, estimateStep, mergeStory, parseDraftReply, parseStoryFilm, readStoryJson, reelInputOf, runStep, storyJson, storyProgress, withAssembled,
+    copyDraftRequest, defaultVideoModel, estimateStep, mergeStory, parseDraftReply, parseStoryFilm, readStoryJson, reelInputOf, runStep, storyJson, storyProgress, withAssembled,
     writeDraftRequest, type DraftRequest, type StepEstimate, type StoryFilm, type StoryFilmHost, type StoryMedium, type StoryRunResult, type StoryStep,
 } from "@opennan/story-film";
 import { applyReelLayout, type CommandResult } from "@opennan/timeline-core";
@@ -85,8 +85,12 @@ function stepTool(tool: string, step: StoryStep): ToolHandler {
     return async (args, context) => {
         let story = await readStory(context.session);
         if (!story) return failure(NO_STORY);
-        if (step === "animate" && (str(args.model) || str(args.quality))) {
-            story = { ...story, settings: { ...story.settings, ...(str(args.model) ? { videoModel: str(args.model) } : {}), ...(str(args.quality) ? { quality: str(args.quality) } : {}) } };
+        // No model asked for or chosen yet: the best one the provider sells (seedance-2-5, else seedance-2-mini, ...).
+        const listed = step === "animate" && !str(args.model) && !story.settings?.videoModel && context.session.models
+            ? defaultVideoModel(await context.session.models("video.image-to-video")) : null;
+        const model = str(args.model) ?? listed ?? undefined;
+        if (step === "animate" && (model || str(args.quality))) {
+            story = { ...story, settings: { ...story.settings, ...(model ? { videoModel: model } : {}), ...(str(args.quality) ? { quality: str(args.quality) } : {}) } };
             await saveStory(context.session, story);
         }
         const ids = Array.isArray(args.ids) ? (args.ids as unknown[]).filter((id): id is string => typeof id === "string") : undefined;
