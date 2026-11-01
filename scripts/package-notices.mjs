@@ -20,6 +20,9 @@ const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-local", "
 export const ALLOWED_LICENSES = new Set([
     "MIT", "ISC", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "MPL-2.0",
     "BlueOak-1.0.0", "CC0-1.0", "CC-BY-4.0", "Unlicense", "Python-2.0",
+    // Fonts (@mcp's optional @fontsource faces, the same ones apps/web ships): redistributable with software,
+    // with their notice kept; only selling the fonts on their own is not allowed.
+    "OFL-1.1",
 ]);
 
 /** SPDX expression check: OR needs one allowed branch, AND needs every id allowed (AND binds tighter). */
