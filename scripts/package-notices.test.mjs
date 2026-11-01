@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apacheDependencyProblems, dependencyRows, licenseAllowed, mergeListings, parseListing, renderNotices, workspaceClosure } from "./package-notices.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { apacheDependencyProblems, dependencyRows, isPlatformBuild, licenseAllowed, mergeListings, parseListing, renderNotices, workspaceClosure } from "./package-notices.mjs";
 
 test("allows permissive licenses and denies the GPL family, SSPL, and unknown ones", () => {
     for (const ok of ["MIT", "Apache-2.0", "(MIT OR GPL-3.0-or-later)", "BSD-3-Clause AND MIT", "MPL-2.0", "BlueOak-1.0.0"]) {
@@ -64,4 +67,16 @@ test("appends the package's THIRD_PARTY_ASSETS after the dependency list, determ
     // Without an assets file (or with an empty one) the notices are unchanged.
     assert.equal(renderNotices("@opennan/mcp", rows, null), renderNotices("@opennan/mcp", rows));
     assert.equal(renderNotices("@opennan/mcp", rows, " \n"), renderNotices("@opennan/mcp", rows));
+});
+
+test("leaves out platform builds, so the notices match on every OS", () => {
+    const listing = { MIT: [{ name: "canvas", versions: ["1.0.0"] }, { name: "canvas-darwin-arm64", versions: ["1.0.0"] }] };
+    const rows = dependencyRows(listing, (pkg) => pkg.name.endsWith("-darwin-arm64"));
+    assert.deepEqual(rows.map((row) => row.name), ["canvas"]);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "notices-"));
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "canvas-linux-x64-gnu", os: ["linux"], cpu: ["x64"] }));
+    assert.equal(isPlatformBuild({ paths: [dir] }), true);
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "canvas" }));
+    assert.equal(isPlatformBuild({ paths: [dir] }), false);
+    assert.equal(isPlatformBuild({}), false);
 });
