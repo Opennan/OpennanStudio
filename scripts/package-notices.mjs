@@ -20,6 +20,9 @@ const PACKAGES = ["timeline-core", "export", "provider-sdk", "provider-local", "
 export const ALLOWED_LICENSES = new Set([
     "MIT", "ISC", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "MPL-2.0",
     "BlueOak-1.0.0", "CC0-1.0", "CC-BY-4.0", "Unlicense", "Python-2.0",
+    // Fonts (@mcp's optional @fontsource faces, the same ones apps/web ships): redistributable with software,
+    // with their notice kept; only selling the fonts on their own is not allowed.
+    "OFL-1.1",
 ]);
 
 /** SPDX expression check: OR needs one allowed branch, AND needs every id allowed (AND binds tighter). */
@@ -55,12 +58,29 @@ export function mergeListings(listings) {
     return merged;
 }
 
-/** A listing -> one row per name@version, without this repo's packages and without duplicates. */
-export function dependencyRows(listing) {
+/** An installed package built for one OS or CPU (its package.json has "os" or "cpu"), e.g. @napi-rs/canvas-darwin-arm64. */
+export function isPlatformBuild(pkg) {
+    for (const dir of pkg.paths ?? []) {
+        try {
+            const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+            if (manifest.os || manifest.cpu) return true;
+        } catch {
+            // unreadable: listed
+        }
+    }
+    return false;
+}
+
+/**
+ * A listing -> one row per name@version, without this repo's packages and without duplicates. Platform builds are
+ * left out (`skip`): only the current machine's is installed, so listing it made the notices differ per OS; each is
+ * a build of a listed package under its license.
+ */
+export function dependencyRows(listing, skip = isPlatformBuild) {
     const rows = new Map();
     for (const [license, packages] of Object.entries(listing)) {
         for (const pkg of packages) {
-            if (pkg.name.startsWith("@opennan/")) continue;
+            if (pkg.name.startsWith("@opennan/") || skip(pkg)) continue;
             for (const version of pkg.versions ?? [pkg.version]) {
                 rows.set(`${pkg.name}@${version}`, { name: pkg.name, version, license, homepage: pkg.homepage ?? null });
             }

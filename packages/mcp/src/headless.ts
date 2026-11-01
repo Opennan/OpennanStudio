@@ -4,7 +4,7 @@
 // with it. ai.run jobs are recorded in one AiJobBook (check_generation_status); prices come from the registry.
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { ExportRunner } from "@opennan/export";
+import type { ExportRunner, OverlayRasterizer } from "@opennan/export";
 import { AiJobBook, createAiRunner, type ProviderRegistry } from "@opennan/provider-sdk";
 import { createNodeRunner } from "@opennan/export/node";
 import {
@@ -33,6 +33,8 @@ export interface HeadlessOptions {
     exportDir?: string;
     /** A runner instead of the native ffmpeg one (tests, other hosts). */
     exportRunner?: ExportRunner;
+    /** Draws text, emoji and stickers into exports (mcp serve: createNodeRasterizer). Without one they are left out. */
+    rasterizer?: OverlayRasterizer;
     /** Overrides the exporter's frame renderer. */
     frameRenderer?: FrameRenderer;
     idFactory?: () => string;
@@ -93,7 +95,7 @@ export async function openHeadlessProject(options: HeadlessOptions): Promise<Hea
             outputPath: (container) => path.join(exportDir, `${base}-${Date.now()}.${container}`),
         });
     }
-    const exporter = runner ? createStudioExporter({ runner, effects: () => backend.listEffects("effect") }) : undefined;
+    const exporter = runner ? createStudioExporter({ runner, rasterizer: options.rasterizer, effects: () => backend.listEffects("effect") }) : undefined;
     const store = createEditorStore();
     const aiJobs = new AiJobBook();
     const analyzer = options.analyzer === undefined
