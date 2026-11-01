@@ -11,6 +11,7 @@ import { TOKEN_ENV, isValidToken } from "./auth";
 import { isLoopbackHttpUrl, startBridge } from "./bridge";
 import { AccountUsageError, cliSession, login, logout, whoami } from "./login";
 import { FFMPEG_ENV, FFPROBE_ENV, openHeadlessProject, type HeadlessOptions } from "./headless";
+import { createNodeRasterizer } from "./node-rasterizer";
 import { createHeadlessMediaPreparer } from "./headless-media";
 import { DEFAULT_HTTP_PORT, startHttpServer } from "./http";
 import { MCP_CLIENTS, buildMcpConfig, mergeMcpConfig, type McpClient, type McpLaunch } from "./mcp-config";
@@ -133,7 +134,9 @@ async function serve(argv: string[], io: CliIo): Promise<number> {
         providers.register(createOpenNanProvider(account.session, { prepareMedia: createHeadlessMediaPreparer({ mediaDir: mediaDirFor(projectFile), ffmpeg: options.ffmpeg }) }));
         await Promise.race([account.session.restore().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 3000))]);
     }
-    const studio = await openHeadlessProject({ ...options, providers, allowLoopbackDownloads: account ? /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(account.apiBase) : false });
+    // Titles and other text clips in exports: drawn with @napi-rs/canvas when it is installed.
+    const rasterizer = options.ffmpeg ? await createNodeRasterizer() : undefined;
+    const studio = await openHeadlessProject({ ...options, providers, rasterizer, allowLoopbackDownloads: account ? /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(account.apiBase) : false });
     try {
         if (!values.http) {
             const stdio = await serveStdio(studio.session, serverOptions);

@@ -189,6 +189,11 @@ describe("the cast check's request and answer", () => {
         expect(request.input.images).toEqual([{ mediaUrl: "opennan-local://media/f.png" }, { mediaUrl: "opennan-local://media/mae.png" }]);
         expect(parseCastCheck('```json\n{"characters":[{"id":"mae","match":"no","reason":"  short   hair "}]}\n```', ["mae"])).toEqual({ read: true, misses: [{ id: "mae", reason: "short hair" }] });
         expect(parseCastCheck('{"characters":[{"id":"mae","match":true}]}', ["mae"])).toEqual({ read: true, misses: [] });
+        // Some vision models answer with the bare list, or the one row, instead of the asked object.
+        expect(parseCastCheck('[{"id": "person1", "match": true, "reason": ""}]', ["person1"])).toEqual({ read: true, misses: [] });
+        expect(parseCastCheck('```json\n[{"id":"mae","match":false,"reason":"red coat"},{"id":"theo","match":true}]\n```', ["mae", "theo"])).toEqual({ read: true, misses: [{ id: "mae", reason: "red coat" }] });
+        expect(parseCastCheck('{"id":"mae","match":"yes"}', ["mae"])).toEqual({ read: true, misses: [] });
+        expect(parseCastCheck('[{"id":"mae","match":true}]', ["mae", "theo"])).toEqual({ read: false });
         // Every listed id must be answered; anything else does not read.
         expect(parseCastCheck('{"characters":[{"id":"theo","match":true}]}', ["theo", "mae"])).toEqual({ read: false });
         expect(parseCastCheck("Looks fine.", ["mae"])).toEqual({ read: false });

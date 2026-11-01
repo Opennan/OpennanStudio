@@ -52,12 +52,30 @@ const yes = (value: unknown): boolean | null => {
     return null;
 };
 
+/** The verdict rows: {"characters": [...]} as asked, a bare list of them, or one row alone (replies vary by model). */
+function verdictRows(reply: string): unknown[] | null {
+    const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(reply);
+    const text = (fenced ? fenced[1]! : reply).trim();
+    if (text.startsWith("[")) {
+        try {
+            const list: unknown = JSON.parse(text.slice(0, text.lastIndexOf("]") + 1));
+            if (Array.isArray(list)) return list;
+        } catch {
+            // read as an object below
+        }
+    }
+    const value = jsonObjectOf(reply) as Record<string, unknown> | null;
+    if (!value) return null;
+    if (Array.isArray(value.characters)) return value.characters;
+    return "id" in value && "match" in value ? [value] : null;
+}
+
 /** The check's answer: who did not match (empty: all did), or unread when it does not cover every listed id. */
 export function parseCastCheck(reply: string, ids: readonly string[]): CastVerdict {
-    const value = jsonObjectOf(reply) as { characters?: unknown } | null;
-    if (!value || !Array.isArray(value.characters)) return { read: false };
+    const rows = verdictRows(reply);
+    if (!rows) return { read: false };
     const answers = new Map<string, { match: boolean; reason: string }>();
-    for (const row of value.characters as unknown[]) {
+    for (const row of rows) {
         if (!row || typeof row !== "object") continue;
         const { id, match, reason } = row as Record<string, unknown>;
         const verdict = yes(match);
