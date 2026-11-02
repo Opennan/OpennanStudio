@@ -13,3 +13,4 @@ export {
 } from "./account/account-types";
 export { applyRouting, connectRouting, parseRouting, ROUTING_GROUPS, CAPABILITY_LABELS } from "./settings/routing-groups";
 export { Dialog } from "./ui/dialog";
+export { createSeriesLibrary } from "./ai/series-library";

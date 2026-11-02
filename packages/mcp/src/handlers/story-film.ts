@@ -4,7 +4,7 @@
 // accept_max_usd refuses), makes only what is missing (ids + redo remake one), and stores every result on the story as
 // it lands, so a call that times out or fails part way keeps what it paid for and the next call skips it.
 import {
-    copyDraftRequest, estimateStep, keepsMotion, mergeStory, parseDraftReply, parseStoryFilm, readStoryJson, reelInputOf, runStep, sameVideoModel, shotSheetTimes, storyItems, storyJson,
+    copyDraftRequest, estimateStep, keepsMotion, mergeStory, parseDraftReply, parseStoryFilm, readStoryJson, reelInputOf, runStep, sameVideoModel, shotSheetTimes, storyItems,
     storyProgress, videoModelChoices, withAssembled, withCopyChoices, withShotSources, withVideoModel, writeDraftRequest, type DraftRequest, type ShotRange, type StepEstimate, type StoryFilm,
     type StoryFilmHost, type StoryMedium, type StoryRunResult, type StorySource, type StoryStep,
 } from "@opennan/story-film";
@@ -14,6 +14,7 @@ import type { Args } from "../args";
 import { failure, success, unavailable, type ToolOutcome } from "../outcome";
 import { formatUsd } from "../prices";
 import type { StudioSession } from "../session";
+import { persistStoryFilm, speechContext } from "@opennan/story-film";
 import type { ToolContext, ToolHandler } from "./types";
 
 const str = (value: unknown) => (typeof value === "string" && value.trim() !== "" ? value.trim() : undefined);
@@ -27,8 +28,7 @@ export async function readStory(session: StudioSession): Promise<StoryFilm | nul
 }
 
 export async function saveStory(session: StudioSession, story: StoryFilm): Promise<void> {
-    const result = await session.execute({ type: "project.update", patch: { storyFilmJson: storyJson(story) } });
-    if (!result.ok) throw new Error(`The story film could not be saved: ${result.error ?? "unknown error"}`);
+    await persistStoryFilm(story, session);
 }
 
 /** The pipeline's host over the session: ai.run (results imported into the project) and the session's prices. */
@@ -64,7 +64,7 @@ function summaryText(story: StoryFilm): string {
 }
 
 function storyData(story: StoryFilm): Record<string, unknown> {
-    return { story, progress: storyProgress(story), spentUsd: story.spentUsd ?? 0 };
+    return { story, progress: storyProgress(story), spentUsd: story.spentUsd ?? 0, speech: story.shots.map(shot => ({ shotId: shot.id, ...speechContext(story, shot) })) };
 }
 
 const storyFilmGet: ToolHandler = async (_args, { session }) => {

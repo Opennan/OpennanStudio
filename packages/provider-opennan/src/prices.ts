@@ -7,7 +7,7 @@
 import {
     captionBilledCharacters, estimateImageCost, estimateMusicCost, estimateReferenceVideoCost, referenceBilledSeconds, type ReferenceVideoPriceRow, estimateStemsCost, estimateTextCost, estimateToolCost, estimateVideoModelCost, estimateVoiceCost, isOverLimit,
     promptTokenBound, type CostEstimate, type ImageModelPrice, type TextModelPrice, type OverLimit, type PriceAnswer, type PriceRequest, type PriceUnits, type ProviderCapability, type ProviderModel,
-    type ProviderVoice, type StemsModelPrice, type ToolPriceBlock, type VideoModelPrice, type VoiceModelPrice, quotedEstimate,
+    type ProviderVoice, type StemsModelPrice, type ToolPriceBlock, type VideoModelPrice, type VoiceModelPrice, quotedEstimate, formatUsdEstimate,
 } from "@opennan/provider-sdk";
 import type { OpenNanApi } from "./api";
 import { TIER_NOT_OFFERED_MESSAGE } from "./errors";
@@ -227,6 +227,18 @@ export async function priceRun(catalog: OpenNanCatalog, request: PriceRequest, q
     try {
         // The video download is free (rate limited on the server).
         if (capability === "web.fetch") return { kind: "free" };
+        // Cloned voices use their own per-character tariff, independent of the stock speech model.
+        if (capability === "audio.tts" && typeof input.voice === "string" && input.voice.startsWith("vc_")) {
+            const row = (await catalog.tools()).find(r => r.id === "voice-speak");
+            if (!row || row.status !== "live") return { kind: "unavailable", reason: "Cloned voice speech is unavailable on OpenNan right now." };
+            const block = row.price as (ToolPriceBlock & { per_1k_characters_usd?: number }) | null;
+            const characters = typeof input.text === "string" ? [...input.text].length : units.characters;
+            const rate = block?.per_1k_characters_usd;
+            if (typeof rate !== "number" || !Number.isFinite(rate) || rate < 0 || !characters || !Number.isFinite(characters)) return unknown("Cloned voice speech has no verified price.");
+            // The published 1K rate is rounded. Include a micro-dollar per started 1K to cover that rounding.
+            const microUsd = Math.ceil(rate * characters * 1000) + Math.ceil(characters / 1000);
+            return { kind: "estimate", estimate: { microUsd, usd: microUsd / 1e6, label: formatUsdEstimate(microUsd), units: characters, capped: false } };
+        }
         const tool = OPENNAN_TOOLS[capability];
         if (tool) {
             const toolUnitsNow = toolUnits(capability, input, units);

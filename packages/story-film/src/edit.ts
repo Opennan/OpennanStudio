@@ -8,16 +8,17 @@ export function mergeStory(previous: StoryFilm | null, next: StoryFilm): StoryFi
     if (!previous) return next;
     const characters = next.characters.map((c) => {
         const old = previous.characters.find((p) => p.id === c.id);
-        return c.sheet || !old?.sheet ? c : { ...c, sheet: old.sheet };
+        return { ...c, ...(!c.sheet && old?.sheet ? { sheet: old.sheet } : {}), ...(c.voice === undefined && old?.voice ? { voice: old.voice } : {}) };
     });
     const shots = next.shots.map((s) => {
         const old = previous.shots.find((p) => p.id === s.id);
         if (!old) return s;
         const keyframe = !s.keyframe && old.keyframe ? { keyframe: old.keyframe, ...(old.check ? { check: old.check } : {}) } : {};
         // A shot's place in the copied video stays with its id (the editor does not show it).
-        return { ...s, ...keyframe, ...(!s.clip && old.clip ? { clip: old.clip } : {}), ...(!s.source && old.source ? { source: old.source } : {}) };
+        return { ...s, ...keyframe, ...(!s.clip && old.clip ? { clip: old.clip } : {}), ...(!s.source && old.source ? { source: old.source } : {}), ...(s.dialogue === undefined && old.dialogue !== undefined ? { dialogue: old.dialogue } : {}) };
     });
     const merged: StoryFilm = { ...next, characters, shots };
+    if (!merged.series && previous.series) merged.series = previous.series;
     if (!merged.musicAsset && previous.musicAsset) merged.musicAsset = previous.musicAsset;
     if (!merged.settings && previous.settings) merged.settings = previous.settings;
     if (!merged.assembled && previous.assembled) merged.assembled = previous.assembled;
@@ -29,7 +30,8 @@ export function mergeStory(previous: StoryFilm | null, next: StoryFilm): StoryFi
 const newer = <T extends { at?: string } | null | undefined>(a: T, b: T): T => {
     if (!a) return b;
     if (!b) return a;
-    return (b.at ?? "") > (a.at ?? "") ? b : a;
+    // A redraw can finish in the same millisecond as its first frame. The incoming run wins that tie.
+    return (b.at ?? "") >= (a.at ?? "") ? b : a;
 };
 
 /**

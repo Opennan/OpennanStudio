@@ -1057,6 +1057,8 @@ export async function startFakeOpenNan(options: FakeOpenNanOptions = {}): Promis
             if (path.startsWith("/v1/") && !key) return refuse(401, "authentication_error", "Invalid or revoked API key.", "invalid_api_key");
             if (path.startsWith("/v1/") && cloudServer.takeExpiredKey()) return refuse(401, "authentication_error", "Invalid or revoked API key.", "invalid_api_key");
 
+            if (path === "/v1/voices" && req.method === "GET") return send(200, { object: "list", data: [...VOICES.map(v => ({ ...v, type: "stock" })), { id: "vc_test_theo", name: "Theo's voice", language: "en", type: "clone", status: "ready" }] });
+
             // ── cloud projects and storage (scope api:project) ──
             if (path === "/v1/projects" || path.startsWith("/v1/projects/") || path === "/v1/storage" || path === "/v1/uploads" || path.startsWith("/v1/uploads/")) {
                 if (!key!.scopes.includes("api:project")) return refuse(403, "permission_error", "This API key is not allowed to use cloud projects (scope api:project).");

@@ -71,6 +71,10 @@ export async function createDesktopSession(options: DesktopSessionOptions): Prom
     const { projectId, rpc, exporter } = options;
     const readFile = await createLocalFileReader({ baseDir: options.projectDir });
     const host: StudioHost = {
+        seriesLibrary: {
+            list: async () => await rpc.call("seriesLibraryList") as unknown[],
+            save: async (cast) => { await rpc.call("seriesLibrarySave", [cast]); },
+        },
         readFile,
         activePanel: () => null,
         ...(options.capturePage ? { snapshotPage: options.capturePage } : {}),

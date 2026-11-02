@@ -22,7 +22,7 @@ export function reelInputOf(story: StoryFilm): ReelInputResult {
             return { mediaUrl: clip.url, durationSeconds: seconds, label: `${i + 1}. ${shot.id}`, ...(clip.width && clip.height ? { width: clip.width, height: clip.height } : {}) };
         }),
         music: story.musicAsset ? { mediaUrl: story.musicAsset.url, ...(story.musicAsset.durationSeconds ? { durationSeconds: story.musicAsset.durationSeconds } : {}) } : null,
-        ...(story.assembled ? { replace: { sceneIds: story.assembled.sceneIds, clipIds: story.assembled.clipIds } } : {}),
+        ...(story.assembled ? { replace: { sceneIds: story.assembled.sceneIds, clipIds: [...new Set([...story.assembled.clipIds, ...story.shots.flatMap(s => (s.dialogue ?? []).flatMap(l => l.placedClipId ? [l.placedClipId] : []))])] } } : {}),
     };
     return { ok: true, input };
 }
@@ -30,5 +30,6 @@ export function reelInputOf(story: StoryFilm): ReelInputResult {
 /** The story after a layout: what it placed, so the next one replaces it. */
 export function withAssembled(story: StoryFilm, outcome: Pick<ReelLayoutOutcome, "sceneIds" | "titleClipId" | "musicClipId">): StoryFilm {
     const clipIds = [outcome.titleClipId, outcome.musicClipId].filter((id): id is string => typeof id === "string");
-    return { ...story, assembled: { sceneIds: [...outcome.sceneIds], clipIds } };
+    const shots = story.shots.map(shot => ({ ...shot, ...(shot.dialogue !== undefined ? { dialogue: shot.dialogue.map(({ placedClipId: _placed, ...line }) => line) } : {}) }));
+    return { ...story, shots, assembled: { sceneIds: [...outcome.sceneIds], clipIds, shotIds: story.shots.map(s => s.id) } };
 }

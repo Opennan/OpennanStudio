@@ -245,6 +245,11 @@ export function createOpenNanProvider(session: OpenNanSession, options: OpenNanP
                 return generation("/v1/music/generations", body, key, context, "audio");
             }
             case "audio.tts": {
+                if (input.expectedMaxUsd !== undefined) {
+                    const expected = number(input, "expectedMaxUsd", 0, Number.MAX_SAFE_INTEGER)!;
+                    const price = await priceRun(catalog, { capability: "audio.tts", input, units: { characters: [...String(input.text ?? "")].length } }, quotes);
+                    if (price.kind !== "estimate" || price.estimate.microUsd > Math.round(expected * 1_000_000)) throw new JobFailedError("The speech price changed or could not be verified. Nothing was generated; request a new estimate.");
+                }
                 const body = defined({
                     model: text(input, "model", false, 100), input: text(input, "text", true), voice: text(input, "voice", false, 100),
                     response_format: "mp3", speed: number(input, "speed", 0.25, 4), language: text(input, "language", false, 16),
@@ -296,7 +301,19 @@ export function createOpenNanProvider(session: OpenNanSession, options: OpenNanP
         info: { id: "opennan", name: options.name ?? "OpenNan", capabilities: [...OPENNAN_PROVIDER_CAPABILITIES] },
         models,
         price: (request) => priceRun(catalog, request, quotes),
-        voices: () => catalog.voices(),
+        async voices() {
+            const key = session.apiKey();
+            if (!key) return catalog.voices();
+            // Account-owned clones are never put in the public catalog cache or retained across account switches.
+            const answer = await api.request<{ data?: unknown }>("GET", "/v1/voices", { apiKey: key, signal: AbortSignal.timeout(8000) });
+            if (session.apiKey() !== key) return [];
+            return (Array.isArray(answer.data) ? answer.data : []).filter((row) => typeof row?.id === "string" && typeof row.name === "string").map(row => ({
+                id: row.id as string, name: row.name as string, language: typeof row.language === "string" ? row.language : "",
+                providerId: "opennan", kind: row.type === "clone" ? "clone" as const : "stock" as const,
+                ...(typeof row.model === "string" ? { model: row.model } : {}),
+                ...(typeof row.gender === "string" ? { gender: row.gender } : {}),
+            }));
+        },
         run({ capability, input }) {
             return signedIn<CapabilityOutput>(capability, (key, context) => generate(capability, input, key, context));
         },

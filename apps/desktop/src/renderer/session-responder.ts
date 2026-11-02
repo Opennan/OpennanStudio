@@ -3,6 +3,7 @@
 // @opennan/mcp's createControllerSession (typed by its StudioUiState); importing that module here would put
 // the MCP SDK and Ajv into the renderer bundle.
 import type { StudioUiState } from "@opennan/mcp/server";
+import { createSeriesLibrary } from "@opennan/web/studio";
 import type { EditorCommand, EditorStore, TimelineBackend, TimelineController, UploadedMedia } from "@opennan/timeline-core";
 import type { DesktopBridge } from "../shared/bridge";
 
@@ -61,6 +62,11 @@ export function createSessionResponder({ projectId, controller, store, backend }
                 return undefined;
             case "snapshot":
                 return plain(controller.snapshot());
+            case "seriesLibraryList":
+                return createSeriesLibrary().list();
+            case "seriesLibrarySave":
+                createSeriesLibrary().save(args[0]);
+                return undefined;
             case "describeTimeline":
                 return controller.describeTimeline();
             case "uiState":

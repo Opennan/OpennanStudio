@@ -382,11 +382,11 @@ describe("estimate_cost, check_generation_status, list_voices", () => {
         const s = await studio();
         try {
             const all = await s.call("list_voices");
-            expect(all.structuredContent!.voices).toHaveLength(3);
+            expect(all.structuredContent!.voices).toHaveLength(4);
             expect(textOf(all)).toContain("heart: Heart (en-US, female)");
             const gb = await s.call("list_voices", { language: "en-GB" });
             expect((gb.structuredContent!.voices as Array<{ id: string }>).map((v) => v.id)).toEqual(["emma"]);
-            expect((await s.call("list_voices", { language: "en" })).structuredContent!.voices).toHaveLength(3);
+            expect((await s.call("list_voices", { language: "en" })).structuredContent!.voices).toHaveLength(4);
         } finally {
             await s.close();
         }

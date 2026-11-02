@@ -32,6 +32,8 @@ export interface StudioUiState {
 
 /** Editor UI features. Every member is optional: headless hosts have none. */
 export interface StudioHost {
+    /** Device-local cast shared by episodes. Entries contain voice references, never credentials or source audio. */
+    seriesLibrary?: { list(): Promise<unknown[]>; save(cast: unknown): Promise<void> };
     openPanel?(panel: string): Promise<void>;
     snapshotPage?(): Promise<RenderedFrame>;
     activePanel?(): string | null;

@@ -10,6 +10,7 @@
 import { formatUsdEstimate, type PriceAnswer, type PriceUnits, type ProviderModel, type ReferenceVideoLimits } from "@opennan/provider-sdk";
 import { CAST_CHECK_MAX_REDRAWS, CAST_CHECK_REDRAWS, castCheckRequest, parseCastCheck } from "./check";
 import { castOf, copyKeyframePrompt, editPrompt, keyframePrompt, motionPrompt, musicPrompt, redrawPrompt, remakePrompt, sheetPrompt } from "./recipe";
+import { dialoguePrompt } from "./voices";
 import { firstFrameTime, remakeSeconds } from "./shots";
 import type { StoryAsset, StoryCastCheck, StoryFilm, StoryShot, StoryStep } from "./types";
 import { filmSeconds, shotSeconds } from "./validate";
@@ -213,7 +214,7 @@ function remakeItem(story: StoryFilm, index: number, remake: NonNullable<ReturnT
     const mode = remakeMode(remake.seconds, remake.limits);
     const editing = mode === "editing";
     const input: Record<string, unknown> = {
-        description: editing ? editPrompt(story, shot, Boolean(shot.keyframe)) : remakePrompt(story, shot, Boolean(shot.keyframe)), referenceVideos: [remake.reference], referenceMode: mode,
+        description: speakingPrompt(editing ? editPrompt(story, shot, Boolean(shot.keyframe)) : remakePrompt(story, shot, Boolean(shot.keyframe)), story, shot), referenceVideos: [remake.reference], referenceMode: mode,
         ...(images.length > 0 ? { referenceImages: images } : {}), durationSeconds: seconds, aspectRatio: STORY_DEFAULTS.aspectRatio, model: videoModel, quality, generateAudio: false,
     };
     const item: StoryItem = {
@@ -238,7 +239,7 @@ function clipItem(story: StoryFilm, id: string): StoryItem | null {
     const { videoModel, quality } = settingsOf(story);
     const seconds = shotSeconds(shot);
     const input: Record<string, unknown> = {
-        description: motionPrompt(story, shot), ...(shot.keyframe ? { image: ref(shot.keyframe.url) } : {}), durationSeconds: seconds,
+        description: speakingPrompt(motionPrompt(story, shot), story, shot), ...(shot.keyframe ? { image: ref(shot.keyframe.url) } : {}), durationSeconds: seconds,
         aspectRatio: STORY_DEFAULTS.aspectRatio, model: videoModel, quality, generateAudio: false,
     };
     const item: StoryItem = { step: "animate", id, label: `Shot ${index + 1}`, capability: "video.image-to-video", input, units: { seconds }, key: requestKey(input), asset: shot.clip ?? null };
@@ -653,4 +654,10 @@ export function defaultImageModel(models: readonly ProviderModel[]): string | nu
 /** A text model for a draft: one that sees images when the draft sends a contact sheet. */
 export function draftTextModel(models: readonly ProviderModel[], withImages: boolean): string | null {
     return (withImages ? models.find((m) => m.vision) : models[0])?.id ?? null;
+}
+
+// Keep the explicit speech schedule when a long visual prompt reaches the provider's input cap.
+function speakingPrompt(visual: string, story: StoryFilm, shot: StoryShot): string {
+    const speech = dialoguePrompt(story, shot);
+    return visual.slice(0, Math.max(0, 4000 - speech.length)) + speech;
 }

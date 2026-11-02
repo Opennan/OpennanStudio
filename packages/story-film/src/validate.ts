@@ -3,6 +3,7 @@
 // cast names known characters, seconds are whole numbers from 4 to 15 (default 5). Assets are kept only when they are
 // well formed, so a hand-edited file can never point a run at something it did not make.
 import type { ReferenceVideoLimits } from "@opennan/provider-sdk";
+import { dialogueOf, parseStoryVoice } from "./voices";
 import { STORY_FILM_VERSION, STORY_MEDIUMS, type StoryAsset, type StoryCastCheck, type StoryCharacter, type StoryFilm, type StoryShot, type StoryShotSource, type StorySettings, type StorySource } from "./types";
 
 export const STORY_LIMITS = Object.freeze({
@@ -158,6 +159,12 @@ export function parseStoryFilm(value: unknown): StoryParse {
         if (!ID.test(id)) errors.push(`${where}id must be lowercase letters, digits, - or _ (at most 32)`);
         else if (characters.some((c) => c.id === id)) errors.push(`${where}id ${id} is used twice`);
         const character: StoryCharacter = { id, name, look };
+        if (raw.voice === null) character.voice = null;
+        else if (raw.voice !== undefined) {
+            const voice = parseStoryVoice(raw.voice);
+            if (!voice) errors.push(`${where}voice needs a valid providerId and voice id`);
+            else character.voice = voice;
+        }
         const sheet = assetOf(raw.sheet);
         if (sheet) character.sheet = sheet;
         characters.push(character);
@@ -203,11 +210,25 @@ export function parseStoryFilm(value: unknown): StoryParse {
         if (clip) shot.clip = clip;
         const source = shotSourceOf(raw.source);
         if (source) shot.source = source;
+        const dialogue = dialogueOf(raw.dialogue, shot, known, errors, where);
+        if (dialogue !== undefined) {
+            shot.dialogue = dialogue.map(line => {
+                const rawLine = (raw.dialogue as Array<Record<string, unknown>>).find(l => l?.id === line.id);
+                const audio = assetOf(rawLine?.audio);
+                return { ...line, ...(audio ? { audio } : {}), ...(typeof rawLine?.placedClipId === "string" && rawLine.placedClipId.length <= 128 ? { placedClipId: rawLine.placedClipId } : {}) };
+            });
+        }
         shots.push(shot);
+    }
+    let series: StoryFilm["series"];
+    if (value.series !== undefined) {
+        if (!isRecord(value.series) || typeof value.series.id !== "string" || !ID.test(value.series.id) || typeof value.series.name !== "string" || !value.series.name.trim() || value.series.name.length > 80) errors.push("series needs a valid id and name");
+        else series = { id: value.series.id, name: value.series.name.trim() };
     }
     if (errors.length > 0) return { ok: false, errors };
 
     const story: StoryFilm = { version: STORY_FILM_VERSION, title, style, characters, shots, music };
+    if (series) story.series = series;
     if (typeof value.medium === "string" && (STORY_MEDIUMS as readonly string[]).includes(value.medium)) story.medium = value.medium as StoryFilm["medium"];
     const musicAsset = assetOf(value.musicAsset);
     if (musicAsset) story.musicAsset = musicAsset;
@@ -218,6 +239,7 @@ export function parseStoryFilm(value: unknown): StoryParse {
     if (isRecord(value.assembled) && Array.isArray(value.assembled.sceneIds) && Array.isArray(value.assembled.clipIds)) {
         const ids = (list: unknown[]) => list.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 128).slice(0, 200);
         story.assembled = { sceneIds: ids(value.assembled.sceneIds), clipIds: ids(value.assembled.clipIds) };
+        if (Array.isArray(value.assembled.shotIds) && value.assembled.shotIds.length === story.assembled.sceneIds.length) story.assembled.shotIds = ids(value.assembled.shotIds);
     }
     if (finite(value.spentUsd) && value.spentUsd >= 0) story.spentUsd = value.spentUsd;
     return { ok: true, story };
