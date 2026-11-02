@@ -17,6 +17,8 @@ export interface ProviderInfo {
 
 /** A voice a text-to-speech provider offers (GET /v1/audio/voices). */
 export interface ProviderVoice {
+    providerId?: string;
+    kind?: "stock" | "clone";
     id: string;
     name: string;
     language: string;

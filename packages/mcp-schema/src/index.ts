@@ -22,3 +22,4 @@ export { ESTIMATE_TOOLS } from "./tools/capability";
 export { OPENNAN_PIPELINE_TOOLS, PROJECT_PIPELINE_TOOLS } from "./tools/pipelines";
 export { OPENNAN_TOOL_NAMES, type OpenNanToolName } from "./opennan-tool-names";
 export { renderCoverageMarkdown } from "./coverage-markdown";
+export { SERIES_TOOLS } from "./tools/series";

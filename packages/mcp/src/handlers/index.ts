@@ -13,6 +13,7 @@ import { PIPELINE_HANDLERS } from "./pipelines";
 import { READ_HANDLERS } from "./read";
 import { SCENE_HANDLERS } from "./scenes";
 import { STORY_FILM_HANDLERS } from "./story-film";
+import { SERIES_HANDLERS } from "./series";
 import { TRACKING_HANDLERS } from "./tracking";
 import { TRANSCRIBE_HANDLERS } from "./transcribe";
 import type { ToolHandler } from "./types";
@@ -37,6 +38,7 @@ export const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
     ...PIPELINE_HANDLERS,
     // Story film: a consistent-character animated short in a reel frame, over the host's providers.
     ...STORY_FILM_HANDLERS,
+    ...SERIES_HANDLERS,
 };
 
 export type { ToolContext, ToolHandler } from "./types";

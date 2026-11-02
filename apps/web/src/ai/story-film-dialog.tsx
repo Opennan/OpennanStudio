@@ -25,12 +25,13 @@ import { StoryFilmSession, type StoryFilmState } from "./story-film-host";
 import { createStoryShots, type StoryShots } from "./story-shots";
 import { createStorySheet } from "./story-sheet";
 import "./story-film.css";
+import { SeriesVoicePanel } from "./series-voice-panel";
 
 type T = (key: string, values?: Record<string, string | number>) => string;
 
-const STEPS = ["story", "cast", "shots", "animate", "music", "timeline"] as const;
+const STEPS = ["story", "voices", "cast", "shots", "animate", "music", "timeline"] as const;
 type WizardStep = (typeof STEPS)[number];
-const STEP_KEYS: Record<WizardStep, string> = { story: "stepStory", cast: "stepCast", shots: "stepShots", animate: "stepAnimate", music: "stepMusic", timeline: "stepTimeline" };
+const STEP_KEYS: Record<WizardStep, string> = { story: "stepStory", voices: "stepVoices", cast: "stepCast", shots: "stepShots", animate: "stepAnimate", music: "stepMusic", timeline: "stepTimeline" };
 const MEDIUM_KEYS: Record<StoryMedium, string> = { "2d": "medium2d", "3d": "medium3d", "stop-motion": "mediumStopMotion", anime: "mediumAnime" };
 const PRICE_SETTLE_MS = 300;
 
@@ -121,6 +122,7 @@ export function StoryFilmDialog({ projectId, onClose }: { projectId: string; onC
                 )}
                 {step === "story" && <StoryStepView session={session} story={story} sheet={sheet} shots={shots} state={state} onNext={() => setStep("cast")} />}
                 {story && step === "cast" && <ItemsStep session={session} story={story} state={state} step="cast" intro={t("castIntro")} />}
+                {story && step === "voices" && <SeriesVoicePanel story={story} session={session} disabled={Boolean(state.running)} />}
                 {story && step === "shots" && (
                     <ItemsStep session={session} story={story} state={state} step="frames" intro={t("shotsIntro")} castCheck={castCheck} onCastCheck={setCastCheck} />
                 )}
@@ -505,8 +507,10 @@ function StoryEditor({ session, story, initial, onSaved }: { session: StoryFilmS
             return;
         }
         setErrors([]);
-        await session.save(mergeStory(session.story(), parsed.story));
-        setSaved(true);
+        try {
+            await session.save(mergeStory(session.story(), parsed.story));
+            setSaved(true);
+        } catch (error) { setErrors([error instanceof Error ? error.message : String(error)]); }
     };
     const stop = (e: { stopPropagation(): void }) => e.stopPropagation();
     return (

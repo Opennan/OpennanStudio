@@ -53,7 +53,7 @@ export async function voicesOnRegistry(registry: Pick<PriceRegistry, "route">): 
     if (!provider) return null;
     if (!provider.voices) return [];
     try {
-        return await provider.voices();
+        return (await provider.voices()).map(voice => ({ ...voice, providerId: provider.info.id }));
     } catch {
         return [];
     }

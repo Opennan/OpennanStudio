@@ -1,6 +1,9 @@
 // Public API of @opennan/story-film: the story film (types and validator), the recipe's prompts, drafts from a text
 // model (write a story, copy a video), the pipeline over provider capabilities, and the reel layout of the result.
 export const STORY_FILM_PACKAGE_VERSION = "0.1.0";
+export { persistStoryFilm } from "./save";
+export { castForSeries, dialoguePrompt, parseSeriesCast, parseStoryVoice, speechContext } from "./voices";
+export type { SeriesCast, StoryDialogue, StoryVoice } from "./types";
 
 export { STORY_FILM_VERSION, STORY_MEDIUMS, STORY_STEPS, type StoryAsset, type StoryCastCheck, type StoryCharacter, type StoryFilm, type StoryMedium, type StorySettings, type StoryShot, type StoryShotSource, type StorySource, type StoryStep } from "./types";
 export { DEFAULT_SHOT_SECONDS, STORY_LIMITS, assetOf, castCheckOf, filmSeconds, parseStoryFilm, readStoryJson, referenceLimitsOf, shotSeconds, shotSourceOf, slugId, storyJson, type StoryParse } from "./validate";

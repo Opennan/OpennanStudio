@@ -91,3 +91,11 @@
 /* Remake: the original shot under the result, small, for the clip review. */
 .story-film-original { display: flex; flex-direction: column; gap: 4px; }
 .story-film-original .story-film-media { aspect-ratio: 16 / 9; height: auto; border-radius: var(--on-radius-sm); }
+
+/* Series controls use the story window's field and spacing rhythm. */
+.series-voice-fields { border: 0; padding: 0; margin: 0 0 24px; min-width: 0; }
+.series-voice-fields legend { margin-bottom: 12px; }
+.series-shot { border-top: 1px solid var(--on-border); padding: 16px 0; }
+.series-shot h3 { margin: 0 0 8px; font-size: 14px; }
+.series-line { margin-top: 12px; padding-inline-start: 12px; border-inline-start: 2px solid var(--on-border); }
+.series-voice-fields .field { min-width: 0; }

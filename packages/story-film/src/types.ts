@@ -32,6 +32,32 @@ export interface StoryCharacter {
     /** What stays the same in every shot: build, hair, clothes, colours. Restated in every keyframe prompt. */
     look: string;
     sheet?: StoryAsset | null;
+    /** Stable provider voice (including an account-owned clone), reused across episodes. */
+    voice?: StoryVoice | null;
+}
+
+export interface StoryVoice {
+    providerId: string;
+    id: string;
+    language?: string;
+    model?: string;
+}
+
+export interface StoryDialogue {
+    id: string;
+    characterId: string;
+    text: string;
+    /** Seconds relative to this shot. */
+    start: number;
+    end: number;
+    audio?: StoryAsset | null;
+    placedClipId?: string;
+}
+
+export interface SeriesCast {
+    id: string;
+    name: string;
+    characters: StoryCharacter[];
 }
 
 /**
@@ -83,6 +109,8 @@ export interface StoryShot {
     clip?: StoryAsset | null;
     /** A copied video's shot this one remakes. */
     source?: StoryShotSource;
+    /** Absent means unassigned; [] explicitly means no dialogue. Never infer speech from visible cast. */
+    dialogue?: StoryDialogue[];
 }
 
 export interface StorySettings {
@@ -110,6 +138,7 @@ export type StorySource =
 export interface StoryFilm {
     version: typeof STORY_FILM_VERSION;
     title: string;
+    series?: { id: string; name: string };
     /** The look of every image: medium, linework, colour, light, era. Ends every image prompt. */
     style: string;
     medium?: StoryMedium;
@@ -121,7 +150,7 @@ export interface StoryFilm {
     settings?: StorySettings;
     source?: StorySource;
     /** What the last "Put on timeline" placed (it is replaced, never doubled, when placed again). */
-    assembled?: { sceneIds: string[]; clipIds: string[] } | null;
+    assembled?: { sceneIds: string[]; clipIds: string[]; shotIds?: string[] } | null;
     /** What every paid step so far was charged, in dollars. */
     spentUsd?: number;
 }

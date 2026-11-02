@@ -13,6 +13,14 @@ async function setup(onAiRun?: ConstructorParameters<typeof TimelineController>[
 }
 
 describe("session responder", () => {
+    it("keeps the same private series library across project responders", async () => {
+        const cast = { id: "rain", name: "Rain", characters: [{ id: "theo", name: "Theo", look: "ginger curls", voice: { providerId: "opennan", id: "vc_mine" } }] };
+        const first = await setup();
+        await createSessionResponder({ projectId: "p", ...first })("seriesLibrarySave", [cast]);
+        const next = await setup();
+        expect(await createSessionResponder({ projectId: "p", ...next })("seriesLibraryList", [])).toContainEqual(cast);
+        await expect(createSessionResponder({ projectId: "p", ...next })("seriesLibrarySave", [{ id: "bad" }])).rejects.toThrow(/Invalid series/);
+    });
     it("runs session methods on the editor's controller", async () => {
         const { backend, store, controller } = await setup();
         const respond = createSessionResponder({ projectId: "p", controller, store, backend });

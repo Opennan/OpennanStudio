@@ -13,7 +13,7 @@ test("text to speech: the voice picker lists the voices, the button shows the pr
     const dialog = page.getByRole("dialog", { name: "Generate" });
     await dialog.getByRole("radio", { name: "Voice" }).click();
     const voices = dialog.getByLabel("Voice", { exact: true });
-    await expect(voices.locator("option")).toHaveText(["Heart · en-US · female", "Adam · en-US · male", "Emma · en-GB · female"]);
+    await expect(voices.locator("option")).toHaveText(["Heart · en-US · female", "Adam · en-US · male", "Emma · en-GB · female", "Theo's voice · en"]);
     await voices.selectOption("adam");
     await dialog.getByLabel("Text to speak").fill("Welcome back to the lighthouse.");
     // 31 characters → 1 started block of 1,000 × $0.026.

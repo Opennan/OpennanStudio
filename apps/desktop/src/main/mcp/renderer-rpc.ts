@@ -3,6 +3,7 @@
 // every answer is checked against the method's expected shape before it reaches the MCP server.
 export const SESSION_METHODS = [
     "execute", "snapshot", "describeTimeline", "uiState", "historyDepth", "listEffects", "saveToLibrary", "cancelAiRun",
+    "seriesLibraryList", "seriesLibrarySave",
 ] as const;
 export type SessionMethod = (typeof SESSION_METHODS)[number];
 
@@ -33,6 +34,9 @@ export function checkResult(method: SessionMethod, value: unknown): unknown {
                 return isObject(value) && count(value.undo) && count(value.redo) && count(value.recorded) && count(value.limit);
             case "listEffects":
                 return Array.isArray(value);
+            case "seriesLibraryList":
+                return Array.isArray(value) && value.length <= 40;
+            case "seriesLibrarySave":
             case "saveToLibrary":
             case "cancelAiRun":
                 return value === undefined || value === null;

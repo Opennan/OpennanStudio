@@ -25,7 +25,7 @@ export function toolsForPreset(preset: ToolPreset = "all"): readonly ToolDefinit
 }
 
 export const SERVER_INSTRUCTIONS =
-    "OpenNan Studio editor tools. read_timeline shows the project. scene_order is 1-based, shot_index 0-based, times are timeline seconds.";
+    "OpenNan Studio editor. Inspect before editing. For series, list/apply saved cast first; assign speakers or explicit silence before dubbing. Use saved voices, never guess identities.";
 
 export interface StudioMcpServerOptions {
     /** Default STUDIO_TOOLS; toolsForPreset("offline") for the offline tools. */

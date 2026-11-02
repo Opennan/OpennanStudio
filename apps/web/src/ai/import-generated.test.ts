@@ -28,9 +28,9 @@ describe("createMediaImporter", () => {
 
     it("writes bytes, keeps already-local media, and refuses plain http links", async () => {
         const { backend, projectId } = await backendWithProject();
-        const importer = createMediaImporter(backend, { fetch: (async () => { throw new Error("no fetch"); }) as typeof globalThis.fetch });
+        const importer = createMediaImporter(backend, { fetch: (async () => { throw new Error("no fetch"); }) as typeof globalThis.fetch, probeDuration: async () => ({ durationSeconds: 2.5 }) });
         const speech = await importer({ kind: "audio", bytes: new Uint8Array([1, 2, 3]), mimeType: "audio/mpeg", name: "speech.mp3" }, { projectId });
-        expect(speech).toMatchObject({ name: "speech.mp3", mimeType: "audio/mpeg", sizeBytes: 3 });
+        expect(speech).toMatchObject({ name: "speech.mp3", mimeType: "audio/mpeg", sizeBytes: 3, durationSeconds: 2.5 });
         const local = await importer({ kind: "video", url: "opennan-local://media/3f2b8c1e-1d2a-4c3b-9e8f-0a1b2c3d4e5f", mimeType: "video/mp4", name: "clip.mp4", sizeBytes: 99 }, { projectId });
         expect(local).toMatchObject({ url: "opennan-local://media/3f2b8c1e-1d2a-4c3b-9e8f-0a1b2c3d4e5f", sizeBytes: 99 });
         expect((await backend.listLibrary(projectId))).toHaveLength(2);

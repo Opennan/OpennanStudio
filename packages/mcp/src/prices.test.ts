@@ -38,7 +38,7 @@ describe("voicesOnRegistry and formatUsd", () => {
         const registry = new ProviderRegistry();
         expect(await voicesOnRegistry(registry)).toBeNull();
         registry.register(provider("opennan", ["audio.tts"], { voices: async () => [{ id: "heart", name: "Heart", language: "en-US" }] }));
-        expect(await voicesOnRegistry(registry)).toEqual([{ id: "heart", name: "Heart", language: "en-US" }]);
+        expect(await voicesOnRegistry(registry)).toEqual([{ id: "heart", name: "Heart", language: "en-US", providerId: "opennan" }]);
     });
 
     it("prints charges without trailing zeros", () => {

@@ -8,7 +8,8 @@ import {
     OPENNAN_PROVIDER_ID, isProviderCapability, type PriceAnswer, type ProviderModel, type ProviderRegistry,
 } from "@opennan/provider-sdk";
 import {
-    estimateCastCheck, estimateStep, parseDraftReply, readStoryJson, reelInputOf, runStep, storyJson, withAssembled, withNewerAssets,
+    estimateCastCheck, estimateStep, parseDraftReply, readStoryJson, reelInputOf, runStep, withAssembled, withNewerAssets,
+    persistStoryFilm,
     type DraftRequest, type ItemUpdate, type StepEstimate, type StepOptions, type StoryFilm, type StoryFilmHost, type StoryRunResult, type StoryStep,
 } from "@opennan/story-film";
 import { applyReelLayout, type CommandResult, type ControllerSnapshot, type EditorCommand, type ExecuteOptions } from "@opennan/timeline-core";
@@ -96,8 +97,10 @@ export class StoryFilmSession {
     }
 
     async save(story: StoryFilm | null): Promise<void> {
-        const result = await this.options.controller.execute({ type: "project.update", patch: { storyFilmJson: story ? storyJson(story) : null } }, { recordHistory: false, toastOnError: false });
-        if (!result.ok) throw new Error(result.error ?? "The story film could not be saved.");
+        await persistStoryFilm(story, {
+            snapshot: () => this.options.controller.snapshot(),
+            execute: command => this.options.controller.execute(command, { recordHistory: command.type !== "project.update", toastOnError: false }),
+        });
     }
 
     /** Whether some provider runs the capability (else the step shows why it cannot run). */
@@ -255,7 +258,7 @@ export class StoryFilmSession {
         this.set({ running: { step: "assemble", label: "Put on timeline" }, error: null });
         try {
             const execute = this.options.controller.execute.bind(this.options.controller);
-            const outcome = await applyReelLayout((command) => execute(command, { toastOnError: false }), this.options.controller.snapshot(), reel.input);
+            const outcome = await applyReelLayout((command) => execute(command, { recordHistory: command.type !== "project.update", toastOnError: false }), this.options.controller.snapshot(), reel.input);
             if (!outcome.ok) {
                 this.set({ error: outcome.error ?? "The layout failed." });
                 return false;

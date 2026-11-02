@@ -4,6 +4,7 @@
 import type { GeneratedMedia, ImportedMedia } from "@opennan/provider-sdk";
 import { LOCAL_MEDIA_URL_PREFIX, type MediaLibraryBackend, type TimelineBackend, type UploadedMedia } from "@opennan/timeline-core";
 import { extensionForMime } from "../media/media-kind";
+import { probeMediaFile } from "../media/probe-media";
 
 export const LIBRARY_CHANGED_EVENT = "opennan:library-changed";
 /** Largest generated file the page downloads. */
@@ -15,6 +16,7 @@ export interface MediaImporterOptions {
     fetch?: typeof globalThis.fetch;
     /** Pixel size of a stored video or image (phase 11: a stacked result keeps its on-screen size). Default: probed in the page. */
     probeSize?(file: Blob, kind: GeneratedMedia["kind"]): Promise<{ width: number; height: number } | null>;
+    probeDuration?(file: Blob): Promise<{ durationSeconds?: number }>;
     now?(): number;
     /** Plain http from 127.0.0.1/localhost: the e2e build's fake OpenNan server only. */
     allowLoopback?: boolean;
@@ -132,6 +134,7 @@ export function createMediaImporter(backend: TimelineBackend & MediaLibraryBacke
             const file = new File([blob], nameFor(media, mimeType, now()), { type: mimeType });
             uploaded = await backend.uploadFile(projectId, file, media.kind);
             if (media.durationSeconds) uploaded = { ...uploaded, durationSeconds: media.durationSeconds };
+            else if (media.kind === "audio" && (options.probeDuration || typeof URL.createObjectURL === "function")) uploaded = { ...uploaded, ...await (options.probeDuration ?? (file => probeMediaFile(file, "audio")))(file).catch(() => ({})) };
             size = (await (options.probeSize ?? probeMediaSize)(file, media.kind).catch(() => null)) ?? size;
         }
         await backend.saveToLibrary(projectId, uploaded);

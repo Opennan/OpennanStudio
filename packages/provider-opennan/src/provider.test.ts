@@ -40,6 +40,26 @@ async function signedIn(routes: (call: Call) => Response | Promise<Response>, op
 }
 
 describe("createOpenNanProvider", () => {
+    it("reads owned clones with authentication on every refresh, without caching across sign-out", async () => {
+        let reads = 0;
+        const { provider, session, calls } = await signedIn(call => {
+            if (call.path === "/v1/voices") { reads++; return json(200, { data: [{ id: "vc_mine", name: "My voice", type: "clone", language: "th" }] }); }
+            if (call.path === "/v1/audio/voices") return json(200, { data: [{ id: "heart", name: "Heart", language: "en" }] });
+            return json(200, {});
+        });
+        expect(await provider.voices!()).toEqual([{ id: "vc_mine", name: "My voice", kind: "clone", providerId: "opennan", language: "th" }]);
+        await provider.voices!(); expect(reads).toBe(2);
+        expect(calls.filter(c => c.path === "/v1/voices").every(c => c.auth === `Bearer ${KEY}`)).toBe(true);
+        await session.signOut();
+        expect((await provider.voices!()).map(v => v.id)).toEqual(["heart"]);
+    });
+    it("prices cloned speech from voice-speak rather than a stock model and blocks insufficient accepted cost", async () => {
+        const { provider, calls } = await signedIn(call => call.path === "/v1/tools" ? json(200, { data: [{ id: "voice-speak", status: "live", price: { unit: "characters", per_1k_characters_usd: 0.5 } }] }) : json(500, {}));
+        const price = await provider.price!({ capability: "audio.tts", input: { voice: "vc_mine", text: "hello" }, units: {} });
+        expect(price).toMatchObject({ kind: "estimate", estimate: { microUsd: 2501 } });
+        await expect(provider.run!({ capability: "audio.tts", input: { voice: "vc_mine", text: "hello", expectedMaxUsd: 0.001 } }).result()).rejects.toThrow(/price changed/);
+        expect(calls.some(c => c.path === "/v1/audio/speech")).toBe(false);
+    });
     it("is the opennan provider for every open capability it can run and every opennan.* capability", async () => {
         const { provider } = await signedIn(() => json(404, {}));
         expect(provider.info.id).toBe("opennan");
