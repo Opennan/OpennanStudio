@@ -1,6 +1,6 @@
 // Persistent series identities and priced dubbing. Every run uses the exact saved voice, never a fallback.
 import { assetOf, castForSeries, parseSeriesCast, parseStoryFilm, requestKey, speechContext, type StoryDialogue, type StoryFilm } from "@opennan/story-film";
-import { displayedUsd } from "@opennan/provider-sdk";
+import { formatUsdEstimate, displayedUsd } from "@opennan/provider-sdk";
 import { sceneSpan } from "../args";
 import { failure, success, unavailable } from "../outcome";
 import type { ToolHandler } from "./types";
@@ -79,7 +79,7 @@ export const SERIES_HANDLERS: Readonly<Record<string, ToolHandler>> = {
             plan.estimate = price.kind === "free" ? 0 : displayedUsd(price.estimate.microUsd);
             total += plan.estimate;
         }
-        if (args.estimate_only === true) return success(`Dialogue estimate: $${total.toFixed(6)}. Cached takes are free to reuse.`, { estimateUsd: total, speech: speechContext(story, shot) });
+        if (args.estimate_only === true) return success(`Dialogue estimate: ${formatUsdEstimate(Math.ceil(total * 1e6))}. Cached takes are free to reuse.`, { estimateUsd: total, speech: speechContext(story, shot) });
         if (total > 0 && (typeof args.accept_max_usd !== "number" || !Number.isFinite(args.accept_max_usd) || args.accept_max_usd < total - 1e-9)) return failure(`Dialogue needs accept_max_usd of at least ${total}. Nothing was generated.`, { estimateUsd: total });
         const results = [];
         for (const plan of plans) {
