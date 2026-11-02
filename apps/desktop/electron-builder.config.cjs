@@ -3,7 +3,16 @@
 // Each package command builds the host architecture only: native modules are built for it by
 // scripts/ensure-native.mjs, and only its ffmpeg is fetched.
 const releaseUpdates = process.env.OPENNAN_RELEASE_UPDATES === "true";
-const signed = Boolean(process.platform === "win32" ? (process.env.WIN_CSC_LINK || process.env.CSC_LINK) : (process.env.CSC_LINK || process.env.CSC_NAME));
+const windowsProvider = process.env.OPENNAN_WINDOWS_SIGNING || "certificate";
+const azure = process.platform === "win32" && windowsProvider === "azure";
+if (process.platform === "win32" && !["certificate", "azure"].includes(windowsProvider)) throw new Error("Unknown Windows signing provider");
+if (azure) {
+    for (const key of ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_SIGNING_ENDPOINT", "AZURE_SIGNING_ACCOUNT", "AZURE_SIGNING_PROFILE", "AZURE_SIGNING_PUBLISHER"]) {
+        if (!process.env[key]?.trim()) throw new Error(`Azure signing requires ${key}`);
+    }
+    if (!/^https:\/\/[a-z0-9-]+\.codesigning\.azure\.net\/?$/.test(process.env.AZURE_SIGNING_ENDPOINT)) throw new Error("Azure signing requires a Microsoft signing endpoint");
+}
+const signed = Boolean(process.platform === "win32" ? (azure || process.env.WIN_CSC_LINK || process.env.CSC_LINK) : (process.env.CSC_LINK || process.env.CSC_NAME));
 const notarize = Boolean(process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID);
 if (releaseUpdates && (!signed || !["darwin", "win32"].includes(process.platform))) throw new Error("Studio releases require platform signing credentials");
 if (releaseUpdates && process.platform === "darwin" && !notarize) throw new Error("Studio macOS releases require Apple notarization credentials");
@@ -56,7 +65,17 @@ module.exports = {
         notarize,
         extraResources: [...ffmpeg("darwin"), ...whisper("darwin")],
     },
-    win: { target: ["nsis"], artifactName: "OpenNan-Studio-${version}-win32-${arch}.${ext}", verifyUpdateCodeSignature: true, extraResources: [...ffmpeg("win32"), ...whisper("win32")] },
+    win: {
+        target: ["nsis"], artifactName: "OpenNan-Studio-${version}-win32-${arch}.${ext}",
+        verifyUpdateCodeSignature: true, extraResources: [...ffmpeg("win32"), ...whisper("win32")],
+        ...(azure ? { azureSignOptions: {
+            publisherName: process.env.AZURE_SIGNING_PUBLISHER,
+            endpoint: process.env.AZURE_SIGNING_ENDPOINT,
+            certificateProfileName: process.env.AZURE_SIGNING_PROFILE,
+            codeSigningAccountName: process.env.AZURE_SIGNING_ACCOUNT,
+            fileDigest: "SHA256", timestampDigest: "SHA256",
+        } } : {}),
+    },
     nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true },
     linux: {
         target: ["AppImage", "deb"],

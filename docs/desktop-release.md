@@ -14,7 +14,7 @@ The `studio-release` GitHub environment needs:
 
 - `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`: Apple Developer ID Application certificate.
 - `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`: Apple notarization credentials.
-- `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`: a Windows Authenticode signing certificate supported by electron-builder. If the certificate requires a hardware/cloud signing service, configure that signer before using this workflow; do not export a non-exportable key.
+- Windows: choose either Microsoft Artifact Signing below or `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` for an exportable Authenticode certificate supported by electron-builder. Do not export a non-exportable hardware/cloud key.
 - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, `R2_BUCKET`: bucket-scoped release publishing credentials. Endpoint format: `https://<account-id>.r2.cloudflarestorage.com`.
 
 Connect `cdn.opennan.com` to that bucket and ensure its cache policy respects
@@ -34,6 +34,37 @@ regressions, and scans the output, including extracted ASAR contents so bundled
 JavaScript and dependencies are visible to the scanner. macOS uses fresh ClamAV signatures and Apple
 notarization; Windows uses current Microsoft Defender signatures. Do not bypass
 these gates when a hosted runner cannot run the scanner.
+
+## Windows company signing with Microsoft Artifact Signing
+
+The selected publisher is SilentPartnerAI, registered in the United States.
+Use the company's Azure directory and an active paid subscription, not the
+university directory or its expired trial. Create a Public Trust organization
+identity validation using the company's exact registered name and address.
+After Microsoft approves it, create a Public Trust certificate profile.
+The certificate's actual Common Name is the publisher value; do not guess a
+legal suffix or use the product name instead.
+
+In the `studio-release` GitHub environment, set these variables:
+
+- `WINDOWS_SIGNING_PROVIDER=azure`
+- `AZURE_SIGNING_ENDPOINT`: the account's regional HTTPS endpoint.
+- `AZURE_SIGNING_ACCOUNT`: the Artifact Signing account name.
+- `AZURE_SIGNING_PROFILE`: the approved Public Trust profile name.
+- `AZURE_SIGNING_PUBLISHER`: the exact certificate Common Name.
+
+Register a dedicated release application in the company Entra directory. Grant
+only the Certificate Profile Signer role on the required certificate profile.
+Save its `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` as GitHub
+environment secrets. The workflow exposes these credentials only to Windows
+credential validation and packaging. The pinned electron-builder 26 integration
+uses `win.azureSignOptions` and Microsoft's TrustedSigning PowerShell module;
+the service is now named Artifact Signing. Certificate files are not needed
+for this mode. Missing profile, publisher or credentials fail the build rather
+than falling back to a different identity or unsigned output.
+
+See [Microsoft setup](https://learn.microsoft.com/azure/artifact-signing/quickstart)
+and [electron-builder 26 integration](https://www.electron.build/v26/docs/features/code-signing/code-signing-win/).
 
 The publisher validates hashes for all three platforms before uploading.
 Versioned binary keys cannot be overwritten. It checks the actual CDN bytes

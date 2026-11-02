@@ -25,16 +25,31 @@ jobs:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      OPENNAN_WINDOWS_SIGNING: ${{ vars.WINDOWS_SIGNING_PROVIDER }}
+      AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+      AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+      AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+      AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
       OPENNAN_RELEASE_UPDATES: 'true'
       OPENNAN_REQUIRE_FFMPEG: '1'
     steps:
       - uses: actions/checkout@v4
       - name: Require release credentials
         shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: |
-          test -n "$CSC_LINK"
           if [ "$RUNNER_OS" = macOS ]; then
+            test -n "$CSC_LINK"
             test -n "$APPLE_ID" && test -n "$APPLE_APP_SPECIFIC_PASSWORD" && test -n "$APPLE_TEAM_ID"
+          elif [ "$OPENNAN_WINDOWS_SIGNING" = azure ]; then
+            for name in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE AZURE_SIGNING_PUBLISHER; do
+              if [ -z "${!name}" ]; then echo "::error::Missing $name"; exit 1; fi
+            done
+          else
+            test -n "$CSC_LINK"
           fi
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -62,6 +77,10 @@ jobs:
           pnpm --filter @opennan/desktop test
       - name: Package signed installers and update metadata
         shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: |
           if [ "$RUNNER_OS" = macOS ]; then
             pnpm --filter @opennan/desktop package --mac dmg zip --${{ matrix.arch }}
