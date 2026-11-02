@@ -1,0 +1,158 @@
+name: Signed Studio release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: studio-release
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    environment: studio-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: darwin-arm64, arch: arm64, certificate: MAC_CSC_LINK, password: MAC_CSC_KEY_PASSWORD }
+          - { os: macos-15-intel, target: darwin-x64, arch: x64, certificate: MAC_CSC_LINK, password: MAC_CSC_KEY_PASSWORD }
+          - { os: windows-2022, target: win32-x64, arch: x64, certificate: WIN_CSC_LINK, password: WIN_CSC_KEY_PASSWORD }
+    runs-on: ${{ matrix.os }}
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      CSC_LINK: ${{ secrets[matrix.certificate] }}
+      CSC_KEY_PASSWORD: ${{ secrets[matrix.password] }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      OPENNAN_RELEASE_UPDATES: 'true'
+      OPENNAN_REQUIRE_FFMPEG: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require release credentials
+        shell: bash
+        run: |
+          test -n "$CSC_LINK"
+          if [ "$RUNNER_OS" = macOS ]; then
+            test -n "$APPLE_ID" && test -n "$APPLE_APP_SPECIFIC_PASSWORD" && test -n "$APPLE_TEAM_ID"
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level=moderate
+      - run: pnpm --filter @opennan/desktop fetch:ffmpeg
+      - run: pnpm --filter @opennan/desktop check:ffmpeg
+      - run: pnpm --filter @opennan/desktop fetch:whisper
+      - run: pnpm --filter @opennan/desktop check:whisper
+      - run: pnpm -w exec turbo run build --filter=@opennan/desktop... --concurrency=2
+      - run: pnpm typecheck
+      - run: pnpm check:licenses
+      - name: Test desktop integration
+        shell: bash
+        run: |
+          suffix=""; if [ "$RUNNER_OS" = Windows ]; then suffix=.exe; fi
+          export OPENNAN_FFMPEG="$PWD/apps/desktop/resources/ffmpeg/${{ matrix.target }}/ffmpeg$suffix"
+          export OPENNAN_FFPROBE="$PWD/apps/desktop/resources/ffmpeg/${{ matrix.target }}/ffprobe$suffix"
+          pnpm --filter @opennan/desktop test
+      - name: Package signed installers and update metadata
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            pnpm --filter @opennan/desktop package --mac dmg zip --${{ matrix.arch }}
+          else
+            pnpm --filter @opennan/desktop package --win nsis --x64
+          fi
+      - name: Expose bundled JavaScript and dependencies to the scanner
+        working-directory: apps/desktop
+        run: node scripts/prepare-scan.mjs release
+      - name: Verify Apple signing and notarization
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="$(find apps/desktop/release -maxdepth 2 -name '*.app' -print -quit)"
+          test -n "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          for dmg in apps/desktop/release/*.dmg; do
+            xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --output-format json > "$RUNNER_TEMP/notary-dmg.json"
+            node -e 'const fs = require("node:fs"); if (JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/notary-dmg.json", "utf8")).status !== "Accepted") process.exit(1)'
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+          done
+          node apps/desktop/scripts/packaged-smoke.mjs "$app/Contents/MacOS/OpenNan Studio"
+      - name: Verify Windows signatures and scan with Microsoft Defender
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem apps/desktop/release -Filter *.exe) + @(Get-Item 'apps/desktop/release/win-unpacked/OpenNan Studio.exe')
+          foreach ($file in $files) {
+            if ((Get-AuthenticodeSignature $file.FullName).Status -ne 'Valid') { throw "Invalid signature: $($file.Name)" }
+          }
+          Update-MpSignature
+          $defender = (Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $defender) { throw 'Microsoft Defender is unavailable' }
+          & $defender -Scan -ScanType 3 -File "$PWD/apps/desktop/release" -DisableRemediation
+          if ($LASTEXITCODE -ne 0) { throw 'Defender scan failed or found a threat' }
+          node apps/desktop/scripts/packaged-smoke.mjs 'apps/desktop/release/win-unpacked/OpenNan Studio.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged launch failed' }
+      - name: Refresh update checksums after notarization stapling
+        working-directory: apps/desktop
+        run: node scripts/refresh-update-hashes.mjs release
+      - name: Scan Mac unpacked app and installers with current ClamAV signatures
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install clamav
+          mkdir -p "$RUNNER_TEMP/clamav"
+          printf 'DatabaseDirectory %s\nDatabaseMirror database.clamav.net\n' "$RUNNER_TEMP/clamav" > "$RUNNER_TEMP/freshclam.conf"
+          freshclam --config-file="$RUNNER_TEMP/freshclam.conf"
+          clamscan --database="$RUNNER_TEMP/clamav" --recursive --infected --alert-exceeds-max=yes --max-filesize=2000M --max-scansize=4000M apps/desktop/release
+      - name: Browser workflow regression checks
+        working-directory: apps/desktop
+        run: pnpm exec playwright test
+      - name: Record verified file hashes
+        shell: bash
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          node scripts/studio-release.mjs stage apps/desktop/release '${{ matrix.target }}' "$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest*.yml
+            apps/desktop/release/verification.json
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: studio-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        with:
+          path: verified-release
+      - name: Publish verified files to Cloudflare R2, then update feeds
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          node scripts/studio-release.mjs publish verified-release "$version"

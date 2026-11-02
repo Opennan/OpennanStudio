@@ -1,4 +1,4 @@
-// Auto-update from GitHub Releases (spec §7.2), configured in electron-builder.config.cjs (publish: github)
+// Auto-update from the platform's Cloudflare R2 feed, configured in electron-builder.config.cjs.
 // but off unless a release build sets "opennanUpdates": true in its package.json (OPENNAN_RELEASE_UPDATES at
 // package time). Never on in unpackaged runs, and OPENNAN_DISABLE_UPDATES=1 turns it off anywhere.
 export interface UpdateGate {
@@ -14,6 +14,10 @@ export function updatesEnabled({ isPackaged, packageJson, env }: UpdateGate): bo
 export interface UpdaterLike {
     autoDownload: boolean;
     autoInstallOnAppQuit: boolean;
+    allowPrerelease?: boolean;
+    allowDowngrade?: boolean;
+    on?(event: "error", listener: (error: Error) => void): unknown;
+    removeListener?(event: "error", listener: (error: Error) => void): unknown;
     checkForUpdatesAndNotify(): Promise<unknown>;
 }
 
@@ -31,8 +35,22 @@ export function startUpdates(gate: UpdateGate, load: () => UpdaterLike, log: (me
     }
     updater.autoDownload = true;
     updater.autoInstallOnAppQuit = true;
-    const check = () => void updater.checkForUpdatesAndNotify().catch((error: unknown) => log(`updates: ${String(error)}`));
+    updater.allowPrerelease = false;
+    updater.allowDowngrade = false;
+    const onError = (error: unknown) => log(`updates: ${String(error)}`);
+    updater.on?.("error", onError);
+    let pending = false;
+    const check = async () => {
+        if (pending) return;
+        pending = true;
+        try { await updater.checkForUpdatesAndNotify(); }
+        catch (error) { onError(error); }
+        finally { pending = false; }
+    };
     check();
     const timer = setInterval(check, UPDATE_INTERVAL_MS);
-    return () => clearInterval(timer);
+    return () => {
+        clearInterval(timer);
+        updater.removeListener?.("error", onError);
+    };
 }

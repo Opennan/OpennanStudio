@@ -10,7 +10,7 @@ const CONFIG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", 
 function load(env) {
     const saved = { ...process.env };
     Object.assign(process.env, env);
-    for (const key of ["CSC_LINK", "CSC_NAME", "OPENNAN_RELEASE_UPDATES"]) if (!(key in env)) delete process.env[key];
+    for (const key of ["CSC_LINK", "CSC_NAME", "WIN_CSC_LINK", "OPENNAN_RELEASE_UPDATES", "APPLE_ID", "APPLE_APP_SPECIFIC_PASSWORD", "APPLE_TEAM_ID"]) if (!(key in env)) delete process.env[key];
     delete require.cache[CONFIG];
     try {
         return require(CONFIG);
@@ -19,10 +19,21 @@ function load(env) {
     }
 }
 
-test("auto-update is on only for signed release builds", () => {
-    assert.equal(load({ OPENNAN_RELEASE_UPDATES: "true" }).extraMetadata.opennanUpdates, false);
-    assert.equal(load({ OPENNAN_RELEASE_UPDATES: "true", CSC_LINK: "cert.p12" }).extraMetadata.opennanUpdates, true);
+test("release builds fail closed without signing and notarization", () => {
+    assert.throws(() => load({ OPENNAN_RELEASE_UPDATES: "true" }), /signing credentials/);
+    const env = { OPENNAN_RELEASE_UPDATES: "true", CSC_LINK: "cert.p12", APPLE_ID: "test@example.com", APPLE_APP_SPECIFIC_PASSWORD: "test", APPLE_TEAM_ID: "TEST" };
+    if (process.platform === "linux") assert.throws(() => load(env), /signing credentials/);
+    else assert.equal(load(env).extraMetadata.opennanUpdates, true);
+    if (process.platform === "darwin") assert.throws(() => load({ OPENNAN_RELEASE_UPDATES: "true", CSC_LINK: "cert.p12" }), /notarization/);
     assert.equal(load({ CSC_LINK: "cert.p12" }).extraMetadata.opennanUpdates, false);
+});
+
+test("updates use an architecture-specific R2 feed and keep signature verification", () => {
+    const config = load({});
+    assert.equal(config.publish[0].url, `https://cdn.opennan.com/programs/studio/${process.platform}-${process.arch}/`);
+    assert.equal(config.win.verifyUpdateCodeSignature, true);
+    assert.match(config.mac.artifactName, /darwin/);
+    assert.match(config.win.artifactName, /win32/);
 });
 
 test("fuses and unsigned macOS signing", () => {
