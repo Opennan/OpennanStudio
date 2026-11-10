@@ -49,7 +49,13 @@ module.exports = {
         notarize,
         extraResources: [...ffmpeg("darwin"), ...whisper("darwin")],
     },
-    win: { target: ["nsis"], extraResources: [...ffmpeg("win32"), ...whisper("win32")] },
+    win: {
+        target: ["nsis"],
+        extraResources: [...ffmpeg("win32"), ...whisper("win32")],
+        // Windows signing with the company's SSL.com certificate (scripts/sign-windows.cjs), only when its secrets
+        // (ES_USERNAME, ES_PASSWORD, ES_TOTP_SECRET, CODESIGNTOOL_DIR) exist; SHA-256 only, one signature per file.
+        ...(process.env.ES_USERNAME ? { signtoolOptions: { sign: require("./scripts/sign-windows.cjs"), signingHashAlgorithms: ["sha256"] } } : {}),
+    },
     nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true },
     linux: {
         target: ["AppImage", "deb"],
